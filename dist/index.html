@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ESG Economic Statecraft Simulation Platform">
+    <title>SSG Platform</title>
+
+  <script type="module" crossorigin src="/assets/main-jU0WKNLo.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/supabase-BQbgwcOn.js">
+  <link rel="modulepreload" crossorigin href="/assets/main-DZBuIOYm.js">
+  <link rel="modulepreload" crossorigin href="/assets/validation-DTFiG2_p.js">
+  <link rel="stylesheet" crossorigin href="/assets/main-D0Os2kzt.css">
+  <link rel="stylesheet" crossorigin href="/assets/validation-cvd1K-Uc.css">
+  <link rel="stylesheet" crossorigin href="/assets/main-CBsohB9w.css">
+</head>
+
+<body>
+    <!-- ============ BOOT LOADER ============ -->
+    <div id="ssgBootLoader">
+        <div class="boot-grid"></div>
+        <div class="boot-grid boot-grid--b"></div>
+        <div class="boot-center">
+            <img src="/assets/w_m_full_color-BmiCKbV6.png" alt="" class="boot-logo" width="200">
+            <p class="boot-label">Strategic Simulations Group</p>
+            <div class="boot-progress"><div class="boot-progress-fill"></div></div>
+            <span class="boot-status-text" id="ssgBootStatusText">Establishing secure channel</span>
+            <div class="boot-simulation-selector" id="bootSimulationSelector">
+                <div class="boot-simulation-options" role="group" aria-label="Simulation selection">
+                    <button
+                        type="button"
+                        class="boot-simulation-option"
+                        id="bootFracturedOrderOption"
+                        data-simulation="fractured-order"
+                        data-simulation-label="Fractured Order"
+                        aria-pressed="false"
+                        disabled
+                    >
+                        <span class="boot-simulation-title">Fractured Order</span>
+                        <span class="boot-simulation-meta">Seminar simulation</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="runtimeConfigNotice" hidden aria-live="assertive"></div>
+
+    <!-- ============ LANDING ============ -->
+    <div class="landing">
+
+        <!-- LEFT: poster panel -->
+        <aside class="landing-atmosphere">
+            <img src="/assets/fractured_order_poster-BLsGXzrM.png" alt="Fractured Order — A Seminar Simulation" class="atm-poster">
+            <footer class="atm-footer">
+                <span>SSG Platform</span>
+                <span class="atm-version">Beta-2</span>
+            </footer>
+        </aside>
+
+        <!-- RIGHT: form panel -->
+        <main class="landing-form-panel">
+            <div class="form-panel-inner">
+                <header class="form-panel-header">
+                    <h2 class="form-panel-title">Join Session</h2>
+                    <p class="form-panel-sub">Enter your session code to connect.</p>
+                </header>
+
+                <div id="resumeSection"></div>
+
+                <form id="joinForm" class="lf">
+                    <div class="lf-row">
+                        <div class="lf-field">
+                            <label for="sessionCode">Session Code</label>
+                            <input type="text" id="sessionCode" class="form-input" placeholder="ALPHA-2024"
+                                autocomplete="off" style="text-transform:uppercase;letter-spacing:0.05em;">
+                        </div>
+                        <div class="lf-field">
+                            <label for="displayName">Display Name</label>
+                            <input type="text" id="displayName" class="form-input" placeholder="Your name"
+                                autocomplete="name">
+                        </div>
+                    </div>
+
+                    <fieldset class="lf-fieldset">
+                        <legend>Team</legend>
+                        <div class="lf-chips" role="group" aria-label="Team selection">
+                            <button type="button" class="chip" data-team="blue" aria-pressed="false"
+                                title="Lead the Blue delegation surface">Blue</button>
+                            <button type="button" class="chip" data-team="red" aria-pressed="false"
+                                title="Lead the Red delegation surface">Red</button>
+                            <button type="button" class="chip" data-team="green" aria-pressed="false"
+                                title="Lead the Green delegation surface">Green</button>
+                        </div>
+                        <input type="hidden" id="selectedTeam" name="team" value="blue">
+                    </fieldset>
+
+                    <fieldset class="lf-fieldset">
+                        <legend>Role</legend>
+                        <div class="lf-chips" role="group" aria-label="Role selection">
+                            <button type="button" class="chip chip--role" data-role-surface="facilitator" aria-pressed="false"
+                                title="1 seat per team &middot; Submits actions and RFIs">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                Facilitator
+                            </button>
+                            <button type="button" class="chip chip--role" data-role-surface="notetaker" aria-pressed="false"
+                                title="4 seats per team &middot; Captures notes, quotes, key moments">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                Notetaker
+                            </button>
+                            <button type="button" class="chip chip--role" data-role-surface="viewer" aria-pressed="false"
+                                title="5 seats per team &middot; Read-only view">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                Observer
+                            </button>
+                        </div>
+                        <input type="hidden" id="selectedRole" name="role">
+                    </fieldset>
+
+                    <button type="submit" class="btn btn-primary btn-full-width lf-submit">Join Session</button>
+                </form>
+
+                <details class="op-details" id="operatorAccessSection">
+                    <summary class="op-summary">Operator Access</summary>
+                    <form class="op-body" id="operatorAccessForm" novalidate>
+                        <div class="lf-field">
+                            <label for="operatorAccessCode">Access Code</label>
+                            <input type="password" id="operatorAccessCode" class="form-input"
+                                autocomplete="current-password" placeholder="Operator code">
+                        </div>
+                        <p class="text-sm text-gray-500" style="margin-bottom: var(--space-2);">
+                            White Cell access is platform-wide. Team selection above only applies to facilitator,
+                            notetaker, and observer seats.
+                        </p>
+                        <div class="op-actions">
+                            <button type="button" class="btn btn-secondary btn-sm" id="operatorGameMasterBtn"
+                                title="Session creation, monitoring, and data export">Game Master</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="operatorWhiteCellLeadBtn"
+                                title="Adjudicates actions and answers RFIs">WC Lead</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="operatorWhiteCellSupportBtn"
+                                title="Supports the White Cell lead operator">WC Support</button>
+                        </div>
+                    </form>
+                </details>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const status = document.getElementById('ssgBootStatusText');
+            const loader = document.getElementById('ssgBootLoader');
+            const landing = document.querySelector('.landing');
+            const simulationOptions = Array.from(document.querySelectorAll('.boot-simulation-option'));
+
+            const revealLanding = () => {
+                if (landing) {
+                    landing.classList.add('landing--visible');
+                }
+
+                if (loader) {
+                    loader.classList.add('hidden');
+                    setTimeout(() => loader.remove(), 1600);
+                }
+            };
+
+            const setSelectedSimulation = (button) => {
+                simulationOptions.forEach((option) => {
+                    const isSelected = option === button;
+                    option.classList.toggle('selected', isSelected);
+                    option.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+                });
+
+                const simulationKey = button.dataset.simulation;
+                const simulationLabel = button.dataset.simulationLabel || button.textContent.trim();
+
+                if (status) {
+                    status.textContent = `${simulationLabel} selected`;
+                }
+
+                try {
+                    window.localStorage.setItem('esg_selected_simulation', simulationKey);
+                } catch (error) {
+                    console.warn('Failed to persist selected simulation', error);
+                }
+
+                setTimeout(revealLanding, 150);
+            };
+
+            const unlockSimulationSelection = () => {
+                simulationOptions.forEach((button) => {
+                    button.disabled = false;
+                });
+
+                if (status) {
+                    status.textContent = 'Select a simulation to continue';
+                }
+            };
+
+            simulationOptions.forEach((button) => {
+                button.addEventListener('click', () => {
+                    if (button.disabled) {
+                        return;
+                    }
+
+                    setSelectedSimulation(button);
+                });
+            });
+
+            // Status text sequence
+            [[1000,'Synchronizing scenario data'],[2200,'Establishing secure channel']]
+                .forEach(([delay, text]) => setTimeout(() => { if (status) status.textContent = text; }, delay));
+
+            // Keep the loader onscreen until the user explicitly selects the simulation.
+            // Once selected, the landing page dissolves in and the loader removes itself.
+            setTimeout(unlockSimulationSelection, 3200);
+        });
+    </script>
+</body>
+
+</html>
