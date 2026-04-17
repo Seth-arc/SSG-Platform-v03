@@ -8,7 +8,14 @@ const {
     mockActionsStore,
     mockRequestsStore,
     mockTimelineStore,
-    mockParticipantsStore
+    mockParticipantsStore,
+    mockShowToast,
+    mockShowLoader,
+    mockHideLoader,
+    mockShowInlineLoader,
+    mockShowModal,
+    mockConfirmModal,
+    mockCloseModal
 } = vi.hoisted(() => ({
     mockDatabase: {
         requireOperatorGrant: vi.fn(() => Promise.resolve({
@@ -39,6 +46,12 @@ const {
             actions: [],
             requests: [],
             timeline: []
+        })),
+        removeSessionParticipant: vi.fn(() => Promise.resolve({
+            id: 'participant-gm-1',
+            session_id: 'session-gm-1',
+            role: 'blue_facilitator',
+            is_active: false
         }))
     },
     mockSessionStore: {
@@ -71,7 +84,16 @@ const {
     mockParticipantsStore: {
         subscribe: vi.fn(() => vi.fn()),
         getAll: vi.fn(() => [{ id: 'participant-gm-1', display_name: 'Morgan', role: 'blue_facilitator' }])
-    }
+    },
+    mockShowToast: vi.fn(),
+    mockShowLoader: vi.fn(() => ({})),
+    mockHideLoader: vi.fn(),
+    mockShowInlineLoader: vi.fn(() => ({
+        hide: vi.fn()
+    })),
+    mockShowModal: vi.fn(),
+    mockConfirmModal: vi.fn(),
+    mockCloseModal: vi.fn()
 }));
 
 vi.mock('../services/database.js', () => ({
@@ -111,7 +133,7 @@ vi.mock('../services/supabase.js', () => ({
 }));
 
 vi.mock('../components/ui/Toast.js', () => ({
-    showToast: vi.fn()
+    showToast: mockShowToast
 }));
 
 vi.mock('../components/ui/Badge.js', () => ({
@@ -121,17 +143,15 @@ vi.mock('../components/ui/Badge.js', () => ({
 }));
 
 vi.mock('../components/ui/Loader.js', () => ({
-    showLoader: vi.fn(() => ({})),
-    hideLoader: vi.fn(),
-    showInlineLoader: vi.fn(() => ({
-        hide: vi.fn()
-    }))
+    showLoader: mockShowLoader,
+    hideLoader: mockHideLoader,
+    showInlineLoader: mockShowInlineLoader
 }));
 
 vi.mock('../components/ui/Modal.js', () => ({
-    showModal: vi.fn(),
-    confirmModal: vi.fn(),
-    closeModal: vi.fn()
+    showModal: mockShowModal,
+    confirmModal: mockConfirmModal,
+    closeModal: mockCloseModal
 }));
 
 vi.mock('../utils/logger.js', () => ({
@@ -267,6 +287,52 @@ describe('GameMaster live session monitoring', () => {
             ['csv-timeline'],
             ['csv-participants']
         ]);
+    });
+
+    it('renders remove controls in the participant roster table', async () => {
+        const { GameMasterController } = await loadGameMasterModule();
+        const controller = new GameMasterController();
+
+        const tableHtml = controller.renderParticipantsTable([
+            {
+                id: 'participant-gm-1',
+                display_name: 'Morgan',
+                role: 'blue_facilitator',
+                is_active: true,
+                heartbeat_at: '2026-04-07T11:00:00.000Z'
+            }
+        ], {
+            includeActions: true,
+            sessionName: 'Alpha Session'
+        });
+
+        expect(tableHtml).toContain('<th>Actions</th>');
+        expect(tableHtml).toContain('data-remove-session-participant-id="participant-gm-1"');
+        expect(tableHtml).toContain('Remove');
+    });
+
+    it('removes a participant through the protected Game Master flow', async () => {
+        mockConfirmModal.mockResolvedValue(true);
+
+        const { GameMasterController } = await loadGameMasterModule();
+        const controller = new GameMasterController();
+        controller.loadSessions = vi.fn(() => Promise.resolve());
+
+        await controller.removeParticipantFromSession(
+            { id: 'session-gm-1', name: 'Alpha Session' },
+            { id: 'participant-gm-1', display_name: 'Morgan', role: 'blue_facilitator' }
+        );
+
+        expect(mockConfirmModal).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Remove Participant',
+            confirmLabel: 'Remove Participant',
+            variant: 'danger'
+        }));
+        expect(mockDatabase.removeSessionParticipant).toHaveBeenCalledWith('session-gm-1', 'participant-gm-1');
+        expect(controller.loadSessions).toHaveBeenCalledTimes(1);
+        expect(mockShowLoader).toHaveBeenCalledWith({ message: 'Removing Morgan...' });
+        expect(mockShowToast).toHaveBeenCalledWith('Morgan was removed from Alpha Session.', { type: 'success' });
+        expect(mockHideLoader).toHaveBeenCalled();
     });
 
     it('disables JSON and CSV exports until a session is selected', async () => {

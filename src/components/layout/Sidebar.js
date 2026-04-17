@@ -217,7 +217,7 @@ export function getSidebarItemsForRole(role) {
         whitecell_lead: [
             {
                 id: 'controls',
-                label: 'Game Controls',
+                label: 'Simulation Settings',
                 icon: getIcon('controls'),
                 href: '#controls'
             },
@@ -284,7 +284,7 @@ export function getSidebarItemsForRole(role) {
         whitecell: [
             {
                 id: 'controls',
-                label: 'Game Controls',
+                label: 'Simulation Settings',
                 icon: getIcon('controls'),
                 href: '#controls'
             },
@@ -324,7 +324,7 @@ export function getSidebarItemsForRole(role) {
         blue_whitecell_lead: [
             {
                 id: 'controls',
-                label: 'Game Controls',
+                label: 'Simulation Settings',
                 icon: getIcon('controls'),
                 href: '#controls'
             },
@@ -391,7 +391,7 @@ export function getSidebarItemsForRole(role) {
         blue_whitecell: [
             {
                 id: 'controls',
-                label: 'Game Controls',
+                label: 'Simulation Settings',
                 icon: getIcon('controls'),
                 href: '#controls'
             },

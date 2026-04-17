@@ -52,15 +52,13 @@ export default defineConfig(({ mode }) => {
                 input: {
                     main: resolve(__dirname, 'index.html'),
                     master: resolve(__dirname, 'master.html'),
+                    whitecell: resolve(__dirname, 'whitecell.html'),
                     blueFacilitator: resolve(__dirname, 'teams/blue/facilitator.html'),
                     blueNotetaker: resolve(__dirname, 'teams/blue/notetaker.html'),
-                    blueWhitecell: resolve(__dirname, 'teams/blue/whitecell.html'),
                     redFacilitator: resolve(__dirname, 'teams/red/facilitator.html'),
                     redNotetaker: resolve(__dirname, 'teams/red/notetaker.html'),
-                    redWhitecell: resolve(__dirname, 'teams/red/whitecell.html'),
                     greenFacilitator: resolve(__dirname, 'teams/green/facilitator.html'),
-                    greenNotetaker: resolve(__dirname, 'teams/green/notetaker.html'),
-                    greenWhitecell: resolve(__dirname, 'teams/green/whitecell.html')
+                    greenNotetaker: resolve(__dirname, 'teams/green/notetaker.html')
                 },
                 output: {
                     manualChunks: {

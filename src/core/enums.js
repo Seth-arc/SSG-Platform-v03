@@ -10,6 +10,7 @@ const TEAM_ROLES = Object.freeze(
     Object.fromEntries(
         TEAM_OPTIONS.flatMap((team) => ([
             [`${team.id.toUpperCase()}_FACILITATOR`, buildTeamRole(team.id, ROLE_SURFACES.FACILITATOR)],
+            [`${team.id.toUpperCase()}_SCRIBE`, buildTeamRole(team.id, ROLE_SURFACES.SCRIBE)],
             [`${team.id.toUpperCase()}_WHITECELL`, buildTeamRole(team.id, ROLE_SURFACES.WHITECELL)],
             [
                 `${team.id.toUpperCase()}_WHITECELL_LEAD`,

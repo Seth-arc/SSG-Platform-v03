@@ -333,6 +333,10 @@ BEGIN
         RETURN 'facilitator';
     END IF;
 
+    IF resolved_role ~ '^(blue|red|green)_scribe$' THEN
+        RETURN 'scribe';
+    END IF;
+
     IF resolved_role ~ '^(blue|red|green)_notetaker$' THEN
         RETURN 'notetaker';
     END IF;
@@ -1011,8 +1015,11 @@ BEGIN
         'red',
         'green',
         'blue_facilitator',
+        'blue_scribe',
         'red_facilitator',
+        'red_scribe',
         'green_facilitator',
+        'green_scribe',
         'blue_notetaker',
         'red_notetaker',
         'green_notetaker'
@@ -1071,8 +1078,8 @@ IMMUTABLE
 AS $$
     SELECT CASE
         WHEN requested_role ~ '^(blue|red|green)_facilitator$' THEN 1
-        WHEN requested_role ~ '^(blue|red|green)_notetaker$' THEN 4
-        WHEN requested_role = 'viewer' THEN 5
+        WHEN requested_role ~ '^(blue|red|green)_scribe$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green)_notetaker$' THEN 2
         WHEN requested_role ~ '^(blue|red|green)_whitecell(_lead)?$' THEN 1
         WHEN requested_role ~ '^(blue|red|green)_whitecell_support$' THEN 1
         ELSE NULL

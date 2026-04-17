@@ -115,12 +115,14 @@ vi.mock('../core/teamContext.js', async (importOriginal) => {
     return {
         ...actual,
         getRoleRoute: vi.fn(() => ''),
-        getTeamResponseTargets: vi.fn(() => new Set(['all', 'blue', 'blue_facilitator'])),
+        getTeamResponseTargets: vi.fn(() => new Set(['all', 'blue', 'blue_facilitator', 'blue_scribe'])),
         resolveTeamContext: vi.fn(() => ({
             teamId: 'blue',
             teamLabel: 'Blue Team',
             facilitatorRole: 'blue_facilitator',
+            scribeRole: 'blue_scribe',
             facilitatorLabel: 'Blue Facilitator',
+            scribeLabel: 'Blue Team Scribe',
             observerLabel: 'Blue Observer'
         }))
     };

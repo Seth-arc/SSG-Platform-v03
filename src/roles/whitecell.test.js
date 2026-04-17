@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 
-const WHITECELL_HTML_PATH = new URL('../../teams/blue/whitecell.html', import.meta.url);
+const WHITECELL_HTML_PATH = new URL('../../whitecell.html', import.meta.url);
 const showToast = vi.fn();
 const showModal = vi.fn();
 const confirmModal = vi.fn();
@@ -232,18 +232,18 @@ describe('White Cell DOM contract', () => {
                 heartbeat_at: '2026-04-08T10:03:00.000Z'
             },
             {
+                id: 'blue-scribe',
+                role: 'blue_scribe',
+                display_name: 'Jordan',
+                is_active: true,
+                heartbeat_at: '2026-04-08T10:04:30.000Z'
+            },
+            {
                 id: 'blue-whitecell',
                 role: 'whitecell_support',
                 display_name: 'Morgan',
                 is_active: true,
                 heartbeat_at: '2026-04-08T10:04:00.000Z'
-            },
-            {
-                id: 'observer-1',
-                role: 'viewer',
-                display_name: 'Observer One',
-                is_active: false,
-                heartbeat_at: '2026-04-08T09:55:00.000Z'
             },
             {
                 id: 'gamemaster',
@@ -257,11 +257,11 @@ describe('White Cell DOM contract', () => {
         expect(roster.map((participant) => participant.id)).toEqual([
             'red-facilitator',
             'blue-facilitator',
+            'blue-scribe',
             'blue-whitecell',
-            'green-notetaker',
-            'observer-1'
+            'green-notetaker'
         ]);
-        expect(formatWhiteCellParticipantSummary(roster)).toBe('4 connected / 5 total participants');
+        expect(formatWhiteCellParticipantSummary(roster)).toBe('5 connected participants');
     });
 
     it('builds cross-team White Cell communication recipients', async () => {
@@ -273,6 +273,7 @@ describe('White Cell DOM contract', () => {
             { value: 'red', label: 'Red Team' },
             { value: 'green', label: 'Green Team' },
             { value: 'blue_facilitator', label: 'Blue Team Facilitator' },
+            { value: 'blue_scribe', label: 'Blue Team Scribe' },
             { value: 'red_notetaker', label: 'Red Team Notetaker' },
             { value: 'green_facilitator', label: 'Green Team Facilitator' }
         ]));
@@ -283,25 +284,24 @@ describe('White Cell DOM contract', () => {
 
         const { teamOptions, roleOptions } = buildWhiteCellParticipantFilterOptions([
             { id: 'blue-facilitator', role: 'blue_facilitator' },
+            { id: 'blue-scribe', role: 'blue_scribe' },
             { id: 'green-notetaker', role: 'green_notetaker' },
-            { id: 'whitecell-seat', role: 'whitecell_support' },
-            { id: 'observer-1', role: 'viewer' }
+            { id: 'whitecell-seat', role: 'whitecell_support' }
         ]);
 
         expect(teamOptions).toEqual(expect.arrayContaining([
             { value: '', label: 'All Teams' },
             { value: 'blue', label: 'Blue Team' },
-            { value: 'green', label: 'Green Team' },
-            { value: 'white_cell', label: 'White Cell' },
-            { value: 'observer', label: 'Observers' }
+            { value: 'green', label: 'Green Team' }
         ]));
+        expect(teamOptions.map((option) => option.value)).not.toContain('white_cell');
         expect(roleOptions).toEqual(expect.arrayContaining([
             { value: '', label: 'All Roles' },
             { value: 'facilitator', label: 'Facilitators' },
-            { value: 'notetaker', label: 'Notetakers' },
-            { value: 'whitecell', label: 'White Cell' },
-            { value: 'viewer', label: 'Observers' }
+            { value: 'scribe', label: 'Scribes' },
+            { value: 'notetaker', label: 'Notetakers' }
         ]));
+        expect(roleOptions.map((option) => option.value)).not.toContain('whitecell');
     });
 
     it('filters live participants and timeline events by selected teams and roles', async () => {
@@ -314,15 +314,20 @@ describe('White Cell DOM contract', () => {
 
         const roster = buildWhiteCellParticipantRoster([
             { id: 'blue-facilitator', role: 'blue_facilitator', is_active: true },
+            { id: 'blue-scribe', role: 'blue_scribe', is_active: true },
             { id: 'green-notetaker', role: 'green_notetaker', is_active: true },
-            { id: 'red-whitecell', role: 'whitecell_support', is_active: true },
-            { id: 'observer-1', role: 'viewer', is_active: false }
+            { id: 'red-whitecell', role: 'whitecell_support', is_active: true }
         ]);
 
         expect(filterWhiteCellParticipants(roster, {
             team: 'green',
             role: 'notetaker'
         }).map((participant) => participant.id)).toEqual(['green-notetaker']);
+
+        expect(filterWhiteCellParticipants(roster, {
+            team: 'blue',
+            role: 'scribe'
+        }).map((participant) => participant.id)).toEqual(['blue-scribe']);
 
         const timelineEvents = [
             {
@@ -376,7 +381,22 @@ describe('White Cell DOM contract', () => {
 
     it('renders facilitator action details needed for White Cell adjudication', async () => {
         const { WhiteCellController, buildSharedActionCommunicationContent } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
         global.document = createFakeDocument();
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            {
+                id: 'action-76',
+                team: 'blue',
+                move: 2,
+                created_at: '2026-04-08T09:00:00.000Z'
+            },
+            {
+                id: 'action-77',
+                team: 'blue',
+                move: 2,
+                created_at: '2026-04-08T10:00:00.000Z'
+            }
+        ]);
 
         const controller = new WhiteCellController();
         const blueAction = {
@@ -408,7 +428,7 @@ describe('White Cell DOM contract', () => {
             includeOutcome: false
         });
 
-        expect(markup).toContain('Move 2 | Phase 3');
+        expect(markup).toContain('Blue Team | Move 2 | Action 2 | Phase 3');
         expect(markup).toContain('Targets:</strong> Port Authority');
         expect(markup).toContain('Sector:</strong> Logistics');
         expect(markup).toContain('Exposure:</strong> Overt');
@@ -418,6 +438,64 @@ describe('White Cell DOM contract', () => {
         expect(greenMarkup).not.toContain('Send to Red Team');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Blue Team action shared by White Cell');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Title: Stabilize port access');
+    });
+
+    it('renders Blue Team action wizard details for White Cell review', async () => {
+        const { WhiteCellController, buildSharedActionCommunicationContent } = await loadWhiteCellModule();
+        const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        global.document = createFakeDocument();
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            {
+                id: 'action-87',
+                team: 'blue',
+                move: 2,
+                created_at: '2026-04-08T09:00:00.000Z'
+            },
+            {
+                id: 'action-88',
+                team: 'blue',
+                move: 2,
+                created_at: '2026-04-08T10:00:00.000Z'
+            }
+        ]);
+
+        const controller = new WhiteCellController();
+        const blueAction = {
+            id: 'action-88',
+            goal: 'Harden allied biotech posture',
+            mechanism: 'Economic',
+            team: 'blue',
+            move: 2,
+            phase: 2,
+            status: 'submitted',
+            targets: ['PRC', 'Japan'],
+            sector: 'Biotechnology',
+            exposure_type: 'Advanced Manufacturing',
+            expected_outcomes: 'Reduce leverage over critical production nodes.',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Constrain upstream dependency before the next move.',
+                lever: 'Investment Screening',
+                implementation: 'Legislative',
+                enforcementTimeline: '12 months',
+                coordinated: ['Legislative'],
+                informed: ['Allied']
+            })
+        };
+
+        const markup = controller.renderActionCard(blueAction, {
+            showAdjudicateAction: true,
+            includeOutcome: false
+        });
+
+        expect(markup).toContain('Objective:</strong> Constrain upstream dependency before the next move.');
+        expect(markup).toContain('Lever:</strong> Investment Screening');
+        expect(markup).toContain('Focus Countries:</strong> PRC, Japan');
+        expect(markup).toContain('Timeline:</strong> 12 months');
+        expect(markup).toContain('Coordinated:</strong> Legislative');
+        expect(markup).toContain('Blue Team | Move 2 | Action 2 | Phase 2');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Objective: Constrain upstream dependency before the next move.');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Enforcement Timeline: 12 months');
     });
 
     it('sends Blue team actions to the Red team as White Cell communications', async () => {

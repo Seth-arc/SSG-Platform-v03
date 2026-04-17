@@ -26,8 +26,8 @@ IMMUTABLE
 AS $$
     SELECT CASE
         WHEN requested_role ~ '^(blue|red|green)_facilitator$' THEN 1
-        WHEN requested_role ~ '^(blue|red|green)_notetaker$' THEN 4
-        WHEN requested_role = 'viewer' THEN 5
+        WHEN requested_role ~ '^(blue|red|green)_scribe$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green)_notetaker$' THEN 2
         WHEN requested_role ~ '^(blue|red|green)_whitecell(_lead)?$' THEN 1
         WHEN requested_role ~ '^(blue|red|green)_whitecell_support$' THEN 1
         WHEN requested_role = 'white' THEN 1

@@ -9,8 +9,9 @@ import {
 
 export const LIVE_DEMO_SEAT_LIMITS = Object.freeze({
     facilitator: 1,
-    notetaker: 4,
-    observer: 5,
+    scribe: 1,
+    notetaker: 2,
+    observer: 0,
     whiteCellLead: 1,
     whiteCellSupport: 1,
     gameMaster: 1
@@ -19,6 +20,7 @@ export const LIVE_DEMO_SEAT_LIMITS = Object.freeze({
 const TEAM_ROLE_LIMITS = Object.fromEntries(
     TEAM_OPTIONS.flatMap((team) => ([
         [buildTeamRole(team.id, ROLE_SURFACES.FACILITATOR), LIVE_DEMO_SEAT_LIMITS.facilitator],
+        [buildTeamRole(team.id, ROLE_SURFACES.SCRIBE), LIVE_DEMO_SEAT_LIMITS.scribe],
         [buildTeamRole(team.id, ROLE_SURFACES.NOTETAKER), LIVE_DEMO_SEAT_LIMITS.notetaker]
     ]))
 );

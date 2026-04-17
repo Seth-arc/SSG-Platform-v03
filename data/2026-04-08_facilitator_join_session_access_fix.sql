@@ -4,7 +4,7 @@
 -- Purpose:
 -- 1) Preserve the hardened session access checks on protected participant RPCs.
 -- 2) Allow first-time public seat claims to release stale seats inside the claim RPC.
--- 3) Remove the false `Session access is required.` failure during facilitator/notetaker/observer joins.
+-- 3) Remove the false `Session access is required.` failure during facilitator/scribe/notetaker joins.
 
 BEGIN;
 

@@ -106,26 +106,18 @@ describe('database live-demo policy enforcement', () => {
         delete globalThis.__ESG_E2E_BACKEND__;
     });
 
-    it('denies observer seats from performing participant write actions', async () => {
+    it('rejects removed observer seats from being claimed on the live demo contract', async () => {
         const { sessionStore, database } = await loadModules();
 
         setClientIdentity(sessionStore, 'client-gm');
         const session = await createProtectedSession(database, 'Observer Policy Session', 'OBSV2026');
 
         setClientIdentity(sessionStore, 'client-viewer');
-        await database.claimParticipantSeat(session.id, 'viewer', 'Observer One');
-
-        await expect(database.createTimelineEvent({
-            session_id: session.id,
-            team: 'blue',
-            type: 'NOTE',
-            content: 'Observers must not write timeline events.',
-            move: 1,
-            phase: 1,
-            client_id: sessionStore.getClientId()
-        })).rejects.toMatchObject({
+        await expect(
+            database.claimParticipantSeat(session.id, 'viewer', 'Observer One')
+        ).rejects.toMatchObject({
             name: 'DatabaseError',
-            message: 'new row violates row-level security policy for table "timeline"'
+            message: 'This role cannot be claimed in the live demo.'
         });
     });
 

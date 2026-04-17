@@ -648,6 +648,26 @@ export const database = {
         return normalizeParticipantSeatRecord(data);
     },
 
+    /**
+     * Remove a participant seat from a session through the protected Game Master RPC.
+     * @param {string} sessionId - Session ID
+     * @param {string} sessionParticipantId - Session participant ID
+     * @returns {Promise<Object>} Removed seat payload
+     */
+    async removeSessionParticipant(sessionId, sessionParticipantId) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('operator_remove_session_participant', {
+            requested_session_id: sessionId,
+            requested_session_participant_id: sessionParticipantId
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'removeSessionParticipant');
+        }
+
+        return normalizeParticipantSeatRecord(data);
+    },
+
     async disconnectParticipantKeepalive(sessionId, sessionParticipantId) {
         if (!sessionId || !sessionParticipantId) {
             return false;

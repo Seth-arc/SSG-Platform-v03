@@ -16,6 +16,7 @@ import { hideLoader } from './components/ui/Loader.js';
 import { ConfigurationError } from './core/errors.js';
 import { isLandingPage, navigateToApp } from './core/navigation.js';
 import { isPublicRoleSurface, parseTeamRole } from './core/teamContext.js';
+import { getPhaseLabel } from './core/enums.js';
 
 const logger = createLogger('Main');
 const runtimeConfigStatus = getRuntimeConfigStatus();
@@ -354,7 +355,7 @@ function updateGameStateDisplay(gameState) {
     }
 
     if (headerPhase) {
-        headerPhase.textContent = gameState?.phase ?? 1;
+        headerPhase.textContent = getPhaseLabel(gameState?.phase ?? 1);
     }
 
     if (timerDisplay && gameState?.timer_seconds !== undefined) {

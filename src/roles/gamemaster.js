@@ -25,6 +25,7 @@ import {
 } from '../features/export/index.js';
 import { navigateToApp } from '../core/navigation.js';
 import { OPERATOR_SURFACES } from '../core/teamContext.js';
+import { getPhaseLabel } from '../core/enums.js';
 
 const logger = createLogger('GameMaster');
 
@@ -434,7 +435,7 @@ export class GameMasterController {
         }
 
         if (headerPhase) {
-            headerPhase.textContent = gameState?.phase ?? '-';
+            headerPhase.textContent = gameState?.phase ? getPhaseLabel(gameState.phase) : '-';
         }
     }
 
@@ -799,7 +800,10 @@ export class GameMasterController {
             <div class="card card-bordered" style="padding: var(--space-4);">
                 <h3 class="text-base font-semibold mb-4">Participants</h3>
                 <div id="participantsListDetail">
-                    ${this.renderParticipantsTable(participants)}
+                    ${this.renderParticipantsTable(participants, {
+                        includeActions: true,
+                        sessionName: session.name
+                    })}
                 </div>
             </div>
 
@@ -831,9 +835,14 @@ export class GameMasterController {
                 if (sessionDetailSection) sessionDetailSection.style.display = 'none';
             });
         }
+
+        this.bindParticipantRemovalControls(detailContainer, session, participants);
     }
 
-    renderParticipantsTable(participants) {
+    renderParticipantsTable(participants, {
+        includeActions = false,
+        sessionName = ''
+    } = {}) {
         if (!participants.length) {
             return '<p class="text-muted">No participants have joined this session yet.</p>';
         }
@@ -846,6 +855,7 @@ export class GameMasterController {
                         <th>Role</th>
                         <th>Status</th>
                         <th>Last Active</th>
+                        ${includeActions ? '<th>Actions</th>' : ''}
                     </tr>
                 </thead>
                 <tbody>
@@ -862,6 +872,18 @@ export class GameMasterController {
                                 <td>${this.escapeHtml(participant.role || 'Unknown')}</td>
                                 <td>${statusBadge.outerHTML}</td>
                                 <td>${participant.heartbeat_at ? formatRelativeTime(participant.heartbeat_at) : 'Never'}</td>
+                                ${includeActions ? `
+                                    <td>
+                                        <button
+                                            type="button"
+                                            class="btn btn-danger btn-sm"
+                                            data-remove-session-participant-id="${this.escapeHtml(participant.id || '')}"
+                                            aria-label="Remove ${this.escapeHtml(participant.display_name || 'participant')} from ${this.escapeHtml(sessionName || 'this session')}"
+                                        >
+                                            Remove
+                                        </button>
+                                    </td>
+                                ` : ''}
                             </tr>
                         `;
                     }).join('')}
@@ -899,9 +921,17 @@ export class GameMasterController {
                     </div>
                     <span class="text-sm text-gray-500">${formatParticipantSummaryLabel(sessionBundle.participants)}</span>
                 </div>
-                ${this.renderParticipantsTable(sessionBundle.participants)}
+                <p class="text-xs text-gray-500" style="margin-bottom: var(--space-3);">
+                    Remove clears a participant from the session immediately. They must join again to return.
+                </p>
+                ${this.renderParticipantsTable(sessionBundle.participants, {
+                    includeActions: true,
+                    sessionName: sessionBundle.session.name
+                })}
             </div>
         `;
+
+        this.bindParticipantRemovalControls(container, sessionBundle.session, sessionBundle.participants);
     }
 
     updateExportAvailability(sessionBundle) {
@@ -932,6 +962,66 @@ export class GameMasterController {
 
         if (confirmed) {
             await this.deleteSession(sessionId);
+        }
+    }
+
+    bindParticipantRemovalControls(rootElement, session, participants = []) {
+        if (!rootElement || !session?.id) {
+            return;
+        }
+
+        const participantsById = new Map(
+            (Array.isArray(participants) ? participants : [])
+                .filter((participant) => participant?.id)
+                .map((participant) => [String(participant.id), participant])
+        );
+
+        rootElement.querySelectorAll('[data-remove-session-participant-id]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const participantId = button.dataset.removeSessionParticipantId;
+                const participant = participantsById.get(String(participantId || ''));
+
+                if (!participant) {
+                    showToast('Participant seat data is no longer available. Refresh and try again.', { type: 'error' });
+                    return;
+                }
+
+                void this.removeParticipantFromSession(session, participant);
+            });
+        });
+    }
+
+    async removeParticipantFromSession(session, participant) {
+        if (!session?.id || !participant?.id) {
+            showToast('Participant selection is invalid.', { type: 'error' });
+            return;
+        }
+
+        const participantName = participant.display_name || 'This participant';
+        const participantRole = String(participant.role || 'unknown role').replace(/_/g, ' ');
+        const confirmed = await confirmModal({
+            title: 'Remove Participant',
+            message: `Remove ${participantName} (${participantRole}) from ${session.name}? This clears the session seat immediately and requires a fresh join before the participant can return.`,
+            confirmLabel: 'Remove Participant',
+            variant: 'danger'
+        });
+
+        if (!confirmed) {
+            return;
+        }
+
+        showLoader({ message: `Removing ${participantName}...` });
+
+        try {
+            await database.removeSessionParticipant(session.id, participant.id);
+            this.sessionBundles.delete(session.id);
+            await this.loadSessions();
+            showToast(`${participantName} was removed from ${session.name}.`, { type: 'success' });
+        } catch (err) {
+            logger.error('Failed to remove participant:', err);
+            showToast(err.message || 'Failed to remove participant', { type: 'error' });
+        } finally {
+            hideLoader();
         }
     }
 

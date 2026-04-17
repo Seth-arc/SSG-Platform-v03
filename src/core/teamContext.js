@@ -7,6 +7,7 @@ import { buildAppPath, getCurrentAppRelativePath } from './navigation.js';
 
 export const ROLE_SURFACES = Object.freeze({
     FACILITATOR: 'facilitator',
+    SCRIBE: 'scribe',
     NOTETAKER: 'notetaker',
     WHITECELL: 'whitecell',
     VIEWER: 'viewer'
@@ -19,8 +20,8 @@ export const WHITE_CELL_OPERATOR_ROLES = Object.freeze({
 
 export const PUBLIC_ROLE_SURFACES = Object.freeze([
     ROLE_SURFACES.FACILITATOR,
+    ROLE_SURFACES.SCRIBE,
     ROLE_SURFACES.NOTETAKER,
-    ROLE_SURFACES.VIEWER
 ]);
 
 export const OPERATOR_SURFACES = Object.freeze({
@@ -34,13 +35,22 @@ export const TEAM_OPTIONS = Object.freeze([
     { id: 'green', label: 'Green Team', shortLabel: 'Green' }
 ]);
 
-const WHITE_CELL_CANONICAL_ROUTE = 'teams/blue/whitecell.html';
+const WHITE_CELL_CANONICAL_ROUTE = 'whitecell.html';
+
+const WHITE_CELL_TEAM_CONFIG = Object.freeze({
+    id: 'white_cell',
+    label: 'White Cell',
+    shortLabel: 'White Cell'
+});
 
 const TEAM_MAP = Object.freeze(
     Object.fromEntries(TEAM_OPTIONS.map((team) => [team.id, team]))
 );
 
 export function getTeamConfig(teamId = 'blue') {
+    if (teamId === 'white_cell') {
+        return WHITE_CELL_TEAM_CONFIG;
+    }
     return TEAM_MAP[teamId] || TEAM_MAP.blue;
 }
 
@@ -133,7 +143,7 @@ export function parseTeamRole(role = '') {
         };
     }
 
-    const match = normalizedRole.match(/^(blue|red|green)_(facilitator|notetaker)$/);
+    const match = normalizedRole.match(/^(blue|red|green)_(facilitator|scribe|notetaker)$/);
     if (!match) {
         return {
             teamId: null,
@@ -155,6 +165,7 @@ export function getTeamRoleLabels(teamId) {
     return {
         team: team.label,
         facilitator: `${team.label} Facilitator`,
+        scribe: `${team.label} Scribe`,
         notetaker: `${team.label} Notetaker`,
         whitecell: `${team.label} White Cell`,
         whitecellLead: `${team.label} White Cell Lead`,
@@ -164,8 +175,12 @@ export function getTeamRoleLabels(teamId) {
 }
 
 export function buildTeamRoute(teamId, surface, { observer = false, basePath } = {}) {
+    if (surface === ROLE_SURFACES.WHITECELL) {
+        return buildAppPath(WHITE_CELL_CANONICAL_ROUTE, { basePath });
+    }
+
     const team = getTeamConfig(teamId);
-    const pageSurface = surface === ROLE_SURFACES.VIEWER
+    const pageSurface = surface === ROLE_SURFACES.VIEWER || surface === ROLE_SURFACES.SCRIBE
         ? ROLE_SURFACES.FACILITATOR
         : surface;
 
@@ -217,7 +232,8 @@ export function getTeamResponseTargets(teamId) {
     return new Set([
         'all',
         teamId,
-        buildTeamRole(teamId, ROLE_SURFACES.FACILITATOR)
+        buildTeamRole(teamId, ROLE_SURFACES.FACILITATOR),
+        buildTeamRole(teamId, ROLE_SURFACES.SCRIBE)
     ]);
 }
 
@@ -229,8 +245,13 @@ export function resolveTeamContext({
 } = {}) {
     const datasetTeam = documentRef?.body?.dataset?.team;
     const relativePath = getCurrentAppRelativePath({ locationRef, basePath });
+    const onWhiteCellRoute = relativePath.replace(/^\//, '') === WHITE_CELL_CANONICAL_ROUTE
+        || relativePath.endsWith('/' + WHITE_CELL_CANONICAL_ROUTE);
     const routeTeam = relativePath.match(/^teams\/(blue|red|green)\//)?.[1];
-    const team = getTeamConfig(datasetTeam || routeTeam || fallbackTeamId);
+    const resolvedTeamId = datasetTeam === 'white_cell' || onWhiteCellRoute
+        ? 'white_cell'
+        : (datasetTeam || routeTeam || fallbackTeamId);
+    const team = getTeamConfig(resolvedTeamId);
     const labels = getTeamRoleLabels(team.id);
     const whitecellLeadRole = buildWhiteCellOperatorRole(WHITE_CELL_OPERATOR_ROLES.LEAD);
     const whitecellSupportRole = buildWhiteCellOperatorRole(WHITE_CELL_OPERATOR_ROLES.SUPPORT);
@@ -240,18 +261,21 @@ export function resolveTeamContext({
         teamLabel: team.label,
         teamShortLabel: team.shortLabel,
         facilitatorRole: buildTeamRole(team.id, ROLE_SURFACES.FACILITATOR),
+        scribeRole: buildTeamRole(team.id, ROLE_SURFACES.SCRIBE),
         notetakerRole: buildTeamRole(team.id, ROLE_SURFACES.NOTETAKER),
         whitecellRole: whitecellLeadRole,
         whitecellLeadRole,
         whitecellSupportRole,
         observerRole: 'viewer',
         facilitatorLabel: labels.facilitator,
+        scribeLabel: labels.scribe,
         notetakerLabel: labels.notetaker,
         whitecellLabel: 'White Cell',
         whitecellLeadLabel: 'White Cell Lead',
         whitecellSupportLabel: 'White Cell Support',
         observerLabel: labels.observer,
         facilitatorRoute: buildTeamRoute(team.id, ROLE_SURFACES.FACILITATOR, { basePath }),
+        scribeRoute: buildTeamRoute(team.id, ROLE_SURFACES.SCRIBE, { basePath }),
         notetakerRoute: buildTeamRoute(team.id, ROLE_SURFACES.NOTETAKER, { basePath }),
         whitecellRoute: buildAppPath(WHITE_CELL_CANONICAL_ROUTE, { basePath }),
         observerRoute: buildTeamRoute(team.id, ROLE_SURFACES.FACILITATOR, { observer: true, basePath })

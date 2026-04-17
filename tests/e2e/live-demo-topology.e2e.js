@@ -28,7 +28,7 @@ async function fillAndWaitForAutoSave(page, {
     await expect(page.locator(statusSelector)).toHaveText('Saved to your notes');
 }
 
-test('@live-demo one-team topology covers operator session creation, onboarding, White Cell access, observer restrictions, and seat contention', async ({ browser }) => {
+test('@live-demo one-team topology covers operator session creation, onboarding, White Cell access, team-lead parity, and seat contention', async ({ browser }) => {
     test.slow();
 
     const context = await browser.newContext();
@@ -39,13 +39,13 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
     const intruder = await createIsolatedActorPage(context, 'whitecell-intruder');
 
     await test.step('block direct White Cell access without operator auth', async () => {
-        await intruder.goto('/teams/blue/whitecell.html');
+        await intruder.goto('/whitecell.html');
         await expect(intruder).toHaveURL(/operatorAccessSection/);
         await expect(intruder.locator('#operatorAccessSection')).toBeVisible();
     });
 
     const facilitator = await createIsolatedActorPage(context, 'blue-facilitator');
-    const observers = [];
+    const scribe = await createIsolatedActorPage(context, 'blue-scribe');
     const notetakers = [];
     let whiteCellLead;
     let whiteCellSupport;
@@ -70,7 +70,14 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
             roleSurface: 'facilitator'
         });
 
-        for (let index = 1; index <= 4; index += 1) {
+        await joinPublicParticipant(scribe, {
+            sessionCode,
+            displayName: 'Blue Scribe',
+            team: 'blue',
+            roleSurface: 'scribe'
+        });
+
+        for (let index = 1; index <= 2; index += 1) {
             const page = await createIsolatedActorPage(context, `blue-notetaker-${index}`);
             await joinPublicParticipant(page, {
                 sessionCode,
@@ -79,17 +86,6 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
                 roleSurface: 'notetaker'
             });
             notetakers.push(page);
-        }
-
-        for (let index = 1; index <= 5; index += 1) {
-            const page = await createIsolatedActorPage(context, `blue-observer-${index}`);
-            await joinPublicParticipant(page, {
-                sessionCode,
-                displayName: `Blue Observer ${index}`,
-                team: 'blue',
-                roleSurface: 'viewer'
-            });
-            observers.push(page);
         }
 
         whiteCellLead = await createIsolatedActorPage(context, 'blue-whitecell-lead');
@@ -110,8 +106,8 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         await expect(whiteCellSupport.locator('#startTimerBtn')).toBeDisabled();
 
         const extraFacilitator = await createIsolatedActorPage(context, 'extra-facilitator');
+        const extraScribe = await createIsolatedActorPage(context, 'extra-scribe');
         const extraNotetaker = await createIsolatedActorPage(context, 'extra-notetaker');
-        const extraObserver = await createIsolatedActorPage(context, 'extra-observer');
 
         await expectJoinFailure(extraFacilitator, {
             sessionCode,
@@ -120,33 +116,30 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
             roleSurface: 'facilitator'
         }, 'The requested role is full. Please choose another seat.');
 
+        await expectJoinFailure(extraScribe, {
+            sessionCode,
+            displayName: 'Blocked Scribe',
+            team: 'blue',
+            roleSurface: 'scribe'
+        }, 'The requested role is full. Please choose another seat.');
+
         await expectJoinFailure(extraNotetaker, {
             sessionCode,
             displayName: 'Blocked Notetaker',
             team: 'blue',
             roleSurface: 'notetaker'
         }, 'The requested role is full. Please choose another seat.');
-
-        await expectJoinFailure(extraObserver, {
-            sessionCode,
-            displayName: 'Blocked Observer',
-            team: 'blue',
-            roleSurface: 'viewer'
-        }, 'The requested role is full. Please choose another seat.');
     });
 
-    await test.step('enforce observer read-only behavior and complete the facilitator to White Cell workflow', async () => {
-        const observer = observers[0];
-
+    await test.step('verify scribe parity and complete the facilitator to White Cell workflow', async () => {
         await createDraftAction(facilitator, {
             goal: actionGoal
         });
 
-        await expect(observer.locator('body')).toHaveAttribute('data-facilitator-mode', 'observer');
-        await expect(observer.locator('#newActionBtn')).toBeHidden();
-        await expect(observer.locator('#captureSection')).toBeHidden();
-        await expect(observer.locator('#actionsList')).toContainText(actionGoal);
-        await expect(observer.locator('#actionsList').getByRole('button', { name: 'Submit to White Cell' })).toHaveCount(0);
+        await expect(scribe.locator('body')).toHaveAttribute('data-facilitator-mode', 'scribe');
+        await expect(scribe.locator('#newActionBtn')).toBeVisible();
+        await expect(scribe.locator('#captureSection')).toBeVisible();
+        await expect(scribe.locator('#actionsList')).toContainText(actionGoal);
 
         await submitAction(facilitator, actionGoal);
 
@@ -157,9 +150,9 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
 
         await expect(whiteCellLead.locator('#adjudicationQueue')).toContainText('No actions are waiting for adjudication.');
 
-        await expect(observer.locator('#actionsList')).toContainText(actionGoal);
-        await expect(observer.locator('#actionsList')).toContainText('Success');
-        await expect(observer.locator('#actionsList')).toContainText('Approved by White Cell lead during the topology rehearsal.');
+        await expect(scribe.locator('#actionsList')).toContainText(actionGoal);
+        await expect(scribe.locator('#actionsList')).toContainText('Success');
+        await expect(scribe.locator('#actionsList')).toContainText('Approved by White Cell lead during the topology rehearsal.');
     });
 
     await test.step('record the active seat counts for the one-team topology', async () => {
@@ -169,8 +162,8 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         expect(session).toBeTruthy();
         expect(getActiveSeatCounts(backendState, session.id)).toEqual(expect.objectContaining({
             blue_facilitator: 1,
-            blue_notetaker: 4,
-            viewer: 5,
+            blue_scribe: 1,
+            blue_notetaker: 2,
             whitecell_lead: 1,
             whitecell_support: 1
         }));

@@ -20,10 +20,10 @@ describe('navigation', () => {
         expect(buildAppPath('', { basePath: '/repo-slug/' })).toBe('/repo-slug/');
         expect(buildAppPath('master.html', { basePath: '/repo-slug/' })).toBe('/repo-slug/master.html');
         expect(buildAppPath('/teams/blue/facilitator.html?mode=observer', { basePath: '/repo-slug/' })).toBe('/repo-slug/teams/blue/facilitator.html?mode=observer');
-        expect(buildAppUrl('teams/blue/whitecell.html', {
+        expect(buildAppUrl('whitecell.html', {
             basePath: '/repo-slug/',
             locationRef: { origin: 'https://owner.github.io' }
-        })).toBe('https://owner.github.io/repo-slug/teams/blue/whitecell.html');
+        })).toBe('https://owner.github.io/repo-slug/whitecell.html');
     });
 
     it('detects the current app-relative page under a project-site path', () => {

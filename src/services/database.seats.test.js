@@ -70,6 +70,12 @@ const ALL_TEAM_ROLE_CASES = [
             requiresWhiteCellGrant: false
         },
         {
+            label: `${team.id} scribe`,
+            role: buildTeamRole(team.id, ROLE_SURFACES.SCRIBE),
+            teamId: team.id,
+            requiresWhiteCellGrant: false
+        },
+        {
             label: `${team.id} notetaker`,
             role: buildTeamRole(team.id, ROLE_SURFACES.NOTETAKER),
             teamId: team.id,
@@ -90,13 +96,6 @@ const ALL_TEAM_ROLE_CASES = [
         requiresWhiteCellGrant: true,
         retainsProtectedSessionAccess: true
     },
-    {
-        label: 'observer',
-        role: 'viewer',
-        teamId: null,
-        requiresWhiteCellGrant: false,
-        retainsProtectedSessionAccess: false
-    }
 ];
 
 describe('database live-demo seat contract', () => {
@@ -300,6 +299,104 @@ describe('database live-demo seat contract', () => {
             display_name: 'Jordan',
             claim_status: 'rejoined',
             is_active: true
+        });
+    });
+
+    it('lets Game Master remove a participant seat so heartbeat recovery cannot reclaim it', async () => {
+        const { sessionStore, database } = await loadModules();
+        setClientIdentity(sessionStore, 'client-remove-gm');
+        await database.authorizeOperatorAccess({
+            surface: 'gamemaster',
+            accessCode: 'admin2025',
+            operatorName: 'GM Removal Test'
+        });
+
+        const session = await database.createSession({
+            name: 'Participant Removal Session',
+            session_code: 'RMOV2026'
+        });
+
+        setClientIdentity(sessionStore, 'client-remove-participant');
+        const claimedSeat = await database.claimParticipantSeat(session.id, 'blue_facilitator', 'Morgan');
+        const participantAuthSession = localStorage.getItem('esg_e2e_auth_session');
+
+        setClientIdentity(sessionStore, 'client-remove-gm');
+        await database.authorizeOperatorAccess({
+            surface: 'gamemaster',
+            accessCode: 'admin2025',
+            operatorName: 'GM Removal Test'
+        });
+
+        const removedSeat = await database.removeSessionParticipant(session.id, claimedSeat.id);
+
+        expect(removedSeat).toMatchObject({
+            id: claimedSeat.id,
+            session_id: session.id,
+            role: 'blue_facilitator',
+            is_active: false
+        });
+        await expect(database.getSessionParticipants(session.id)).resolves.toEqual([]);
+
+        restoreClientIdentity(sessionStore, 'client-remove-participant', participantAuthSession);
+        await expect(
+            database.updateHeartbeat(session.id, claimedSeat.id)
+        ).rejects.toMatchObject({
+            name: 'DatabaseError',
+            message: 'Participant seat not found. Please rejoin the session.'
+        });
+
+        const rejoinedSeat = await database.claimParticipantSeat(session.id, 'blue_facilitator', 'Morgan');
+        expect(rejoinedSeat).toMatchObject({
+            session_id: session.id,
+            role: 'blue_facilitator',
+            display_name: 'Morgan',
+            claim_status: 'claimed',
+            is_active: true
+        });
+        expect(rejoinedSeat.id).not.toBe(claimedSeat.id);
+    });
+
+    it('revokes White Cell operator access when Game Master removes a White Cell seat', async () => {
+        const { sessionStore, database } = await loadModules();
+        setClientIdentity(sessionStore, 'client-whitecell-gm');
+        await database.authorizeOperatorAccess({
+            surface: 'gamemaster',
+            accessCode: 'admin2025',
+            operatorName: 'GM White Cell Removal'
+        });
+
+        const session = await database.createSession({
+            name: 'White Cell Removal Session',
+            session_code: 'WCRM2026'
+        });
+
+        setClientIdentity(sessionStore, 'client-whitecell-operator');
+        await database.authorizeOperatorAccess({
+            surface: 'whitecell',
+            accessCode: 'admin2025',
+            sessionId: session.id,
+            role: 'whitecell_lead',
+            operatorName: 'White Cell Lead'
+        });
+        const whiteCellSeat = await database.claimParticipantSeat(session.id, 'whitecell_lead', 'White Cell Lead');
+        const whiteCellAuthSession = localStorage.getItem('esg_e2e_auth_session');
+
+        setClientIdentity(sessionStore, 'client-whitecell-gm');
+        await database.authorizeOperatorAccess({
+            surface: 'gamemaster',
+            accessCode: 'admin2025',
+            operatorName: 'GM White Cell Removal'
+        });
+        await database.removeSessionParticipant(session.id, whiteCellSeat.id);
+
+        restoreClientIdentity(sessionStore, 'client-whitecell-operator', whiteCellAuthSession);
+        await expect(
+            database.updateGameState(session.id, {
+                current_move: 2
+            })
+        ).rejects.toMatchObject({
+            name: 'DatabaseError',
+            message: 'White Cell operator authorization is required.'
         });
     });
 

@@ -25,11 +25,12 @@
         }
     </style>
   <script type="module" crossorigin src="/assets/supabase-BQbgwcOn.js"></script>
-  <script type="module" crossorigin src="/assets/main-DZBuIOYm.js"></script>
-  <script type="module" crossorigin src="/assets/validation-DTFiG2_p.js"></script>
-  <script type="module" crossorigin src="/assets/formatting-DEavf3G9.js"></script>
+  <script type="module" crossorigin src="/assets/main-BYET35L_.js"></script>
+  <script type="module" crossorigin src="/assets/validation-BnFSv1Ez.js"></script>
+  <script type="module" crossorigin src="/assets/formatting-QmcNEoUH.js"></script>
   <script type="module" crossorigin src="/assets/Modal-O3kyaPUL.js"></script>
-  <script type="module" crossorigin src="/assets/facilitator-E7Gu5oHv.js"></script>
+  <script type="module" crossorigin src="/assets/blueActionDetails-BFb7nCS4.js"></script>
+  <script type="module" crossorigin src="/assets/facilitator-B07tFxuz.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/main-D0Os2kzt.css">
   <link rel="stylesheet" crossorigin href="/assets/validation-cvd1K-Uc.css">
   <link rel="stylesheet" crossorigin href="/assets/formatting-BmVTRCK5.css">
@@ -120,6 +121,17 @@
                                 </svg>
                             </span>
                             <span class="sidebar-label">Responses</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#tribeStreetJournal" class="sidebar-link" data-section="tribeStreetJournal">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h9a2 2 0 002-2V8.414a2 2 0 00-.586-1.414l-3.414-3.414A2 2 0 009.586 3H4zm5 1.5V8a1 1 0 001 1h3.5"/>
+                                    <path d="M6 11a1 1 0 011-1h5a1 1 0 110 2H7a1 1 0 01-1-1zm0 3a1 1 0 011-1h5a1 1 0 110 2H7a1 1 0 01-1-1z"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Tribe Street Journal</span>
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
@@ -217,6 +229,22 @@
                     <div class="section-body">
                         <div id="responsesList" aria-live="polite">
                             <!-- Responses will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tribe Street Journal Section -->
+                <section id="tribeStreetJournalSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Tribe Street Journal</h2>
+                            <p class="section-description">Review the latest team notes, moments, and quotes captured during the exercise.</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="tribeStreetJournalList" aria-live="polite">
+                            <!-- Tribe Street Journal entries will be populated here -->
                         </div>
                     </div>
                 </section>

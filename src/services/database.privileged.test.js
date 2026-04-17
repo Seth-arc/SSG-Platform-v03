@@ -141,6 +141,28 @@ describe('database privileged write contracts', () => {
         expect(mockSupabase.from).not.toHaveBeenCalled();
     });
 
+    it('routes participant removals through the protected Game Master RPC', async () => {
+        mockSupabase.rpc.mockResolvedValue({
+            data: {
+                id: 'seat-1',
+                session_id: 'session-1',
+                participant_id: 'participant-1',
+                role: 'blue_facilitator',
+                is_active: false
+            },
+            error: null
+        });
+
+        const { database } = await import('./database.js');
+        await database.removeSessionParticipant('session-1', 'seat-1');
+
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('operator_remove_session_participant', {
+            requested_session_id: 'session-1',
+            requested_session_participant_id: 'seat-1'
+        });
+        expect(mockSupabase.from).not.toHaveBeenCalled();
+    });
+
     it('surfaces operator-grant denial when a protected write is rejected', async () => {
         mockSupabase.rpc.mockResolvedValue({
             data: null,

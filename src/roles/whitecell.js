@@ -17,9 +17,28 @@ import { showToast } from '../components/ui/Toast.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { showModal, confirmModal } from '../components/ui/Modal.js';
 import { createBadge, createRoleBadge, createStatusBadge, createPriorityBadge } from '../components/ui/Badge.js';
+import {
+    formatActionSequenceLabel,
+    formatBlueActionSelection,
+    getActionSequenceNumber,
+    getBlueActionViewModel
+} from '../features/actions/blueActionDetails.js';
+import {
+    parseProposalDetails,
+    getProposalViewModel,
+    formatProposalSelection
+} from '../features/actions/proposalDetails.js';
+import {
+    buildJsonExportPayload,
+    downloadJsonData,
+    exportSessionActionsCsv,
+    exportSessionRequestsCsv,
+    exportSessionTimelineCsv,
+    exportSessionParticipantsCsv
+} from '../features/export/index.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { CONFIG } from '../core/config.js';
-import { ENUMS, canAdjudicateAction } from '../core/enums.js';
+import { ENUMS, canAdjudicateAction, getPhaseLabel } from '../core/enums.js';
 import { navigateToApp } from '../core/navigation.js';
 import {
     OPERATOR_SURFACES,
@@ -46,6 +65,7 @@ const WHITE_CELL_FILTER_TEAM_ORDER = Object.freeze([
 ]);
 const WHITE_CELL_FILTER_ROLE_ORDER = Object.freeze([
     ROLE_SURFACES.FACILITATOR,
+    ROLE_SURFACES.SCRIBE,
     ROLE_SURFACES.NOTETAKER,
     ROLE_SURFACES.WHITECELL,
     ROLE_SURFACES.VIEWER,
@@ -227,6 +247,7 @@ export function buildWhiteCellCommunicationRecipientOptions() {
         },
         ...TEAM_OPTIONS.flatMap((team) => {
             const facilitatorRole = buildTeamRole(team.id, ROLE_SURFACES.FACILITATOR);
+            const scribeRole = buildTeamRole(team.id, ROLE_SURFACES.SCRIBE);
             const notetakerRole = buildTeamRole(team.id, ROLE_SURFACES.NOTETAKER);
 
             return [
@@ -237,6 +258,10 @@ export function buildWhiteCellCommunicationRecipientOptions() {
                 {
                     value: facilitatorRole,
                     label: getRoleDisplayName(facilitatorRole)
+                },
+                {
+                    value: scribeRole,
+                    label: getRoleDisplayName(scribeRole)
                 },
                 {
                     value: notetakerRole,
@@ -279,6 +304,7 @@ export function getWhiteCellRoleFilterValue(role = null) {
 export function getWhiteCellFilterRoleLabel(role = null) {
     const labels = {
         [ROLE_SURFACES.FACILITATOR]: 'Facilitators',
+        [ROLE_SURFACES.SCRIBE]: 'Scribes',
         [ROLE_SURFACES.NOTETAKER]: 'Notetakers',
         [ROLE_SURFACES.WHITECELL]: 'White Cell',
         [ROLE_SURFACES.VIEWER]: 'Observers',
@@ -293,24 +319,41 @@ export function canShareActionToRedTeam(action = {}) {
 }
 
 export function buildSharedActionCommunicationContent(action = {}) {
-    const targets = Array.isArray(action.targets)
-        ? action.targets
-        : (action.target ? [action.target] : []);
-    const targetLabel = targets.length ? targets.join(', ') : 'Not specified';
-    const expectedOutcomes = action.expected_outcomes || action.description || 'No expected outcomes recorded.';
+    const blueAction = getBlueActionViewModel(action);
+    const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
+    const expectedOutcomes = blueAction.expectedOutcomes || 'No expected outcomes recorded.';
     const contentParts = [
         'Blue Team action shared by White Cell',
-        `Title: ${action.goal || action.title || 'Untitled action'}`,
-        `Mechanism: ${action.mechanism || 'No mechanism'}`,
+        `Title: ${blueAction.title}`,
+        `Mechanism: ${blueAction.instrumentOfPower || 'No mechanism'}`,
         `Move: ${action.move || 1}`,
         `Phase: ${action.phase || 1}`,
-        `Targets: ${targetLabel}`,
-        `Sector: ${action.sector || 'Not specified'}`,
-        `Exposure: ${action.exposure_type || 'Not specified'}`,
+        `${blueAction.hasBlueActionDetails ? 'Focus Countries' : 'Targets'}: ${targetLabel}`,
+        `Sector: ${blueAction.sector || 'Not specified'}`,
+        `${blueAction.hasBlueActionDetails ? 'Supply Chain Focus' : 'Exposure'}: ${blueAction.supplyChainFocus || 'Not specified'}`,
         `Expected Outcomes: ${expectedOutcomes}`
     ];
 
-    if (action.ally_contingencies) {
+    if (blueAction.hasBlueActionDetails) {
+        if (blueAction.objective) {
+            contentParts.push(`Objective: ${blueAction.objective}`);
+        }
+        if (blueAction.lever) {
+            contentParts.push(`Lever: ${blueAction.lever}`);
+        }
+        if (blueAction.implementation) {
+            contentParts.push(`Implementation: ${blueAction.implementation}`);
+        }
+        if (blueAction.enforcementTimeline) {
+            contentParts.push(`Enforcement Timeline: ${blueAction.enforcementTimeline}`);
+        }
+        if (blueAction.coordinated.length) {
+            contentParts.push(`Coordinated: ${blueAction.coordinated.join(', ')}`);
+        }
+        if (blueAction.informed.length) {
+            contentParts.push(`Informed: ${blueAction.informed.join(', ')}`);
+        }
+    } else if (action.ally_contingencies) {
         contentParts.push(`Ally Contingencies: ${action.ally_contingencies}`);
     }
 
@@ -338,11 +381,11 @@ export function buildWhiteCellParticipantFilterOptions(participants = []) {
         const teamValue = getWhiteCellParticipantTeamFilterValue(participant);
         const roleValue = getWhiteCellRoleFilterValue(participant.role);
 
-        if (teamValue) {
+        if (teamValue && teamValue !== 'white_cell') {
             teamValues.add(teamValue);
         }
 
-        if (roleValue) {
+        if (roleValue && roleValue !== ROLE_SURFACES.WHITECELL) {
             roleValues.add(roleValue);
         }
     });
@@ -419,6 +462,10 @@ export function getWhiteCellTimelineRoleFilterValue(event = {}) {
     }
 
     if (WHITE_CELL_TIMELINE_NOTETAKER_TYPES.includes(eventType)) {
+        if (actor.includes('scribe')) {
+            return ROLE_SURFACES.SCRIBE;
+        }
+
         if (actor.includes('facilitator')) {
             return ROLE_SURFACES.FACILITATOR;
         }
@@ -496,6 +543,7 @@ export class WhiteCellController {
         this.communications = [];
         this.participants = [];
         this.timelineEvents = [];
+        this.adminSessions = [];
         this.storeUnsubscribers = [];
         this.currentTimerSeconds = CONFIG.DEFAULT_TIMER_SECONDS;
         this.timerRunning = false;
@@ -564,6 +612,10 @@ export class WhiteCellController {
         this.syncParticipantsFromStore();
         this.updateTimerDisplay();
         this.updateTimerStatusDisplay();
+        this.renderExportDataAdmin();
+        this.loadSessionsAdmin().catch((err) => {
+            logger.error('Failed to load sessions for admin panel:', err);
+        });
 
         logger.info('White Cell interface initialized');
     }
@@ -665,6 +717,64 @@ export class WhiteCellController {
         timelineRoleFilter?.addEventListener('change', (event) => {
             this.timelineFilters.role = event.currentTarget.value || null;
             this.renderTimeline();
+        });
+
+        const settingsTabs = document.getElementById('settingsTabs');
+        if (settingsTabs) {
+            settingsTabs.addEventListener('click', (event) => {
+                const button = event.target.closest('.tab-button[data-settings-tab]');
+                if (!button || !settingsTabs.contains(button)) return;
+
+                const targetTab = button.dataset.settingsTab;
+                settingsTabs.querySelectorAll('.tab-button[data-settings-tab]').forEach((tabButton) => {
+                    const isActive = tabButton.dataset.settingsTab === targetTab;
+                    tabButton.classList.toggle('tab-button-active', isActive);
+                    tabButton.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+                settingsTabs.querySelectorAll('.tab-panel[data-settings-panel]').forEach((panel) => {
+                    panel.hidden = panel.dataset.settingsPanel !== targetTab;
+                });
+            });
+        }
+
+        const participantsList = document.getElementById('participantsList');
+        participantsList?.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-participant-action="remove"]');
+            if (!button) return;
+            const seatId = button.dataset.participantSeatId;
+            if (!seatId) return;
+            this.handleRemoveParticipantSeat(seatId).catch((err) => {
+                logger.error('Failed to handle participant removal:', err);
+            });
+        });
+
+        const sessionsList = document.getElementById('sessionsList');
+        sessionsList?.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-session-action]');
+            if (!button) return;
+            const action = button.dataset.sessionAction;
+            const sessionId = button.dataset.sessionId;
+            if (action === 'create') {
+                this.showCreateSessionAdminModal();
+            } else if (action === 'delete' && sessionId) {
+                this.handleDeleteSessionAdmin(sessionId).catch((err) => {
+                    logger.error('Failed to delete session:', err);
+                });
+            } else if (action === 'refresh') {
+                this.loadSessionsAdmin().catch((err) => {
+                    logger.error('Failed to refresh sessions:', err);
+                });
+            }
+        });
+
+        const exportDataList = document.getElementById('exportDataList');
+        exportDataList?.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-export-type]');
+            if (!button) return;
+            const exportType = button.dataset.exportType;
+            this.handleExportAdmin(exportType).catch((err) => {
+                logger.error('Failed to export:', err);
+            });
         });
     }
 
@@ -771,7 +881,7 @@ export class WhiteCellController {
         if (currentMoveLabel) currentMoveLabel.textContent = moveLabel;
         if (currentPhaseLabel) currentPhaseLabel.textContent = phaseLabel;
         if (headerMove) headerMove.textContent = move;
-        if (headerPhase) headerPhase.textContent = phase;
+        if (headerPhase) headerPhase.textContent = phaseLabel;
 
         this.updateGameControlAvailability(move, phase);
     }
@@ -1048,6 +1158,15 @@ export class WhiteCellController {
         return this.actions.filter((action) => canAdjudicateAction(action));
     }
 
+    getBlueTeamActionSequenceLabel(action = {}) {
+        const actionNumber = getActionSequenceNumber(actionsStore.getAll(), action);
+        return formatActionSequenceLabel({
+            teamLabel: this.formatTeamLabel(action.team),
+            move: action.move || 1,
+            actionNumber
+        });
+    }
+
     renderActionReview() {
         const container = document.getElementById('actionsList');
         if (!container) return;
@@ -1090,11 +1209,10 @@ export class WhiteCellController {
 
     renderActionCard(action, { showAdjudicateAction = false, includeOutcome = false } = {}) {
         const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
-        const targets = Array.isArray(action.targets)
-            ? action.targets
-            : (action.target ? [action.target] : []);
-        const expectedOutcomes = action.expected_outcomes || action.description || '';
-        const targetLabel = targets.length ? targets.join(', ') : 'Not specified';
+        const blueAction = getBlueActionViewModel(action);
+        const expectedOutcomes = blueAction.expectedOutcomes || '';
+        const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
+        const sequenceLabel = this.getBlueTeamActionSequenceLabel(action);
         const submittedMarkup = action.submitted_at
             ? `
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
@@ -1108,6 +1226,43 @@ export class WhiteCellController {
         const notesMarkup = includeOutcome && action.adjudication_notes
             ? `<p class="text-xs text-gray-500" style="margin-top: var(--space-2);"><strong>Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}</p>`
             : '';
+        const secondaryBadge = blueAction.hasBlueActionDetails && blueAction.enforcementTimeline
+            ? createBadge({ text: blueAction.enforcementTimeline, variant: 'info', size: 'sm', rounded: true }).outerHTML
+            : createPriorityBadge(action.priority || 'NORMAL').outerHTML;
+        const detailsMarkup = blueAction.hasBlueActionDetails
+            ? `
+                ${blueAction.objective ? `
+                    <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
+                        <strong>Objective:</strong> ${this.escapeHtml(blueAction.objective)}
+                    </p>
+                ` : ''}
+                <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
+                    <strong>Lever:</strong> ${this.escapeHtml(blueAction.lever || 'Not specified')} |
+                    <strong>Implementation:</strong> ${this.escapeHtml(blueAction.implementation || 'Not specified')} |
+                    <strong>Supply Chain Focus:</strong> ${this.escapeHtml(blueAction.supplyChainFocus || 'Not specified')}
+                </p>
+                <p class="text-xs text-gray-500">
+                    <strong>Focus Countries:</strong> ${this.escapeHtml(targetLabel)} |
+                    <strong>Sector:</strong> ${this.escapeHtml(blueAction.sector || 'Not specified')} |
+                    <strong>Timeline:</strong> ${this.escapeHtml(blueAction.enforcementTimeline || 'Not specified')}
+                </p>
+                <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
+                    <strong>Coordinated:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.coordinated, 'None selected'))} |
+                    <strong>Informed:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.informed, 'None selected'))}
+                </p>
+            `
+            : `
+                ${action.ally_contingencies ? `
+                    <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
+                        <strong>Ally Contingencies:</strong> ${this.escapeHtml(action.ally_contingencies)}
+                    </p>
+                ` : ''}
+                <p class="text-xs text-gray-500">
+                    <strong>Targets:</strong> ${this.escapeHtml(targetLabel)} |
+                    <strong>Sector:</strong> ${this.escapeHtml(action.sector || 'Not specified')} |
+                    <strong>Exposure:</strong> ${this.escapeHtml(action.exposure_type || 'Not specified')}
+                </p>
+            `;
         const actionButtons = [];
 
         if (canShareActionToRedTeam(action)) {
@@ -1122,25 +1277,16 @@ export class WhiteCellController {
             <div class="card card-bordered" data-action-id="${action.id}" style="padding: var(--space-4); margin-bottom: var(--space-3);">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3);">
                     <div>
-                        <h3 class="font-semibold">${this.escapeHtml(action.goal || action.title || 'Untitled action')}</h3>
-                        <p class="text-xs text-gray-500">${this.escapeHtml(action.mechanism || 'No mechanism')} | ${this.escapeHtml(this.formatTeamLabel(action.team))} | Move ${action.move || 1} | Phase ${action.phase || 1}</p>
+                        <h3 class="font-semibold">${this.escapeHtml(blueAction.title)}</h3>
+                        <p class="text-xs text-gray-500">${this.escapeHtml(blueAction.instrumentOfPower || 'No mechanism')} | ${this.escapeHtml(sequenceLabel)} | Phase ${action.phase || 1}</p>
                     </div>
                     <div style="display: flex; gap: var(--space-2);">
                         ${createStatusBadge(status).outerHTML}
-                        ${createPriorityBadge(action.priority || 'NORMAL').outerHTML}
+                        ${secondaryBadge}
                     </div>
                 </div>
                 <p class="text-sm mb-3">${this.escapeHtml(expectedOutcomes || 'No expected outcomes recorded.')}</p>
-                ${action.ally_contingencies ? `
-                    <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
-                        <strong>Ally Contingencies:</strong> ${this.escapeHtml(action.ally_contingencies)}
-                    </p>
-                ` : ''}
-                <p class="text-xs text-gray-500">
-                    <strong>Targets:</strong> ${this.escapeHtml(targetLabel)} |
-                    <strong>Sector:</strong> ${this.escapeHtml(action.sector || 'Not specified')} |
-                    <strong>Exposure:</strong> ${this.escapeHtml(action.exposure_type || 'Not specified')}
-                </p>
+                ${detailsMarkup}
                 ${submittedMarkup}
                 ${outcomeMarkup}
                 ${notesMarkup}
@@ -1255,26 +1401,43 @@ export class WhiteCellController {
             .join('');
 
         const content = document.createElement('div');
+        const blueAction = getBlueActionViewModel(action);
+        const sequenceLabel = this.getBlueTeamActionSequenceLabel(action);
         content.innerHTML = `
             <div class="mb-4">
-                <h4 class="font-semibold">${this.escapeHtml(action.goal || action.title || 'Untitled action')}</h4>
-                <p class="text-sm text-gray-500">${this.escapeHtml(action.mechanism || 'No mechanism')} | ${this.escapeHtml(this.formatTeamLabel(action.team))} | Move ${action.move || 1} | Phase ${action.phase || 1}</p>
+                <h4 class="font-semibold">${this.escapeHtml(blueAction.title)}</h4>
+                <p class="text-sm text-gray-500">${this.escapeHtml(blueAction.instrumentOfPower || 'No mechanism')} | ${this.escapeHtml(sequenceLabel)} | Phase ${action.phase || 1}</p>
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
-                    <strong>Targets:</strong> ${this.escapeHtml((Array.isArray(action.targets) ? action.targets : (action.target ? [action.target] : [])).join(', ') || 'Not specified')} |
-                    <strong>Sector:</strong> ${this.escapeHtml(action.sector || 'Not specified')} |
-                    <strong>Exposure:</strong> ${this.escapeHtml(action.exposure_type || 'Not specified')}
+                    <strong>${blueAction.hasBlueActionDetails ? 'Focus Countries' : 'Targets'}:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.focusCountries))} |
+                    <strong>Sector:</strong> ${this.escapeHtml(blueAction.sector || 'Not specified')} |
+                    <strong>${blueAction.hasBlueActionDetails ? 'Supply Chain Focus' : 'Exposure'}:</strong> ${this.escapeHtml(blueAction.supplyChainFocus || 'Not specified')}
                 </p>
                 ${action.submitted_at ? `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                         <strong>Submitted:</strong> ${this.escapeHtml(formatDateTime(action.submitted_at))}
                     </p>
                 ` : ''}
-                ${action.ally_contingencies ? `
+                ${blueAction.hasBlueActionDetails ? `
+                    ${blueAction.objective ? `
+                        <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
+                            <strong>Objective:</strong> ${this.escapeHtml(blueAction.objective)}
+                        </p>
+                    ` : ''}
+                    <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
+                        <strong>Lever:</strong> ${this.escapeHtml(blueAction.lever || 'Not specified')} |
+                        <strong>Implementation:</strong> ${this.escapeHtml(blueAction.implementation || 'Not specified')} |
+                        <strong>Timeline:</strong> ${this.escapeHtml(blueAction.enforcementTimeline || 'Not specified')}
+                    </p>
+                    <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
+                        <strong>Coordinated:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.coordinated, 'None selected'))} |
+                        <strong>Informed:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.informed, 'None selected'))}
+                    </p>
+                ` : action.ally_contingencies ? `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                         <strong>Ally Contingencies:</strong> ${this.escapeHtml(action.ally_contingencies)}
                     </p>
                 ` : ''}
-                <p class="text-sm mt-2">${this.escapeHtml(action.expected_outcomes || action.description || '')}</p>
+                <p class="text-sm mt-2">${this.escapeHtml(blueAction.expectedOutcomes || '')}</p>
             </div>
 
             <form id="adjudicateForm">
@@ -1352,6 +1515,8 @@ export class WhiteCellController {
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
 
+            await this.forwardProposalIfApproved(updatedAction, outcome);
+
             showToast({ message: 'Adjudication submitted', type: 'success' });
             modal?.close();
         } catch (err) {
@@ -1359,6 +1524,124 @@ export class WhiteCellController {
             showToast({ message: 'Failed to submit adjudication', type: 'error' });
         } finally {
             hideLoader();
+        }
+    }
+
+    /**
+     * After a proposal is adjudicated with an approving outcome, forward it to
+     * the intended recipient team. Surfaced as:
+     *   - a communication from White Cell to the recipient team (team-wide, so
+     *     both facilitator and scribe see it), and
+     *   - a PROPOSAL_FORWARDED timeline event tagged with the source proposal
+     *     id so the post-sim review can reconstruct the lineage.
+     *
+     * Non-proposal actions and rejected outcomes are no-ops.
+     */
+    async forwardProposalIfApproved(action, outcome) {
+        if (!action) return;
+
+        const proposalDetails = parseProposalDetails(action.ally_contingencies);
+        if (!proposalDetails) return;
+
+        const APPROVAL_OUTCOMES = new Set(['SUCCESS', 'PARTIAL_SUCCESS']);
+        if (!APPROVAL_OUTCOMES.has(String(outcome || '').toUpperCase())) {
+            return;
+        }
+
+        const recipientTeam = proposalDetails.recipientTeam;
+        if (!recipientTeam || !['blue', 'red'].includes(recipientTeam)) {
+            logger.warn('Proposal approved but recipient_team is missing or invalid:', recipientTeam);
+            return;
+        }
+
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) return;
+
+        const alreadyForwarded = communicationsStore.getAll().some((comm) => (
+            comm?.type === 'PROPOSAL_FORWARDED'
+            && comm?.metadata?.source_proposal_id === action.id
+        ));
+        if (alreadyForwarded) {
+            logger.info('Proposal already forwarded; skipping duplicate forward.', {
+                proposalId: action.id
+            });
+            return;
+        }
+
+        const viewModel = getProposalViewModel(action);
+        const recipientLabel = recipientTeam === 'blue' ? 'Blue Team' : 'Red Team';
+        const proposalTitle = viewModel.title || 'Untitled proposal';
+        const originators = formatProposalSelection(viewModel.originators, 'Not specified');
+        const gameState = this.getCurrentGameState();
+
+        const proposalSnapshot = {
+            title: proposalTitle,
+            originators: viewModel.originators,
+            objective: viewModel.objective,
+            category: viewModel.category,
+            intendedPartners: viewModel.intendedPartners,
+            focusSector: viewModel.focusSector,
+            delivery: viewModel.delivery,
+            timingAndConditions: viewModel.timingAndConditions,
+            expectedOutcomes: viewModel.expectedOutcomes
+        };
+
+        const commContent = [
+            `Forwarded Green Team proposal (approved by White Cell).`,
+            `Title: ${proposalTitle}`,
+            `Category: ${viewModel.category || 'Not specified'}`,
+            `Originators: ${originators}`,
+            `Intended Partners: ${viewModel.intendedPartners || 'Not specified'}`,
+            `Focus Sector: ${viewModel.focusSector || 'Not specified'}`,
+            `Delivery: ${viewModel.delivery || 'Not specified'}`,
+            `Objective: ${viewModel.objective || 'Not specified'}`,
+            `Timing & Conditions: ${viewModel.timingAndConditions || 'Not specified'}`,
+            `Expected Outcomes: ${viewModel.expectedOutcomes || 'Not specified'}`,
+            `Adjudication outcome: ${outcome}`
+        ].join('\n');
+
+        try {
+            const communication = await database.createCommunication({
+                session_id: sessionId,
+                from_role: 'white_cell',
+                to_role: recipientTeam,
+                type: 'PROPOSAL_FORWARDED',
+                content: commContent,
+                metadata: {
+                    source_proposal_id: action.id,
+                    source_team: action.team || 'green',
+                    recipient_team: recipientTeam,
+                    outcome,
+                    review_stage: 'forwarded_to_recipient',
+                    proposal: proposalSnapshot
+                }
+            });
+            communicationsStore.updateFromServer('INSERT', communication);
+
+            const timelineEvent = await database.createTimelineEvent({
+                session_id: sessionId,
+                type: 'PROPOSAL_FORWARDED',
+                content: `Green proposal forwarded to ${recipientLabel} after White Cell approval: ${proposalTitle}`,
+                metadata: {
+                    related_id: action.id,
+                    role: this.getTimelineActorRole(),
+                    recipient_team: recipientTeam,
+                    source_team: action.team || 'green',
+                    outcome,
+                    review_stage: 'forwarded_to_recipient',
+                    proposal: true
+                },
+                team: 'white_cell',
+                move: action.move ?? gameState.move ?? 1,
+                phase: action.phase ?? gameState.phase ?? 1
+            });
+            timelineStore.updateFromServer('INSERT', timelineEvent);
+        } catch (err) {
+            logger.error('Failed to forward approved proposal:', err);
+            showToast({
+                message: `Adjudication saved, but forwarding to ${recipientLabel} failed. Retry from the proposal record.`,
+                type: 'warning'
+            });
         }
     }
 
@@ -1593,7 +1876,7 @@ export class WhiteCellController {
         if (filteredParticipants.length === 0) {
             container.innerHTML = hasActiveFilters
                 ? '<p class="text-sm text-gray-500">No participants match the selected team and role filters.</p>'
-                : '<p class="text-sm text-gray-500">No facilitator, notetaker, observer, or White Cell seats are connected in this session yet.</p>';
+                : '<p class="text-sm text-gray-500">No facilitator, scribe, notetaker, or White Cell seats are connected in this session yet.</p>';
             return;
         }
 
@@ -1620,12 +1903,251 @@ export class WhiteCellController {
                             ${roleBadge}
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500">
-                        ${lastActiveAt ? `Last active ${formatRelativeTime(lastActiveAt)}` : 'Joined this session recently'}
-                    </p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);">
+                        <p class="text-xs text-gray-500" style="margin: 0;">
+                            ${lastActiveAt ? `Last active ${formatRelativeTime(lastActiveAt)}` : 'Joined this session recently'}
+                        </p>
+                        <button
+                            type="button"
+                            class="btn btn-ghost btn-sm"
+                            data-participant-action="remove"
+                            data-participant-seat-id="${this.escapeHtml(participant.id || '')}"
+                            style="color: var(--color-alert);"
+                        >Remove seat</button>
+                    </div>
                 </div>
             `;
         }).join('');
+    }
+
+    async handleRemoveParticipantSeat(seatId) {
+        if (!seatId) return;
+        const participant = this.participants.find((entry) => entry.id === seatId);
+        const displayName = participant?.display_name || 'this participant';
+
+        const confirmed = await confirmModal({
+            title: 'Remove seat',
+            message: `Remove ${displayName} from the session? Their seat will become available for another participant to claim.`,
+            confirmLabel: 'Remove',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
+
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) {
+            showToast({ message: 'No session selected', type: 'error' });
+            return;
+        }
+
+        const loader = showLoader({ message: 'Removing seat...' });
+        try {
+            await database.removeSessionParticipant(sessionId, seatId);
+            participantsStore.updateFromServer('DELETE', { id: seatId });
+            showToast({ message: 'Seat removed', type: 'success' });
+        } catch (err) {
+            logger.error('Failed to remove seat:', err);
+            showToast({ message: err.message || 'Failed to remove seat', type: 'error' });
+        } finally {
+            hideLoader();
+        }
+    }
+
+    async loadSessionsAdmin() {
+        const container = document.getElementById('sessionsList');
+        const summary = document.getElementById('sessionsSummary');
+        if (!container) return;
+
+        container.innerHTML = '<p class="text-sm text-gray-500">Loading sessions...</p>';
+
+        try {
+            const sessions = await database.getActiveSessions();
+            this.adminSessions = Array.isArray(sessions) ? sessions : [];
+            if (summary) {
+                summary.textContent = this.adminSessions.length === 0
+                    ? 'No sessions found.'
+                    : `${this.adminSessions.length} session${this.adminSessions.length === 1 ? '' : 's'} on record.`;
+            }
+            this.renderSessionsAdmin();
+        } catch (err) {
+            logger.error('Failed to load sessions:', err);
+            container.innerHTML = '<p class="text-sm" style="color: var(--color-alert);">Failed to load sessions.</p>';
+        }
+    }
+
+    renderSessionsAdmin() {
+        const container = document.getElementById('sessionsList');
+        if (!container) return;
+
+        const activeSessionId = sessionStore.getSessionId();
+        const header = `
+            <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap: wrap;">
+                <button type="button" class="btn btn-primary btn-sm" data-session-action="create">Create Session</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-session-action="refresh">Refresh</button>
+            </div>
+        `;
+
+        if (!this.adminSessions || this.adminSessions.length === 0) {
+            container.innerHTML = `${header}<p class="text-sm text-gray-500">No sessions yet. Click "Create Session" to get started.</p>`;
+            return;
+        }
+
+        const rows = this.adminSessions.map((session) => {
+            const isActive = session.id === activeSessionId;
+            const code = session.session_code || session.metadata?.session_code || '—';
+            const status = session.status || 'unknown';
+            return `
+                <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-2); ${isActive ? 'border-left: 3px solid var(--color-primary-500);' : ''}">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3);">
+                        <div>
+                            <p class="text-sm font-semibold" style="margin: 0;">${this.escapeHtml(session.name || 'Unnamed session')}${isActive ? ' <span class="text-xs" style="color: var(--color-primary-600); text-transform: uppercase; letter-spacing: 0.05em; margin-left: var(--space-2);">Active</span>' : ''}</p>
+                            <p class="text-xs text-gray-500" style="margin: 2px 0 0;">Code: ${this.escapeHtml(code)} · Status: ${this.escapeHtml(status)}</p>
+                        </div>
+                        <button
+                            type="button"
+                            class="btn btn-ghost btn-sm"
+                            data-session-action="delete"
+                            data-session-id="${this.escapeHtml(session.id)}"
+                            style="color: var(--color-alert);"
+                        >Delete</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        container.innerHTML = `${header}${rows}`;
+    }
+
+    showCreateSessionAdminModal() {
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <form id="createSessionAdminForm" novalidate>
+                <div class="form-group">
+                    <label class="form-label" for="newSessionName">Session Name *</label>
+                    <input id="newSessionName" class="form-input" type="text" placeholder="e.g. Spring 2026 Exercise" maxlength="120">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="newSessionCode">Join Code (optional)</label>
+                    <input id="newSessionCode" class="form-input" type="text" placeholder="Leave blank to auto-generate" maxlength="40">
+                    <p class="form-hint">Participants enter this to join from the landing page.</p>
+                </div>
+            </form>
+        `;
+
+        const modalRef = { current: null };
+        modalRef.current = showModal({
+            title: 'Create Session',
+            content,
+            size: 'md',
+            buttons: [
+                { label: 'Cancel', variant: 'secondary', onClick: () => {} },
+                {
+                    label: 'Create',
+                    variant: 'primary',
+                    onClick: () => {
+                        const name = content.querySelector('#newSessionName')?.value?.trim();
+                        const code = content.querySelector('#newSessionCode')?.value?.trim();
+                        if (!name) {
+                            showToast({ message: 'Session name is required.', type: 'error' });
+                            return false;
+                        }
+                        this.submitCreateSessionAdmin(modalRef.current, { name, code }).catch((err) => {
+                            logger.error('Failed to create session:', err);
+                        });
+                        return false;
+                    }
+                }
+            ]
+        });
+    }
+
+    async submitCreateSessionAdmin(modal, { name, code }) {
+        const loader = showLoader({ message: 'Creating session...' });
+        try {
+            const payload = { name, status: 'active' };
+            if (code) payload.session_code = code;
+            const session = await database.createSession(payload);
+            showToast({ message: `Session "${session.name || name}" created.`, type: 'success' });
+            modal?.close();
+            await this.loadSessionsAdmin();
+        } catch (err) {
+            logger.error('Failed to create session:', err);
+            showToast({ message: err.message || 'Failed to create session', type: 'error' });
+        } finally {
+            hideLoader();
+        }
+    }
+
+    async handleDeleteSessionAdmin(sessionId) {
+        const session = (this.adminSessions || []).find((entry) => entry.id === sessionId);
+        const label = session?.name || 'this session';
+        const confirmed = await confirmModal({
+            title: 'Delete session',
+            message: `Delete ${label}? All actions, RFIs, and participants tied to it will be removed. This cannot be undone.`,
+            confirmLabel: 'Delete',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
+
+        const loader = showLoader({ message: 'Deleting session...' });
+        try {
+            await database.deleteSession(sessionId);
+            showToast({ message: 'Session deleted.', type: 'success' });
+            await this.loadSessionsAdmin();
+        } catch (err) {
+            logger.error('Failed to delete session:', err);
+            showToast({ message: err.message || 'Failed to delete session', type: 'error' });
+        } finally {
+            hideLoader();
+        }
+    }
+
+    renderExportDataAdmin() {
+        const container = document.getElementById('exportDataList');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div style="display: grid; gap: var(--space-2);">
+                <button type="button" class="btn btn-secondary btn-sm" data-export-type="actions-csv">Export Actions (CSV)</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-export-type="rfis-csv">Export RFIs (CSV)</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-export-type="timeline-csv">Export Timeline (CSV)</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-export-type="participants-csv">Export Participants (CSV)</button>
+                <button type="button" class="btn btn-primary btn-sm" data-export-type="session-json">Export Full Session (JSON)</button>
+            </div>
+            <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">Exports are scoped to the currently active session.</p>
+        `;
+    }
+
+    async handleExportAdmin(exportType) {
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) {
+            showToast({ message: 'No active session selected.', type: 'error' });
+            return;
+        }
+
+        const loader = showLoader({ message: 'Preparing export...' });
+        try {
+            if (exportType === 'actions-csv') {
+                await exportSessionActionsCsv(sessionId);
+            } else if (exportType === 'rfis-csv') {
+                await exportSessionRequestsCsv(sessionId);
+            } else if (exportType === 'timeline-csv') {
+                await exportSessionTimelineCsv(sessionId);
+            } else if (exportType === 'participants-csv') {
+                await exportSessionParticipantsCsv(sessionId);
+            } else if (exportType === 'session-json') {
+                const bundle = await database.fetchSessionBundle(sessionId);
+                const payload = buildJsonExportPayload(bundle);
+                downloadJsonData(payload, `session-${sessionId.slice(0, 8)}.json`);
+            } else {
+                throw new Error(`Unknown export type: ${exportType}`);
+            }
+            showToast({ message: 'Export downloaded.', type: 'success' });
+        } catch (err) {
+            logger.error('Failed to export data:', err);
+            showToast({ message: err.message || 'Failed to export data', type: 'error' });
+        } finally {
+            hideLoader();
+        }
     }
 
     renderCommunicationHistory() {
@@ -1713,17 +2235,27 @@ export class WhiteCellController {
         container.innerHTML = filteredEvents.slice(0, 50).map((event) => {
             const eventType = event.type || event.event_type || 'EVENT';
             const eventContent = event.content || event.description || '';
+            const teamLabel = this.formatTeamLabel(event.team);
+            const rawRole = resolveWhiteCellTimelineMetadataRole(event);
+            const inferredRole = getWhiteCellTimelineRoleFilterValue(event);
+            const teamRoleLabel = rawRole
+                ? (getRoleDisplayName(rawRole) || rawRole)
+                : (inferredRole ? getWhiteCellFilterRoleLabel(inferredRole) : 'Unknown role');
+            const move = event.move ?? 1;
+            const phase = event.phase ?? 1;
+            const phaseLabel = `Phase ${phase} · ${getPhaseLabel(phase)}`;
+            const timestamp = formatDateTime(event.created_at);
 
             return `
                 <div class="timeline-event" style="display: flex; gap: var(--space-3); padding: var(--space-3); border-bottom: 1px solid var(--color-gray-200);">
                     <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-primary-500); margin-top: 6px; flex-shrink: 0;"></div>
                     <div style="flex: 1;">
-                        <div style="display: flex; justify-content: space-between; gap: var(--space-2);">
+                        <div style="display: flex; justify-content: space-between; gap: var(--space-2); align-items: center;">
                             ${createBadge({ text: eventType, size: 'sm' }).outerHTML}
-                            <span class="text-xs text-gray-400">${formatDateTime(event.created_at)}</span>
+                            <span class="text-xs text-gray-400">${this.escapeHtml(timestamp)}</span>
                         </div>
                         <p class="text-sm mt-1">${this.escapeHtml(eventContent)}</p>
-                        <p class="text-xs text-gray-400 mt-1">${this.escapeHtml(this.formatTeamLabel(event.team))} | Move ${event.move || 1}</p>
+                        <p class="timeline-event-meta" style="margin-top: var(--space-2); font-size: var(--text-xs); color: var(--color-text-secondary);">${this.escapeHtml(teamLabel)} | ${this.escapeHtml(teamRoleLabel)} | Move ${this.escapeHtml(String(move))} | ${this.escapeHtml(phaseLabel)}</p>
                     </div>
                 </div>
             `;

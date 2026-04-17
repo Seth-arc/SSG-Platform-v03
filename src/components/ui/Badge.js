@@ -121,6 +121,8 @@ export function createRoleBadge(role) {
         config = { text: 'Observer', variant: 'default' };
     } else if (parsedRole.surface === ROLE_SURFACES.FACILITATOR) {
         config = { text: 'Facilitator', variant: 'primary' };
+    } else if (parsedRole.surface === ROLE_SURFACES.SCRIBE) {
+        config = { text: 'Scribe', variant: 'primary' };
     } else if (parsedRole.surface === ROLE_SURFACES.NOTETAKER) {
         config = { text: 'Notetaker', variant: 'info' };
     } else if (parsedRole.surface === ROLE_SURFACES.WHITECELL) {

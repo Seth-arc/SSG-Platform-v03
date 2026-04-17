@@ -15,6 +15,12 @@ import { TEAM_OPTIONS, normalizeWhiteCellOperatorRole } from '../../core/teamCon
 
 const logger = createLogger('ParticipantList');
 
+const UNKNOWN_ROLE_CONFIG = Object.freeze({
+    label: 'Participant',
+    color: 'default',
+    icon: 'P'
+});
+
 const ROLE_CONFIG = {
     white: { label: 'Game Master', color: 'primary', icon: 'GM' },
     viewer: { label: 'Observer', color: 'default', icon: 'OB' },
@@ -23,6 +29,7 @@ const ROLE_CONFIG = {
     ...Object.fromEntries(
         TEAM_OPTIONS.flatMap((team) => ([
             [`${team.id}_facilitator`, { label: `${team.shortLabel} Facilitator`, color: 'info', icon: team.shortLabel.slice(0, 1) }],
+            [`${team.id}_scribe`, { label: `${team.shortLabel} Scribe`, color: 'info', icon: team.shortLabel.slice(0, 1) }],
             [`${team.id}_notetaker`, { label: `${team.shortLabel} Notetaker`, color: 'success', icon: team.shortLabel.slice(0, 1) }]
         ]))
     )
@@ -30,6 +37,26 @@ const ROLE_CONFIG = {
 
 function normalizeParticipantRoleKey(role) {
     return normalizeWhiteCellOperatorRole(role) || role;
+}
+
+export function getParticipantRoleConfig(role) {
+    return ROLE_CONFIG[normalizeParticipantRoleKey(role)] || UNKNOWN_ROLE_CONFIG;
+}
+
+export function getParticipantRoleCountEntries(activeParticipants = []) {
+    const activeRoleKeys = new Set(
+        activeParticipants
+            .map((participant) => normalizeParticipantRoleKey(participant.role))
+            .filter(Boolean)
+    );
+
+    return Object.entries(ROLE_CONFIG).filter(([role]) => {
+        if (role === 'viewer') {
+            return activeRoleKeys.has(role);
+        }
+
+        return getRoleLimit(role) > 0;
+    });
 }
 
 /**
@@ -116,16 +143,18 @@ export function createParticipantList(options = {}) {
             counts[normalizedRole] = (counts[normalizedRole] || 0) + 1;
         });
 
-        roleCountsContainer.innerHTML = Object.entries(ROLE_CONFIG).map(([role, config]) => {
+        roleCountsContainer.innerHTML = getParticipantRoleCountEntries(activeParticipants).map(([role, config]) => {
             const count = counts[role] || 0;
             const limit = getRoleLimit(role);
-            const isFull = count >= limit;
+            const hasFiniteSeatLimit = Number.isFinite(limit) && limit > 0;
+            const isFull = hasFiniteSeatLimit && count >= limit;
+            const limitDisplay = hasFiniteSeatLimit ? limit : 'legacy';
 
             return `
                 <div class="role-count-item ${isFull ? 'role-count-full' : ''}">
                     <span class="role-count-icon">${config.icon}</span>
                     <span class="role-count-label">${config.label}</span>
-                    <span class="role-count-value">${count}/${Number.isFinite(limit) ? limit : 'inf'}</span>
+                    <span class="role-count-value">${count}/${limitDisplay}</span>
                 </div>
             `;
         }).join('');
@@ -175,7 +204,7 @@ export function createParticipantList(options = {}) {
  */
 function createParticipantCard(participant, options = {}) {
     const { isActive = true } = options;
-    const config = ROLE_CONFIG[normalizeParticipantRoleKey(participant.role)] || ROLE_CONFIG.viewer;
+    const config = getParticipantRoleConfig(participant.role);
 
     const card = document.createElement('div');
     card.className = `participant-card ${isActive ? '' : 'participant-card-inactive'}`;

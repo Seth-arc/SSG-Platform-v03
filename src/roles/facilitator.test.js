@@ -12,6 +12,10 @@ function createFakeElement(id = null, tagName = 'div') {
         id,
         tagName: tagName.toUpperCase(),
         className: '',
+        hidden: false,
+        style: {},
+        toggleAttribute: vi.fn(),
+        querySelectorAll: vi.fn(() => []),
         get textContent() {
             return textContent;
         },
@@ -94,69 +98,80 @@ async function loadFacilitatorModule() {
     return import('./facilitator.js');
 }
 
-describe('Facilitator observer enforcement', () => {
+describe('Facilitator and scribe access', () => {
     afterEach(() => {
         vi.clearAllMocks();
         delete global.document;
         delete globalThis.__ESG_DISABLE_AUTO_INIT__;
     });
 
-    it('keeps observer access team-scoped', async () => {
+    it('allows facilitator and scribe seats onto the shared team-lead surface', async () => {
         const { getFacilitatorAccessState } = await loadFacilitatorModule();
         const teamContext = {
             teamId: 'blue',
-            facilitatorRole: 'blue_facilitator'
+            facilitatorRole: 'blue_facilitator',
+            scribeRole: 'blue_scribe'
         };
 
         expect(getFacilitatorAccessState({
-            role: 'viewer',
+            role: 'blue_facilitator',
             teamContext,
-            observerTeamId: 'blue'
         })).toMatchObject({
             allowed: true,
-            readOnly: true,
-            reason: null
+            readOnly: false,
+            reason: null,
+            roleSurface: 'facilitator'
         });
 
         expect(getFacilitatorAccessState({
-            role: 'viewer',
+            role: 'blue_scribe',
             teamContext,
-            observerTeamId: 'red'
         })).toMatchObject({
-            allowed: false,
-            readOnly: true,
-            reason: 'observer-team-mismatch',
-            observerTeamId: 'red'
+            allowed: true,
+            readOnly: false,
+            reason: null,
+            roleSurface: 'scribe'
         });
     });
 
-    it('blocks observer write paths in controller code', async () => {
+    it('renders scribe-mode labels on the shared facilitator surface', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
-        controller.isReadOnly = true;
+        controller.role = 'blue_scribe';
 
-        controller.showCreateActionModal();
-        controller.showCreateRfiModal();
-        await controller.handleCreateAction();
-        await controller.handleUpdateAction(null, 'action-1');
-        await controller.submitAction('action-1');
-        await controller.deleteAction('action-1');
-        await controller.handleCreateRfi();
-        await controller.handleCaptureSubmit({
-            preventDefault: vi.fn()
-        });
+        const roleLabel = createFakeElement('sessionRoleLabel');
+        const notice = createFakeElement('facilitatorModeNotice');
+        const headerTitle = createFakeElement(null, 'h1');
 
-        expect(showModal).not.toHaveBeenCalled();
-        expect(createAction).not.toHaveBeenCalled();
-        expect(updateDraftAction).not.toHaveBeenCalled();
-        expect(submitActionRecord).not.toHaveBeenCalled();
-        expect(deleteDraftAction).not.toHaveBeenCalled();
-        expect(createRequest).not.toHaveBeenCalled();
-        expect(createTimelineEvent).not.toHaveBeenCalled();
-        expect(showToast).toHaveBeenCalledWith({
-            message: 'Observer mode is read-only on the facilitator page.',
-            type: 'error'
-        });
+        global.document = {
+            body: { dataset: {} },
+            getElementById(id) {
+                return {
+                    sessionRoleLabel: roleLabel,
+                    facilitatorModeNotice: notice,
+                    captureNavItem: createFakeElement('captureNavItem'),
+                    captureSection: createFakeElement('captureSection')
+                }[id] || null;
+            },
+            querySelector(selector) {
+                if (selector === '.header-title') {
+                    return headerTitle;
+                }
+
+                return createFakeElement();
+            },
+            querySelectorAll() {
+                return [];
+            }
+        };
+
+        controller.configureAccessMode();
+
+        expect(global.document.body.dataset.facilitatorMode).toBe('scribe');
+        expect(roleLabel.textContent).toBe('Scribe');
+        expect(headerTitle.textContent).toBe('Blue Team Scribe');
+        expect(notice.style.display).toBe('none');
+        expect(notice.innerHTML).toBe('');
     });
 
     it('ships a standalone Tribe Street Journal sidebar section in the facilitator view', () => {
@@ -191,6 +206,48 @@ describe('Facilitator observer enforcement', () => {
         });
 
         expect(markup).not.toContain('Send to Red Team');
+    });
+
+    it('renders Blue Team wizard fields on facilitator action cards', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
+        global.document = createFakeDocument();
+
+        const controller = new FacilitatorController();
+        controller.actions = [{
+            id: 'action-blue-0',
+            team: 'blue',
+            move: 2,
+            created_at: '2026-04-08T09:00:00.000Z'
+        }, {
+            id: 'action-blue-1',
+            team: 'blue',
+            move: 2,
+            created_at: '2026-04-08T10:00:00.000Z',
+            status: 'draft',
+            goal: 'Stabilize biotech leverage',
+            mechanism: 'Economic',
+            sector: 'Biotechnology',
+            exposure_type: 'Advanced Manufacturing',
+            targets: ['PRC', 'Japan'],
+            expected_outcomes: 'Reduce exposure before the next move.',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Lower upstream dependency on PRC inputs.',
+                lever: 'Export Controls',
+                implementation: 'Executive Order',
+                enforcementTimeline: '6 months',
+                coordinated: ['Executive'],
+                informed: ['Allied']
+            })
+        }];
+        const markup = controller.renderActionCard(controller.actions[1]);
+
+        expect(markup).toContain('Objective:</strong> Lower upstream dependency on PRC inputs.');
+        expect(markup).toContain('Lever:</strong> Export Controls');
+        expect(markup).toContain('Coordinated:</strong> Executive');
+        expect(markup).toContain('Informed:</strong> Allied');
+        expect(markup).toContain('Timeline:</strong> 6 months');
+        expect(markup).toContain('Blue Team | Move 2 | Action 2');
     });
 
     it('builds Tribe Street Journal entries from team capture events only', async () => {

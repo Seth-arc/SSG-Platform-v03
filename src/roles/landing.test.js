@@ -13,8 +13,8 @@ describe('landing public role visibility', () => {
 
         expect(extractRoleSurfaces(html)).toEqual([
             'facilitator',
-            'notetaker',
-            'viewer'
+            'scribe',
+            'notetaker'
         ]);
         expect(html).not.toContain('data-role-surface="whitecell"');
         expect(html).toContain('Operator Access');

@@ -19,10 +19,10 @@ If either value is missing or left as a placeholder, the app blocks startup with
   - Not sufficient proof of live-demo readiness on its own.
 - `npm run test:e2e:live-demo`
   - Multi-actor topology suite for the real demo seat model.
-  - Covers facilitator, notetaker, observer, White Cell lead, White Cell support, seat contention, recovery paths, and a browser-level all-team role matrix.
+  - Covers facilitator, scribe, notetaker, White Cell lead, White Cell support, seat contention, recovery paths, and a browser-level all-team role matrix.
 - `npm run test:e2e:live-demo:matrix`
   - Targeted browser-level role matrix.
-  - Verifies blue, red, and green facilitator, notetaker, observer, White Cell lead, and White Cell support joins survive bootstrap, reload, and operator-roster visibility.
+  - Verifies blue, red, and green facilitator, scribe, notetaker, White Cell lead, and White Cell support joins survive bootstrap, reload, and operator-roster visibility.
 - `npm run test:e2e`
   - Full automated gate.
   - Run this before treating a build as demo-ready.
@@ -45,9 +45,10 @@ The automated E2E suite still uses the mock backend contract. Real Supabase veri
 Target staffing for the final one-team live demo:
 
 - 1 facilitator
-- 4 notetakers
+- 1 scribe
+- 2 notetakers
 - 2 White Cell operators
-- 5 observers
+- No public observer seats
 
 Suggested rehearsal order:
 
@@ -55,12 +56,12 @@ Suggested rehearsal order:
 2. Run `npm run test:e2e:live-demo`.
    - This now includes the all-team role matrix in addition to the one-team topology flow.
 3. On the live Pages target, have the Game Master create one session and distribute the session code.
-4. Join one facilitator, then four notetakers, then five observers on the same team.
+4. Join one facilitator, one scribe, and two notetakers on the same team.
 5. Join White Cell Lead and White Cell Support with the operator access code.
-6. Save a facilitator draft action, confirm observers can see it but cannot modify it, then submit it to White Cell.
+6. On Blue Team, use the three-page `Take Action` wizard to save a draft or submit directly after the confirmation modal. The wizard now shows the Blue Team move and action number being built, and White Cell surfaces the same sequence label during review. Confirm the scribe seat sees the same team-lead action feed and workflow, then submit any remaining draft to White Cell.
 7. Have at least two notetakers save different seat-scoped notes and shared captures at the same time.
 8. Adjudicate the submitted action from White Cell Lead.
-9. Disconnect one occupied seat, then rejoin it from a second browser.
+9. Use Game Master `Participant Roster` to remove one occupied seat, then rejoin it from a second browser.
 10. Export the session bundle from Game Master and confirm the expected files download.
 
 ## Operator Runbook
@@ -81,8 +82,8 @@ Suggested rehearsal order:
 ### Participant Onboarding
 
 1. Share the session code with the team.
-2. Tell public participants to join only through `Facilitator`, `Notetaker`, or `Observer`.
-3. For the one-team live target, fill seats in this order: facilitator, notetakers, observers.
+2. Tell public participants to join only through `Facilitator`, `Scribe`, or `Notetaker`.
+3. For the one-team live target, fill seats in this order: facilitator, scribe, notetakers.
 4. Do not tell public users to use White Cell or Game Master paths. Those are operator-only.
 
 ### Operator Login
@@ -113,23 +114,25 @@ Suggested rehearsal order:
 ### Recovery Steps If a Seat Gets Stuck
 
 1. Ask the participant to click `Logout` first.
-2. If the browser disappeared without logging out, wait for the heartbeat timeout window to expire.
+2. If the seat must be cleared immediately, open Game Master `Participant Roster`, select the session, and click `Remove` on that participant row.
+3. Have the participant rejoin with the session code. White Cell operators must also repeat operator login before reclaiming a White Cell seat.
+4. If the browser disappeared without logging out and you do not remove the seat manually, wait for the heartbeat timeout window to expire.
    - Current backend timeout target: 90 seconds.
-3. Refresh the join page and retry the same seat.
-4. If the seat is still blocked after the timeout, confirm the operator used the correct team and role before recreating the session as a last resort.
+5. Refresh the join page and retry the same seat.
+6. If the seat is still blocked after the timeout, confirm the operator used the correct team and role before recreating the session as a last resort.
 
 ## Manual Live Supabase Verification
 
 Validate these manually against the real backend because the automated suite does not fully cover them:
 
 - Anonymous browser identity bootstrap on the deployed Pages build.
-- Public facilitator, notetaker, and observer joins should succeed without ever returning `Session access is required.` If they do, reapply the current `data/2026-04-08_facilitator_join_session_access_fix.sql` from this repo before retrying.
+- Public facilitator, scribe, and notetaker joins should succeed without ever returning `Session access is required.` If they do, reapply the current `data/2026-04-08_facilitator_join_session_access_fix.sql` from this repo before retrying.
 - If the live backend returns `function public.release_stale_session_role_seats(uuid, integer) is not unique`, the older join hotfix created an overloaded function. Reapply the current `data/2026-04-08_facilitator_join_session_access_fix.sql`; it drops the bad overload and replaces it with the internal `release_stale_session_role_seats_internal` helper.
-- If facilitator or notetaker heartbeats fail with `heartbeat_session_role_seat` 403 / `Session access is required.`, the live backend is still running the older heartbeat/disconnect function bodies. Reapply the current `data/2026-04-08_facilitator_join_session_access_fix.sql`; the updated patch moves heartbeat and disconnect cleanup onto the internal helper as well.
+- If facilitator, scribe, or notetaker heartbeats fail with `heartbeat_session_role_seat` 403 / `Session access is required.`, the live backend is still running the older heartbeat/disconnect function bodies. Reapply the current `data/2026-04-08_facilitator_join_session_access_fix.sql`; the updated patch moves heartbeat and disconnect cleanup onto the internal helper as well.
 - If `game_state` reads return `GameState not found` for an active session, the session was created without its `game_state` row. Reapply the current `data/2026-04-08_facilitator_join_session_access_fix.sql`; it now backfills missing `game_state` rows for existing sessions. Recreate the session only if the row still does not appear afterward.
 - If Game Master or White Cell operator authorization fails with `function digest(text, unknown) does not exist`, the live backend is resolving `pgcrypto.digest()` outside the `extensions` schema search path. Apply `data/2026-04-08_operator_auth_digest_fix.sql`, then retry operator login.
 - If White Cell operator authorization still expects a team-scoped role such as `blue_whitecell_lead`, apply `data/2026-04-09_global_white_cell_role_contract.sql`, then retry operator login.
-- If public facilitator, notetaker, or observer joins started failing with `claim_session_role_seat` 403 / `Session access is required.` after the White Cell role contract update, reapply the current `data/2026-04-09_global_white_cell_role_contract.sql`; the corrected version preserves the internal stale-seat cleanup helper inside `claim_session_role_seat`.
+- If public facilitator, scribe, or notetaker joins started failing with `claim_session_role_seat` 403 / `Session access is required.` after the White Cell role contract update, reapply the current `data/2026-04-09_global_white_cell_role_contract.sql`; the corrected version preserves the internal stale-seat cleanup helper inside `claim_session_role_seat`.
 - Server-side RPC and RLS enforcement for:
   - operator authorization
   - join-by-code lookup
@@ -139,8 +142,10 @@ Validate these manually against the real backend because the automated suite doe
 - Realtime propagation across separate browsers without page reloads.
 - Hard disconnect handling after closing a tab or losing network, including stale seat release after 90 seconds.
 - White Cell lead and support grants surviving reloads on the live backend.
+- Game Master participant removals from the deployed `Participant Roster`, including immediate seat loss and required rejoin behavior.
 - Export downloads from the deployed Game Master page with live backend data.
 - Base-path correctness on the actual Pages deployment URL.
+- If Game Master participant removal fails with `function public.operator_remove_session_participant(uuid, uuid) does not exist`, apply `data/2026-04-16_game_master_remove_session_participant.sql`, then retry the removal.
 
 ## GitHub Pages Operator Note
 

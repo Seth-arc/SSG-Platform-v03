@@ -67,6 +67,11 @@
     overflow-x: auto;
 }
 
+#settingsTabs .tab-list {
+    overflow-x: visible;
+    flex-wrap: wrap;
+}
+
 .tab-button {
     padding: var(--space-3) var(--space-4);
     font-size: var(--text-sm);

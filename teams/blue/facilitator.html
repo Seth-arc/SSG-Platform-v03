@@ -63,7 +63,7 @@
                     </div>
                     <div class="game-state-item">
                         <span class="game-state-label">Phase</span>
-                        <span class="game-state-value" id="headerPhase">1</span>
+                        <span class="game-state-value" id="headerPhase">Internal Deliberation</span>
                     </div>
                 </div>
                 <div class="header-timer">
@@ -127,6 +127,18 @@
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
+                        <a href="#receivedProposals" class="sidebar-link" data-section="receivedProposals">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                                    <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Received Proposals</span>
+                            <span class="sidebar-badge" id="receivedProposalsBadge">0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
                         <a href="#tribeStreetJournal" class="sidebar-link" data-section="tribeStreetJournal">
                             <span class="sidebar-icon">
                                 <svg viewBox="0 0 20 20" fill="currentColor">
@@ -135,6 +147,16 @@
                                 </svg>
                             </span>
                             <span class="sidebar-label">Tribe Street Journal</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#verbaAi" class="sidebar-link" data-section="verbaAi">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Verba AI Population Sentiments</span>
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
@@ -181,7 +203,7 @@
                             <p class="section-description">Draft actions, submit them to White Cell, and track adjudication results.</p>
                         </div>
                         <div class="section-actions">
-                            <button class="btn btn-primary" id="newActionBtn" data-write-control="true" aria-describedby="facilitatorModeNotice">New Action</button>
+                            <button class="btn btn-primary" id="newActionBtn" data-write-control="true" aria-describedby="facilitatorModeNotice">Take Action</button>
                         </div>
                     </div>
 
@@ -236,6 +258,22 @@
                     </div>
                 </section>
 
+                <!-- Received Proposals Section -->
+                <section id="receivedProposalsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Received Proposals</h2>
+                            <p class="section-description">Proposals forwarded by White Cell after approval.</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="receivedProposalsList" class="card-list" aria-live="polite">
+                            <!-- Received proposals will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Tribe Street Journal Section -->
                 <section id="tribeStreetJournalSection" class="content-section" style="display: none;">
                     <div class="section-header">
@@ -248,6 +286,22 @@
                     <div class="section-body">
                         <div id="tribeStreetJournalList" aria-live="polite">
                             <!-- Tribe Street Journal entries will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Verba AI Population Sentiments Section -->
+                <section id="verbaAiSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Verba AI Population Sentiments</h2>
+                            <p class="section-description">AI-generated sentiment analysis of populations</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="verbaAiList" class="card-list" aria-live="polite">
+                            <p class="text-sm text-gray-500">Sentiment data will appear here.</p>
                         </div>
                     </div>
                 </section>

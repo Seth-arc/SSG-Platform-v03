@@ -17,12 +17,14 @@ import {
 describe('teamContext', () => {
     it('builds team-scoped roles and routes for shipped teams', () => {
         expect(buildTeamRole('blue', ROLE_SURFACES.FACILITATOR)).toBe('blue_facilitator');
+        expect(buildTeamRole('blue', ROLE_SURFACES.SCRIBE)).toBe('blue_scribe');
         expect(buildTeamRole('red', ROLE_SURFACES.NOTETAKER)).toBe('red_notetaker');
         expect(buildTeamRole('green', ROLE_SURFACES.WHITECELL)).toBe('whitecell_lead');
         expect(buildWhiteCellOperatorRole('green', WHITE_CELL_OPERATOR_ROLES.SUPPORT)).toBe('whitecell_support');
 
         expect(getRoleRoute('red_facilitator', { basePath: '/repo-slug/' })).toBe('/repo-slug/teams/red/facilitator.html');
-        expect(getRoleRoute('whitecell_support', { basePath: '/repo-slug/' })).toBe('/repo-slug/teams/blue/whitecell.html');
+        expect(getRoleRoute('blue_scribe', { basePath: '/repo-slug/' })).toBe('/repo-slug/teams/blue/facilitator.html');
+        expect(getRoleRoute('whitecell_support', { basePath: '/repo-slug/' })).toBe('/repo-slug/whitecell.html');
         expect(getRoleRoute('viewer', { observerTeamId: 'red', basePath: '/repo-slug/' })).toBe('/repo-slug/teams/red/facilitator.html?mode=observer');
     });
 
@@ -43,8 +45,11 @@ describe('teamContext', () => {
 
         expect(context.teamId).toBe('green');
         expect(context.facilitatorRole).toBe('green_facilitator');
+        expect(context.scribeRole).toBe('green_scribe');
         expect(context.notetakerRoute).toBe('/repo-slug/teams/green/notetaker.html');
+        expect(context.scribeRoute).toBe('/repo-slug/teams/green/facilitator.html');
         expect(getRoleDisplayName('green_notetaker')).toBe('Green Team Notetaker');
+        expect(getRoleDisplayName('green_scribe')).toBe('Green Team Scribe');
         expect(getRoleDisplayName('green_whitecell_support')).toBe('White Cell Support');
         expect(getRoleDisplayName('viewer', { observerTeamId: 'green' })).toBe('Green Team Observer');
     });
@@ -52,12 +57,13 @@ describe('teamContext', () => {
     it('defines explicit public and operator surface boundaries', () => {
         expect(PUBLIC_ROLE_SURFACES).toEqual([
             ROLE_SURFACES.FACILITATOR,
-            ROLE_SURFACES.NOTETAKER,
-            ROLE_SURFACES.VIEWER
+            ROLE_SURFACES.SCRIBE,
+            ROLE_SURFACES.NOTETAKER
         ]);
 
         expect(isPublicRoleSurface(ROLE_SURFACES.WHITECELL)).toBe(false);
-        expect(isPublicRoleSurface(ROLE_SURFACES.VIEWER)).toBe(true);
+        expect(isPublicRoleSurface(ROLE_SURFACES.VIEWER)).toBe(false);
+        expect(isPublicRoleSurface(ROLE_SURFACES.SCRIBE)).toBe(true);
         expect(isOperatorSurface(OPERATOR_SURFACES.GAME_MASTER)).toBe(true);
         expect(isOperatorSurface(OPERATOR_SURFACES.WHITE_CELL)).toBe(true);
     });

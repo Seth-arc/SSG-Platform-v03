@@ -13,18 +13,25 @@ const BACKEND_RESET_KEY = '__esg_e2e_backend_reset__';
 export const OPERATOR_ACCESS_CODE = 'admin2025';
 
 export const DEFAULT_ACTION_PAYLOAD = Object.freeze({
-    mechanism: 'export',
-    sector: 'semiconductors',
-    exposureType: 'Technology',
-    priority: 'HIGH',
-    targets: ['PRC', 'TWN'],
+    instrumentOfPower: 'Economic',
+    lever: 'Export Controls',
+    sector: 'Biotechnology',
+    supplyChainFocus: 'Advanced Manufacturing',
+    implementation: 'Executive Order',
+    focusCountries: ['PRC', 'Japan'],
+    enforcementTimeline: '6 months',
     expectedOutcomes: 'Reduce allied dependence and build leverage before the next move begins.',
-    allyContingencies: 'Coordinate with allies first so enforcement and messaging remain aligned.'
+    coordinated: ['Executive'],
+    informed: ['Allied']
 });
 
 function resolveExpectedUrlPattern(roleSurface) {
     if (roleSurface === 'notetaker') {
         return /notetaker\.html/;
+    }
+
+    if (roleSurface === 'scribe') {
+        return /facilitator\.html/;
     }
 
     if (roleSurface === 'viewer') {
@@ -249,25 +256,43 @@ export async function openSidebarSection(page, section) {
 
 export async function createDraftAction(page, {
     goal,
-    mechanism = DEFAULT_ACTION_PAYLOAD.mechanism,
+    objective = goal,
+    instrumentOfPower = DEFAULT_ACTION_PAYLOAD.instrumentOfPower,
+    lever = DEFAULT_ACTION_PAYLOAD.lever,
     sector = DEFAULT_ACTION_PAYLOAD.sector,
-    exposureType = DEFAULT_ACTION_PAYLOAD.exposureType,
-    priority = DEFAULT_ACTION_PAYLOAD.priority,
-    targets = DEFAULT_ACTION_PAYLOAD.targets,
+    supplyChainFocus = DEFAULT_ACTION_PAYLOAD.supplyChainFocus,
+    implementation = DEFAULT_ACTION_PAYLOAD.implementation,
+    focusCountries = DEFAULT_ACTION_PAYLOAD.focusCountries,
+    enforcementTimeline = DEFAULT_ACTION_PAYLOAD.enforcementTimeline,
     expectedOutcomes = DEFAULT_ACTION_PAYLOAD.expectedOutcomes,
-    allyContingencies = DEFAULT_ACTION_PAYLOAD.allyContingencies
+    coordinated = DEFAULT_ACTION_PAYLOAD.coordinated,
+    informed = DEFAULT_ACTION_PAYLOAD.informed
 } = {}) {
     await page.locator('#newActionBtn').click();
 
     const modal = page.locator('.modal-overlay');
-    await modal.locator('#actionGoal').fill(goal);
-    await modal.locator('#actionMechanism').selectOption(mechanism);
-    await modal.locator('#actionSector').selectOption(sector);
-    await modal.locator('#actionExposureType').selectOption(exposureType);
-    await modal.locator('#actionPriority').selectOption(priority);
-    await modal.locator('#actionTargets').selectOption(targets);
+    await modal.locator('#actionTitle').fill(goal);
+    await modal.locator('#actionObjective').fill(objective);
+    await modal.locator('#actionInstrument').selectOption(instrumentOfPower);
+    await modal.locator('#actionLever').selectOption(lever);
+    await modal.getByRole('button', { name: 'Next' }).click();
+
+    await modal.locator('#actionBlueSector').selectOption(sector);
+    await modal.locator('#actionSupplyChainFocus').selectOption(supplyChainFocus);
+    await modal.locator('#actionImplementation').selectOption(implementation);
+    await modal.locator('#actionFocusCountries').selectOption(focusCountries);
+    await modal.locator('#actionEnforcementTimeline').selectOption(enforcementTimeline);
     await modal.locator('#actionExpectedOutcomes').fill(expectedOutcomes);
-    await modal.locator('#actionAllyContingencies').fill(allyContingencies);
+    await modal.getByRole('button', { name: 'Next' }).click();
+
+    for (const coordinatedValue of coordinated) {
+        await modal.locator(`[data-blue-action-checkbox="coordinated"][value="${coordinatedValue}"]`).check();
+    }
+
+    for (const informedValue of informed) {
+        await modal.locator(`[data-blue-action-checkbox="informed"][value="${informedValue}"]`).check();
+    }
+
     await modal.getByRole('button', { name: 'Save Draft' }).click();
 
     await expect(page.locator('#actionsList')).toContainText(goal);

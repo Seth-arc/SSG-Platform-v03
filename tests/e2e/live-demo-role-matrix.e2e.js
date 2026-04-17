@@ -21,9 +21,9 @@ const TEAM_OPTIONS = Object.freeze([
 
 const ROLE_SURFACES = Object.freeze({
     FACILITATOR: 'facilitator',
+    SCRIBE: 'scribe',
     NOTETAKER: 'notetaker',
     WHITECELL: 'whitecell',
-    VIEWER: 'viewer'
 });
 
 const WHITE_CELL_OPERATOR_ROLES = Object.freeze({
@@ -39,16 +39,16 @@ const LIVE_DEMO_ROLE_MATRIX = TEAM_OPTIONS.flatMap((team) => ([
         roleSurface: ROLE_SURFACES.FACILITATOR
     },
     {
+        actorName: `${team.id}-scribe-matrix`,
+        displayName: `${team.shortLabel} Scribe Matrix`,
+        teamId: team.id,
+        roleSurface: ROLE_SURFACES.SCRIBE
+    },
+    {
         actorName: `${team.id}-notetaker-matrix`,
         displayName: `${team.shortLabel} Notetaker Matrix`,
         teamId: team.id,
         roleSurface: ROLE_SURFACES.NOTETAKER
-    },
-    {
-        actorName: `${team.id}-observer-matrix`,
-        displayName: `${team.shortLabel} Observer Matrix`,
-        teamId: team.id,
-        roleSurface: ROLE_SURFACES.VIEWER
     }
 ])).concat([
     {
@@ -71,11 +71,11 @@ function buildExpectedSeatCounts() {
     return TEAM_OPTIONS.reduce((counts, team) => ({
         ...counts,
         [`${team.id}_facilitator`]: 1,
+        [`${team.id}_scribe`]: 1,
         [`${team.id}_notetaker`]: 1
     }), {
         whitecell_lead: 1,
-        whitecell_support: 1,
-        viewer: TEAM_OPTIONS.length
+        whitecell_support: 1
     });
 }
 
@@ -90,21 +90,20 @@ async function expectRoleSurface(page, roleCase) {
         return;
     }
 
+    if (roleCase.roleSurface === ROLE_SURFACES.SCRIBE) {
+        await expect(page).toHaveURL(new RegExp(`/teams/${roleCase.teamId}/facilitator\\.html(?:\\?.*)?$`));
+        await expect(page.locator('#sessionRoleLabel')).toHaveText('Scribe');
+        await expect(page.locator('body')).toHaveAttribute('data-facilitator-mode', 'scribe');
+        await expect(page.locator('#newActionBtn')).toBeVisible();
+        return;
+    }
+
     if (roleCase.roleSurface === ROLE_SURFACES.NOTETAKER) {
         await expect(page).toHaveURL(new RegExp(`/teams/${roleCase.teamId}/notetaker\\.html(?:\\?.*)?$`));
         await expect(page.locator('body')).toHaveAttribute('data-team', roleCase.teamId);
         await expect(page.locator('.header-title')).toContainText(`${roleCase.displayName.split(' ')[0]} Team Notetaker`);
         await expect(page.locator('#captureForm')).toBeVisible();
         await expect(page.locator('#captureContent')).toBeVisible();
-        return;
-    }
-
-    if (roleCase.roleSurface === ROLE_SURFACES.VIEWER) {
-        await expect(page).toHaveURL(new RegExp(`/teams/${roleCase.teamId}/facilitator\\.html\\?mode=observer(?:&.*)?$`));
-        await expect(page.locator('body')).toHaveAttribute('data-facilitator-mode', 'observer');
-        await expect(page.locator('#sessionRoleLabel')).toHaveText('Observer');
-        await expect(page.locator('#newActionBtn')).toBeHidden();
-        await expect(page.locator('#captureNavItem')).toBeHidden();
         return;
     }
 

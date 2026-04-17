@@ -213,8 +213,6 @@ export class LandingController {
     updateSelectedRole() {
         if (!this.selectedRoleSurface) {
             this.selectedRole = null;
-        } else if (this.selectedRoleSurface === ROLE_SURFACES.VIEWER) {
-            this.selectedRole = 'viewer';
         } else {
             this.selectedRole = buildTeamRole(this.selectedTeam, this.selectedRoleSurface);
         }

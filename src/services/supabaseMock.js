@@ -469,11 +469,11 @@ function getSessionRoleSeatLimit(role = '') {
     if (/^(blue|red|green)_facilitator$/.test(normalizedRole)) {
         return 1;
     }
-    if (/^(blue|red|green)_notetaker$/.test(normalizedRole)) {
-        return 4;
+    if (/^(blue|red|green)_scribe$/.test(normalizedRole)) {
+        return 1;
     }
-    if (normalizedRole === 'viewer') {
-        return 5;
+    if (/^(blue|red|green)_notetaker$/.test(normalizedRole)) {
+        return 2;
     }
     if (/^whitecell(_lead)?$/.test(normalizedRole)) {
         return 1;
@@ -540,6 +540,10 @@ function getLiveDemoParticipantSurface(state, authUserId, sessionId) {
 
     if (/^(blue|red|green)_facilitator$/.test(role || '')) {
         return 'facilitator';
+    }
+
+    if (/^(blue|red|green)_scribe$/.test(role || '')) {
+        return 'scribe';
     }
 
     if (/^(blue|red|green)_notetaker$/.test(role || '')) {
@@ -665,7 +669,7 @@ function canInsertTableRow(state, tableName, row, authUserId) {
                 authUserId,
                 row.session_id,
                 row.team,
-                ['facilitator']
+                ['facilitator', 'scribe']
             );
         case 'requests':
             return liveDemoCanWriteTeamSession(
@@ -673,7 +677,7 @@ function canInsertTableRow(state, tableName, row, authUserId) {
                 authUserId,
                 row.session_id,
                 row.team,
-                ['facilitator']
+                ['facilitator', 'scribe']
             );
         case 'timeline':
             return liveDemoCanWriteSession(state, authUserId, row.session_id);
@@ -693,14 +697,14 @@ function canUpdateTableRow(state, tableName, currentRow, nextRow, authUserId) {
     switch (tableName) {
         case 'actions':
             return (
-                liveDemoCanWriteTeamSession(state, authUserId, currentRow.session_id, currentRow.team, ['facilitator'])
-                && liveDemoCanWriteTeamSession(state, authUserId, nextRow.session_id, nextRow.team, ['facilitator'])
+                liveDemoCanWriteTeamSession(state, authUserId, currentRow.session_id, currentRow.team, ['facilitator', 'scribe'])
+                && liveDemoCanWriteTeamSession(state, authUserId, nextRow.session_id, nextRow.team, ['facilitator', 'scribe'])
                 && nextRow.status !== 'adjudicated'
             );
         case 'requests':
             return (
-                liveDemoCanWriteTeamSession(state, authUserId, currentRow.session_id, currentRow.team, ['facilitator'])
-                && liveDemoCanWriteTeamSession(state, authUserId, nextRow.session_id, nextRow.team, ['facilitator'])
+                liveDemoCanWriteTeamSession(state, authUserId, currentRow.session_id, currentRow.team, ['facilitator', 'scribe'])
+                && liveDemoCanWriteTeamSession(state, authUserId, nextRow.session_id, nextRow.team, ['facilitator', 'scribe'])
                 && nextRow.status !== 'answered'
             );
         case 'notetaker_data':
@@ -1126,6 +1130,65 @@ function disconnectSessionRoleSeat(state, {
 
     return {
         data: buildParticipantSeatPayload(state, updatedSeat),
+        error: null
+    };
+}
+
+function operatorRemoveSessionParticipant(state, {
+    requested_session_id,
+    requested_session_participant_id
+}) {
+    const authUserId = getCurrentAuthUserId();
+    const grant = getOperatorGrant(state, authUserId, 'gamemaster');
+
+    if (!grant) {
+        return { data: null, error: { message: 'Game Master authorization is required.' } };
+    }
+
+    if (!requested_session_id || !requested_session_participant_id) {
+        return {
+            data: null,
+            error: { message: 'Session and participant seat identifiers are required.' }
+        };
+    }
+
+    const seat = state.tables.session_participants.find((entry) => (
+        entry.id === requested_session_participant_id && entry.session_id === requested_session_id
+    ));
+
+    if (!seat) {
+        return {
+            data: null,
+            error: { message: 'Participant seat not found for this session.' }
+        };
+    }
+
+    const participant = state.tables.participants.find((entry) => entry.id === seat.participant_id);
+    const removedAt = getTimestamp();
+    const removedSeat = {
+        ...seat,
+        is_active: false,
+        last_seen: seat.last_seen || seat.heartbeat_at || seat.joined_at || removedAt,
+        disconnected_at: removedAt,
+        left_at: removedAt,
+        updated_at: removedAt
+    };
+
+    state.tables.session_participants = state.tables.session_participants.filter((entry) => entry.id !== seat.id);
+
+    if (participant?.auth_user_id) {
+        state.tables.operator_grants = state.tables.operator_grants.filter((entry) => !(
+            entry.auth_user_id === participant.auth_user_id
+            && entry.surface === 'whitecell'
+            && entry.session_id === requested_session_id
+        ));
+    }
+
+    return {
+        data: {
+            ...buildParticipantSeatPayload(state, removedSeat),
+            removed_at: removedAt
+        },
         error: null
     };
 }
@@ -1632,6 +1695,13 @@ export function createE2EMockSupabaseClient() {
             if (functionName === 'disconnect_session_role_seat') {
                 const state = readMockState();
                 const result = disconnectSessionRoleSeat(state, params);
+                writeMockState(state);
+                return result;
+            }
+
+            if (functionName === 'operator_remove_session_participant') {
+                const state = readMockState();
+                const result = operatorRemoveSessionParticipant(state, params);
                 writeMockState(state);
                 return result;
             }
