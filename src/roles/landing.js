@@ -223,6 +223,18 @@ export class LandingController {
         }
     }
 
+    resolveRequestedPublicRole() {
+        if (!this.selectedRoleSurface || !isPublicRoleSurface(this.selectedRoleSurface)) {
+            return this.selectedRole;
+        }
+
+        const parsedRole = parseTeamRole(this.selectedRole);
+        const resolvedTeamId = parsedRole.teamId || this.selectedTeam;
+        const resolvedSurface = parsedRole.surface || this.selectedRoleSurface;
+
+        return buildTeamRole(resolvedTeamId, resolvedSurface);
+    }
+
     async prewarmBrowserIdentity({ interactive = false } = {}) {
         try {
             await ensureBrowserIdentity({
@@ -264,16 +276,17 @@ export class LandingController {
             return;
         }
 
-        if (!this.selectedRole) {
-            showToast({ message: 'Please select a role', type: 'error' });
-            return;
-        }
-
         if (!isPublicRoleSurface(this.selectedRoleSurface)) {
             showToast({
                 message: 'White Cell and Game Master use the operator access flow.',
                 type: 'error'
             });
+            return;
+        }
+
+        const requestedRole = this.resolveRequestedPublicRole();
+        if (!requestedRole) {
+            showToast({ message: 'Please select a role', type: 'error' });
             return;
         }
 
@@ -284,15 +297,15 @@ export class LandingController {
             const session = await this.findSessionByCode(sessionCode);
             const sessionCodeFromLookup = session.session_code || sessionCode;
 
-            // Check role availability
-            const parsedRole = parseTeamRole(this.selectedRole);
+            const parsedRole = parseTeamRole(requestedRole);
             const participantTeam = parsedRole.teamId || this.selectedTeam;
-            const participant = await database.claimParticipantSeat(session.id, this.selectedRole, displayName);
+            const participant = await database.claimParticipantSeat(session.id, requestedRole, displayName);
+            this.selectedRole = requestedRole;
 
             // Store session data
             sessionStore.clearOperatorAuth();
             sessionStore.setSessionId(session.id);
-            sessionStore.setRole(this.selectedRole);
+            sessionStore.setRole(requestedRole);
             sessionStore.setUserName(displayName);
             sessionStore.setSessionData({
                 id: session.id,
@@ -300,7 +313,7 @@ export class LandingController {
                 code: sessionCodeFromLookup,
                 participantId: participant.id,
                 participantSessionId: participant.id,
-                role: this.selectedRole,
+                role: requestedRole,
                 displayName,
                 team: participantTeam,
                 roleSurface: this.selectedRoleSurface,
@@ -322,10 +335,10 @@ export class LandingController {
             });
 
             showToast({ message: 'Joined session successfully!', type: 'success' });
-            logger.info('Joined session:', session.id, 'as', this.selectedRole);
+            logger.info('Joined session:', session.id, 'as', requestedRole);
 
             // Redirect to appropriate role page
-            this.redirectToRole(this.selectedRole);
+            this.redirectToRole(requestedRole);
 
         } catch (err) {
             logger.error('Failed to join session:', err);

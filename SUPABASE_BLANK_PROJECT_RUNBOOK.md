@@ -131,6 +131,12 @@ Pass looks like:
 - `whitecell_lead_limit = 1`
 - `whitecell_support_limit = 1`
 
+If the UI still shows the toast `This role cannot be claimed in the live demo.` when joining as a scribe, treat that as a contract mismatch signal:
+
+- the current frontend should be submitting a canonical role like `blue_scribe`, not bare `scribe`
+- the connected Supabase project should return `1` for `public.get_session_role_seat_limit('blue_scribe')`
+- if that query returns `null`, the project is still on an outdated seat-claim contract
+
 ### 4. Verify communications metadata support exists
 
 ```sql

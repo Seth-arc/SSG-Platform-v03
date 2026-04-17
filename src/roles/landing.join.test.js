@@ -209,6 +209,54 @@ describe('landing secure join flow', () => {
         expect(mockHideLoader).toHaveBeenCalledTimes(1);
     });
 
+    it('canonicalizes a bare scribe surface into a team-scoped seat before claiming', async () => {
+        const elements = {
+            sessionCode: createElement('alpha2026'),
+            displayName: createElement('Taylor')
+        };
+
+        global.document = {
+            getElementById(id) {
+                return elements[id] || null;
+            }
+        };
+
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({
+            id: 'session-2',
+            name: 'Bravo Session',
+            session_code: 'ALPHA2026',
+            status: 'active'
+        });
+        mockDatabase.claimParticipantSeat.mockResolvedValue({
+            id: 'session-participant-2',
+            claim_status: 'claimed'
+        });
+        mockDatabase.getGameState.mockResolvedValue({
+            move: 2,
+            phase: 1
+        });
+
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'green';
+        controller.selectedRoleSurface = 'scribe';
+        controller.selectedRole = 'scribe';
+        controller.redirectToRole = vi.fn();
+
+        await controller.handleJoinSession({
+            preventDefault() {}
+        });
+
+        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('session-2', 'green_scribe', 'Taylor');
+        expect(mockSessionStore.setRole).toHaveBeenCalledWith('green_scribe');
+        expect(mockSessionStore.setSessionData).toHaveBeenCalledWith(expect.objectContaining({
+            role: 'green_scribe',
+            team: 'green',
+            roleSurface: 'scribe'
+        }));
+        expect(controller.redirectToRole).toHaveBeenCalledWith('green_scribe');
+    });
+
     it('routes public code lookup through the server-side contract only', async () => {
         mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({
             id: 'session-lookup',
