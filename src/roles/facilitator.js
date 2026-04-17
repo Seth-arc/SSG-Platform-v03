@@ -54,9 +54,15 @@ import {
     PROPOSAL_RECIPIENT_STATUSES,
     countUnreadProposals,
     formatProposalRecipientStatus,
-    getProposalRecipientStatus,
-    setProposalRecipientStatus
+    getProposalRecipientStatus
 } from '../features/actions/proposalRecipientState.js';
+import {
+    WHITE_CELL_UPDATE_KINDS,
+    getWhiteCellCommunicationUpdateKind,
+    isWhiteCellCommunicationVisibleToLead,
+    isWhiteCellSectionUpdate,
+    isWhiteCellTimelineEventVisibleToLead
+} from '../features/communications/targeting.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { validateAction } from '../utils/validation.js';
 import {
@@ -67,7 +73,7 @@ import {
     isAdjudicatedAction,
     isSubmittedAction
 } from '../core/enums.js';
-import { getRoleRoute, getTeamResponseTargets, resolveTeamContext } from '../core/teamContext.js';
+import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import { navigateToApp } from '../core/navigation.js';
 
 const logger = createLogger('Facilitator');
@@ -160,6 +166,8 @@ export class FacilitatorController {
         this.responses = [];
         this.receivedProposals = [];
         this.journalEntries = [];
+        this.journalUpdates = [];
+        this.verbaAiUpdates = [];
         this.timelineEvents = [];
         this.storeUnsubscribers = [];
         this.role = sessionStore.getRole();
@@ -168,7 +176,6 @@ export class FacilitatorController {
         this.teamContext = resolveTeamContext();
         this.teamId = this.teamContext.teamId;
         this.teamLabel = this.teamContext.teamLabel;
-        this.responseTargets = getTeamResponseTargets(this.teamId);
     }
 
     async init() {
@@ -221,6 +228,7 @@ export class FacilitatorController {
         this.syncRfisFromStore();
         this.syncResponsesFromStores();
         this.syncReceivedProposalsFromStore();
+        this.syncWhiteCellUpdateSectionsFromStore();
         this.syncTimelineFromStore();
 
         logger.info('Facilitator interface initialized');
@@ -265,6 +273,7 @@ export class FacilitatorController {
         const requestsDescription = document.querySelector('#requestsSection .section-description');
         const responsesDescription = document.querySelector('#responsesSection .section-description');
         const journalDescription = document.querySelector('#tribeStreetJournalSection .section-description');
+        const verbaAiDescription = document.querySelector('#verbaAiSection .section-description');
         const timelineDescription = document.querySelector('#timelineSection .section-description');
 
         document.body.dataset.facilitatorMode = this.isReadOnly
@@ -333,8 +342,14 @@ export class FacilitatorController {
 
         if (journalDescription) {
             journalDescription.textContent = this.isReadOnly
-                ? 'Passive feed of the latest team notes, moments, and quotes captured during the exercise.'
-                : 'Review the latest team notes, moments, and quotes captured during the exercise.';
+                ? 'Passive feed of White Cell journal updates plus the latest team notes, moments, and quotes captured during the exercise.'
+                : 'Review White Cell journal updates plus the latest team notes, moments, and quotes captured during the exercise.';
+        }
+
+        if (verbaAiDescription) {
+            verbaAiDescription.textContent = this.isReadOnly
+                ? 'Passive feed of White Cell Verba AI population sentiment updates.'
+                : 'Review White Cell Verba AI population sentiment updates.';
         }
 
         if (timelineDescription) {
@@ -453,6 +468,7 @@ export class FacilitatorController {
             communicationsStore.subscribe(() => {
                 this.syncResponsesFromStores();
                 this.syncReceivedProposalsFromStore();
+                this.syncWhiteCellUpdateSectionsFromStore();
             })
         );
 
@@ -498,8 +514,9 @@ export class FacilitatorController {
 
         const directResponses = communicationsStore.getAll()
             .filter((communication) =>
-                communication.from_role === 'white_cell'
-                && this.responseTargets.has(communication.to_role)
+                isWhiteCellCommunicationVisibleToLead(communication, this.teamContext)
+                && communication?.type !== 'PROPOSAL_FORWARDED'
+                && !getWhiteCellCommunicationUpdateKind(communication)
             )
             .map((communication) => ({
                 id: communication.id,
@@ -521,20 +538,35 @@ export class FacilitatorController {
         this.receivedProposals = communicationsStore.getAll()
             .filter((communication) => (
                 communication?.type === 'PROPOSAL_FORWARDED'
-                && communication?.to_role === this.teamId
+                && isWhiteCellCommunicationVisibleToLead(communication, this.teamContext)
             ))
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
         this.renderReceivedProposals();
     }
 
+    syncWhiteCellUpdateSectionsFromStore() {
+        const visibleWhiteCellCommunications = communicationsStore.getAll()
+            .filter((communication) => isWhiteCellCommunicationVisibleToLead(communication, this.teamContext))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        this.journalUpdates = visibleWhiteCellCommunications.filter((communication) => (
+            isWhiteCellSectionUpdate(communication, WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL)
+        ));
+        this.verbaAiUpdates = visibleWhiteCellCommunications.filter((communication) => (
+            isWhiteCellSectionUpdate(communication, WHITE_CELL_UPDATE_KINDS.VERBA_AI_POPULATION_SENTIMENT)
+        ));
+
+        this.renderTribeStreetJournalList();
+        this.renderVerbaAiList();
+    }
+
     renderReceivedProposals() {
         const container = document.getElementById('receivedProposalsList');
         const badge = document.getElementById('receivedProposalsBadge');
-        const sessionId = sessionStore.getSessionId();
 
         if (badge) {
-            const unreadCount = countUnreadProposals(sessionId, this.receivedProposals);
+            const unreadCount = countUnreadProposals(this.receivedProposals);
             badge.textContent = unreadCount;
             badge.hidden = unreadCount === 0;
         }
@@ -556,7 +588,6 @@ export class FacilitatorController {
                 case PROPOSAL_RECIPIENT_STATUSES.RESPONDED:    return 'var(--color-primary-500)';
                 case PROPOSAL_RECIPIENT_STATUSES.DECLINED:     return 'var(--color-error)';
                 case PROPOSAL_RECIPIENT_STATUSES.IGNORED:      return 'var(--color-text-muted)';
-                case PROPOSAL_RECIPIENT_STATUSES.READ:         return 'var(--color-text-secondary)';
                 case PROPOSAL_RECIPIENT_STATUSES.UNREAD:
                 default:                                        return 'var(--color-info-600)';
             }
@@ -577,7 +608,7 @@ export class FacilitatorController {
                 : sourceTeam;
             const outcome = metadata.outcome || 'APPROVED';
             const receivedAt = communication.created_at;
-            const status = getProposalRecipientStatus(sessionId, communication.id);
+            const status = getProposalRecipientStatus(communication);
             const statusLabel = formatProposalRecipientStatus(status);
             const isUnread = status === PROPOSAL_RECIPIENT_STATUSES.UNREAD;
             const cardId = escape(communication.id);
@@ -620,39 +651,58 @@ export class FacilitatorController {
                         <button type="button" class="btn btn-primary btn-sm" data-proposal-action="respond" data-proposal-comm-id="${cardId}">Respond</button>
                         <button type="button" class="btn btn-secondary btn-sm" data-proposal-action="decline" data-proposal-comm-id="${cardId}">Decline</button>
                         <button type="button" class="btn btn-secondary btn-sm" data-proposal-action="ignore" data-proposal-comm-id="${cardId}">Ignore</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-proposal-action="markRead" data-proposal-comm-id="${cardId}" ${isUnread ? '' : 'disabled'}>Mark as Read</button>
                     </div>
                 </div>
             `;
         }).join('');
     }
 
-    async persistProposalRecipientStatus(communication, status, { timelineType, toastMessage, extra = {} } = {}) {
+    async persistProposalRecipientStatus(communication, status, {
+        timelineType,
+        toastMessage,
+        extraMetadata = {},
+        successMessage = null
+    } = {}) {
         if (!this.requireWriteAccess()) return false;
-        const sessionId = sessionStore.getSessionId();
-        if (!sessionId) {
-            showToast({ message: 'No session found', type: 'error' });
+        if (!communication?.id) {
+            showToast({ message: 'Proposal not found.', type: 'error' });
             return false;
         }
 
-        setProposalRecipientStatus(sessionId, communication.id, status, extra);
-        this.renderReceivedProposals();
+        let updatedCommunication = null;
+        try {
+            updatedCommunication = await database.updateProposalRecipientStatus(
+                communication.id,
+                status,
+                extraMetadata
+            );
+            communicationsStore.updateFromServer('UPDATE', updatedCommunication);
+        } catch (err) {
+            logger.error('Failed to persist proposal recipient status:', err);
+            showToast({ message: err.message || 'Failed to update proposal status', type: 'error' });
+            return false;
+        }
 
         if (timelineType) {
             try {
+                const sessionId = sessionStore.getSessionId();
                 const gameState = this.getCurrentGameState();
-                const proposalTitle = communication?.metadata?.proposal?.title || 'Untitled proposal';
+                const proposalTitle = updatedCommunication?.metadata?.proposal?.title
+                    || communication?.metadata?.proposal?.title
+                    || 'Untitled proposal';
                 const timelineEvent = await database.createTimelineEvent({
                     session_id: sessionId,
                     type: timelineType,
-                    content: `${toastMessage || 'Proposal status updated'}: ${proposalTitle}`,
+                    content: `${successMessage || toastMessage || 'Proposal status updated'}: ${proposalTitle}`,
                     metadata: {
-                        related_id: communication?.metadata?.source_proposal_id || null,
+                        related_id: updatedCommunication?.metadata?.source_proposal_id
+                            || communication?.metadata?.source_proposal_id
+                            || null,
                         role: this.role || this.getCurrentLeadRole(),
-                        communication_id: communication.id,
+                        communication_id: updatedCommunication?.id || communication.id,
                         recipient_team: this.teamId,
                         status,
-                        ...extra
+                        ...extraMetadata
                     },
                     team: this.teamId,
                     move: gameState.move ?? 1,
@@ -687,11 +737,6 @@ export class FacilitatorController {
                 return this.persistProposalRecipientStatus(communication, PROPOSAL_RECIPIENT_STATUSES.IGNORED, {
                     timelineType: 'PROPOSAL_IGNORED',
                     toastMessage: 'Proposal ignored'
-                });
-            case 'markRead':
-                return this.persistProposalRecipientStatus(communication, PROPOSAL_RECIPIENT_STATUSES.READ, {
-                    timelineType: null,
-                    toastMessage: null
                 });
             case 'respond':
                 return this.showProposalResponseModal(communication);
@@ -779,12 +824,15 @@ export class FacilitatorController {
             });
             communicationsStore.updateFromServer('INSERT', responseComm);
 
-            setProposalRecipientStatus(
-                sessionId,
+            const updatedProposalCommunication = await database.updateProposalRecipientStatus(
                 communication.id,
                 PROPOSAL_RECIPIENT_STATUSES.RESPONDED,
-                { responseCommunicationId: responseComm.id }
+                {
+                    response_communication_id: responseComm.id,
+                    responded_at: new Date().toISOString()
+                }
             );
+            communicationsStore.updateFromServer('UPDATE', updatedProposalCommunication);
 
             const timelineEvent = await database.createTimelineEvent({
                 session_id: sessionId,
@@ -817,7 +865,7 @@ export class FacilitatorController {
 
     syncTimelineFromStore() {
         const relevantEvents = timelineStore.getAll()
-            .filter((event) => [this.teamId, 'white_cell'].includes(event.team))
+            .filter((event) => isWhiteCellTimelineEventVisibleToLead(event, this.teamContext))
             .slice(0, 50);
 
         this.timelineEvents = relevantEvents;
@@ -2876,17 +2924,48 @@ export class FacilitatorController {
         const container = document.getElementById('tribeStreetJournalList');
         if (!container) return;
 
-        if (this.journalEntries.length === 0) {
+        const combinedEntries = [
+            ...this.journalUpdates.map((communication) => ({
+                kind: 'white_cell_update',
+                created_at: communication.created_at,
+                content: communication.content,
+                type: communication.type || 'GUIDANCE',
+                metadata: communication.metadata || {},
+                to_role: communication.to_role
+            })),
+            ...this.journalEntries.map((entry) => ({
+                ...entry,
+                kind: 'team_capture'
+            }))
+        ].sort((a, b) => getSortableEventTime(b) - getSortableEventTime(a));
+
+        if (combinedEntries.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <h3 class="empty-state-title">No Journal Entries Yet</h3>
-                    <p class="empty-state-message">Team notes, moments, and quotes captured during the exercise will appear here.</p>
+                    <p class="empty-state-message">White Cell journal updates and team captures will appear here.</p>
                 </div>
             `;
             return;
         }
 
-        container.innerHTML = this.journalEntries.map((entry) => {
+        container.innerHTML = combinedEntries.map((entry) => {
+            if (entry.kind === 'white_cell_update') {
+                const timestamp = getEventTimestamp(entry);
+                return `
+                    <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3); border-left: 3px solid var(--color-primary-500);">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
+                            <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                                ${createBadge({ text: 'WHITE CELL UPDATE', variant: 'primary', size: 'sm', rounded: true }).outerHTML}
+                                <span class="text-xs text-gray-500">${this.escapeHtml(this.formatCommunicationTarget(entry.to_role))}</span>
+                            </div>
+                            <span class="text-xs text-gray-400">${timestamp ? formatDateTime(timestamp) : 'Time unavailable'}</span>
+                        </div>
+                        <p class="text-sm">${this.escapeHtml(entry.content || '')}</p>
+                    </div>
+                `;
+            }
+
             const eventType = entry.type || entry.event_type || 'NOTE';
             const badgeVariant = {
                 NOTE: 'default',
@@ -2910,6 +2989,34 @@ export class FacilitatorController {
                 </div>
             `;
         }).join('');
+    }
+
+    renderVerbaAiList() {
+        const container = document.getElementById('verbaAiList');
+        if (!container) return;
+
+        if (this.verbaAiUpdates.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <h3 class="empty-state-title">No Verba AI Updates Yet</h3>
+                    <p class="empty-state-message">White Cell Verba AI population sentiment updates will appear here.</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = this.verbaAiUpdates.map((communication) => `
+            <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3); border-left: 3px solid var(--color-success);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
+                    <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                        ${createBadge({ text: 'VERBA AI', variant: 'success', size: 'sm', rounded: true }).outerHTML}
+                        <span class="text-xs text-gray-500">${this.escapeHtml(this.formatCommunicationTarget(communication.to_role))}</span>
+                    </div>
+                    <span class="text-xs text-gray-400">${formatDateTime(communication.created_at)}</span>
+                </div>
+                <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
+            </div>
+        `).join('');
     }
 
     renderTimeline() {

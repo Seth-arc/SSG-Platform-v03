@@ -140,6 +140,16 @@
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
+                        <a href="#inbox" class="sidebar-link" data-section="inbox">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v2h-2V5H5v2H3V5zm0 5h4a3 3 0 006 0h4v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5zm6 1a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Inbox</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
                         <a href="#timeline" class="sidebar-link" data-section="timeline">
                             <span class="sidebar-icon">
                                 <svg viewBox="0 0 20 20" fill="currentColor">
@@ -310,6 +320,22 @@
                     <div class="section-body">
                         <div id="actionsListView" class="card-list">
                             <!-- Actions will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Inbox Section -->
+                <section id="inboxSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">White Cell Inbox</h2>
+                            <p class="section-description">Review communications and updates sent from White Cell to your team or seat.</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="inboxList" class="card-list" aria-live="polite">
+                            <p class="text-sm text-gray-500">No White Cell communications received yet.</p>
                         </div>
                     </div>
                 </section>

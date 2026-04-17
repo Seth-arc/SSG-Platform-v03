@@ -127,6 +127,17 @@
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
+                        <a href="#receivedProposals" class="sidebar-link" data-section="receivedProposals">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path d="M10 3a1 1 0 01.894.553l1.382 2.804 3.093.45a1 1 0 01.554 1.706l-2.237 2.18.528 3.08a1 1 0 01-1.451 1.054L10 13.347l-2.763 1.452a1 1 0 01-1.45-1.054l.527-3.08-2.237-2.18a1 1 0 01.554-1.706l3.093-.45 1.382-2.804A1 1 0 0110 3z"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Received Proposals</span>
+                            <span class="sidebar-badge" id="receivedProposalsBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
                         <a href="#tribeStreetJournal" class="sidebar-link" data-section="tribeStreetJournal">
                             <span class="sidebar-icon">
                                 <svg viewBox="0 0 20 20" fill="currentColor">
@@ -242,6 +253,22 @@
                     <div class="section-body">
                         <div id="responsesList" aria-live="polite">
                             <!-- Responses will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Received Proposals Section -->
+                <section id="receivedProposalsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Received Proposals</h2>
+                            <p class="section-description">Review proposals that White Cell has forwarded to your team.</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="receivedProposalsList" aria-live="polite">
+                            <p class="text-sm text-gray-500">No proposals received yet.</p>
                         </div>
                     </div>
                 </section>

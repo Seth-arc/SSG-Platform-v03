@@ -592,6 +592,14 @@ function liveDemoCanReadSession(state, authUserId, sessionId) {
     return Boolean(
         getParticipantSeatForSession(state, authUserId, sessionId, { activeOnly: true })
         || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+        || liveDemoHasOperatorGrant(state, authUserId, 'whitecell')
+    );
+}
+
+function hasPrivilegedSessionAdminGrant(state, authUserId) {
+    return Boolean(
+        liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+        || liveDemoHasOperatorGrant(state, authUserId, 'whitecell')
     );
 }
 
@@ -792,10 +800,8 @@ function createLiveDemoSession(state, {
     requested_description
 }) {
     const authUserId = getCurrentAuthUserId();
-    const grant = getOperatorGrant(state, authUserId, 'gamemaster');
-
-    if (!grant) {
-        return { data: null, error: { message: 'Game Master authorization is required.' } };
+    if (!hasPrivilegedSessionAdminGrant(state, authUserId)) {
+        return { data: null, error: { message: 'Game Master or White Cell authorization is required.' } };
     }
 
     const session = normalizeInsertRow('sessions', {
@@ -828,10 +834,8 @@ function deleteLiveDemoSession(state, {
     requested_session_id
 }) {
     const authUserId = getCurrentAuthUserId();
-    const grant = getOperatorGrant(state, authUserId, 'gamemaster');
-
-    if (!grant) {
-        return { data: null, error: { message: 'Game Master authorization is required.' } };
+    if (!hasPrivilegedSessionAdminGrant(state, authUserId)) {
+        return { data: null, error: { message: 'Game Master or White Cell authorization is required.' } };
     }
 
     state.tables.sessions = state.tables.sessions.filter((entry) => entry.id !== requested_session_id);
@@ -1139,10 +1143,8 @@ function operatorRemoveSessionParticipant(state, {
     requested_session_participant_id
 }) {
     const authUserId = getCurrentAuthUserId();
-    const grant = getOperatorGrant(state, authUserId, 'gamemaster');
-
-    if (!grant) {
-        return { data: null, error: { message: 'Game Master authorization is required.' } };
+    if (!hasPrivilegedSessionAdminGrant(state, authUserId)) {
+        return { data: null, error: { message: 'Game Master or White Cell authorization is required.' } };
     }
 
     if (!requested_session_id || !requested_session_participant_id) {
@@ -1345,6 +1347,9 @@ function operatorSendCommunication(state, params) {
         linked_request_id: params?.requested_linked_request_id || null,
         client_id: authUserId,
         metadata: {
+            ...(params?.requested_metadata && typeof params.requested_metadata === 'object'
+                ? cloneValue(params.requested_metadata)
+                : {}),
             operator_role: grant.role,
             operator_auth_user_id: authUserId
         }
@@ -1354,6 +1359,86 @@ function operatorSendCommunication(state, params) {
 
     return {
         data: cloneValue(communication),
+        error: null
+    };
+}
+
+function resolveProposalRecipientTeam(communication = {}) {
+    const metadata = communication?.metadata && typeof communication.metadata === 'object'
+        ? communication.metadata
+        : {};
+    if (typeof metadata.recipient_team === 'string' && metadata.recipient_team.trim()) {
+        return normalizeTeamId(metadata.recipient_team);
+    }
+
+    const toRole = String(communication?.to_role || '').trim().toLowerCase();
+    if (['blue', 'red', 'green'].includes(toRole)) {
+        return toRole;
+    }
+
+    return toRole.match(/^(blue|red|green)_/)?.[1] || null;
+}
+
+function updateProposalRecipientStatus(state, params) {
+    const authUserId = getCurrentAuthUserId();
+    const communication = state.tables.communications.find((entry) => entry.id === params?.requested_communication_id);
+    if (!communication) {
+        return { data: null, error: { message: 'Proposal communication not found.' } };
+    }
+
+    if (communication.type !== 'PROPOSAL_FORWARDED') {
+        return { data: null, error: { message: 'Only forwarded proposals can update recipient state.' } };
+    }
+
+    const participantSurface = getLiveDemoParticipantSurface(state, authUserId, communication.session_id);
+    const participantTeam = getLiveDemoParticipantTeam(state, authUserId, communication.session_id);
+    const participantRole = getLiveDemoParticipantRole(state, authUserId, communication.session_id);
+    const recipientTeam = resolveProposalRecipientTeam(communication);
+    const normalizedStatus = String(params?.requested_status || '').trim().toLowerCase();
+
+    if (!['unread', 'acknowledged', 'responded', 'declined', 'ignored'].includes(normalizedStatus)) {
+        return { data: null, error: { message: 'Unsupported proposal recipient status.' } };
+    }
+
+    if (!authUserId || !['facilitator', 'scribe'].includes(participantSurface)) {
+        return { data: null, error: { message: 'Team-lead access is required to update proposal recipient state.' } };
+    }
+
+    if (!recipientTeam || participantTeam !== recipientTeam) {
+        return { data: null, error: { message: 'Only the addressed team can update proposal recipient state.' } };
+    }
+
+    const metadata = communication?.metadata && typeof communication.metadata === 'object'
+        ? cloneValue(communication.metadata)
+        : {};
+    const existingState = metadata.proposal_recipient_state && typeof metadata.proposal_recipient_state === 'object'
+        ? metadata.proposal_recipient_state
+        : {};
+    const nextCommunication = {
+        ...communication,
+        metadata: {
+            ...metadata,
+            proposal_recipient_state: {
+                ...existingState,
+                ...(params?.requested_metadata && typeof params.requested_metadata === 'object'
+                    ? cloneValue(params.requested_metadata)
+                    : {}),
+                status: normalizedStatus,
+                actioned_at: getTimestamp(),
+                participant_role: participantRole,
+                participant_team: participantTeam,
+                participant_auth_user_id: authUserId
+            }
+        },
+        updated_at: getTimestamp()
+    };
+
+    state.tables.communications = state.tables.communications.map((entry) => (
+        entry.id === nextCommunication.id ? nextCommunication : entry
+    ));
+
+    return {
+        data: cloneValue(nextCommunication),
         error: null
     };
 }
@@ -1760,6 +1845,13 @@ export function createE2EMockSupabaseClient() {
             if (functionName === 'operator_send_communication') {
                 const state = readMockState();
                 const result = operatorSendCommunication(state, params);
+                writeMockState(state);
+                return result;
+            }
+
+            if (functionName === 'update_proposal_recipient_status') {
+                const state = readMockState();
+                const result = updateProposalRecipientStatus(state, params);
                 writeMockState(state);
                 return result;
             }

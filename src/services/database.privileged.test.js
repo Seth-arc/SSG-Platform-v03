@@ -136,7 +136,36 @@ describe('database privileged write contracts', () => {
             requested_type: 'INJECT',
             requested_content: 'Inject text',
             requested_title: null,
-            requested_linked_request_id: null
+            requested_linked_request_id: null,
+            requested_metadata: {}
+        });
+        expect(mockSupabase.from).not.toHaveBeenCalled();
+    });
+
+    it('routes proposal recipient status updates through the protected RPC', async () => {
+        mockSupabase.rpc.mockResolvedValue({
+            data: {
+                id: 'comm-1',
+                metadata: {
+                    proposal_recipient_state: {
+                        status: 'acknowledged'
+                    }
+                }
+            },
+            error: null
+        });
+
+        const { database } = await import('./database.js');
+        await database.updateProposalRecipientStatus('comm-1', 'acknowledged', {
+            response_communication_id: 'response-1'
+        });
+
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('update_proposal_recipient_status', {
+            requested_communication_id: 'comm-1',
+            requested_status: 'acknowledged',
+            requested_metadata: {
+                response_communication_id: 'response-1'
+            }
         });
         expect(mockSupabase.from).not.toHaveBeenCalled();
     });

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { mergeNotetakerRecord } from '../services/database.js';
@@ -82,6 +83,8 @@ function createFakeDocument(ids = []) {
 afterEach(() => {
     delete global.document;
 });
+
+const BLUE_NOTETAKER_HTML_PATH = new URL('../../teams/blue/notetaker.html', import.meta.url);
 
 describe('Notetaker move-scoped view state', () => {
     it('hydrates participant-scoped notes and filters move observations by team', () => {
@@ -331,5 +334,14 @@ describe('Notetaker move-scoped view state', () => {
         expect(markup).toContain('Ally Contingencies:</strong> Use regional lenders as guarantors.');
         expect(markup).toContain('Submitted:</strong>');
         expect(markup).toContain('Adjudication Notes:</strong> White Cell requires tighter sanctions mitigation.');
+    });
+
+    it('ships a dedicated White Cell inbox section on the notetaker surface', () => {
+        const html = readFileSync(BLUE_NOTETAKER_HTML_PATH, 'utf8');
+
+        expect(html).toContain('data-section="inbox"');
+        expect(html).toContain('id="inboxSection"');
+        expect(html).toContain('id="inboxList"');
+        expect(html).toContain('White Cell Inbox');
     });
 });

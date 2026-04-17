@@ -1114,7 +1114,8 @@ export const database = {
                 requested_type: commData.type,
                 requested_content: commData.content,
                 requested_title: commData.title || null,
-                requested_linked_request_id: commData.linked_request_id || null
+                requested_linked_request_id: commData.linked_request_id || null,
+                requested_metadata: commData.metadata || {}
             });
 
             if (error) {
@@ -1140,6 +1141,22 @@ export const database = {
 
         if (error) {
             throw fromSupabaseError(error, 'createCommunication');
+        }
+
+        return data;
+    },
+
+    async updateProposalRecipientStatus(communicationId, status, extraMetadata = {}) {
+        await ensureAuthenticatedBrowser();
+
+        const { data, error } = await supabase.rpc('update_proposal_recipient_status', {
+            requested_communication_id: communicationId,
+            requested_status: status,
+            requested_metadata: extraMetadata
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'updateProposalRecipientStatus');
         }
 
         return data;

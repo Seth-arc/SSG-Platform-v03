@@ -547,6 +547,125 @@ describe('database live-demo seat contract', () => {
         });
     });
 
+    it('lets White Cell manage sessions and participant seats through the same protected RPCs as Game Master', async () => {
+        const { sessionStore, database } = await loadModules();
+        setClientIdentity(sessionStore, 'client-admin-gm');
+        await database.authorizeOperatorAccess({
+            surface: 'gamemaster',
+            accessCode: 'admin2025',
+            operatorName: 'GM Admin'
+        });
+
+        const primarySession = await database.createSession({
+            name: 'White Cell Admin Primary',
+            session_code: 'WCAD1001'
+        });
+
+        setClientIdentity(sessionStore, 'client-admin-facilitator');
+        const facilitatorSeat = await database.claimParticipantSeat(primarySession.id, 'blue_facilitator', 'Morgan');
+
+        setClientIdentity(sessionStore, 'client-admin-whitecell');
+        await database.authorizeOperatorAccess({
+            surface: 'whitecell',
+            accessCode: 'admin2025',
+            sessionId: primarySession.id,
+            role: 'whitecell_lead',
+            operatorName: 'White Cell Lead'
+        });
+        await database.claimParticipantSeat(primarySession.id, 'whitecell_lead', 'White Cell Lead');
+
+        const secondarySession = await database.createSession({
+            name: 'White Cell Admin Secondary',
+            session_code: 'WCAD1002'
+        });
+        const removedSeat = await database.removeSessionParticipant(primarySession.id, facilitatorSeat.id);
+        await database.deleteSession(secondarySession.id);
+
+        expect(secondarySession).toMatchObject({
+            name: 'White Cell Admin Secondary',
+            session_code: 'WCAD1002'
+        });
+        expect(removedSeat).toMatchObject({
+            id: facilitatorSeat.id,
+            role: 'blue_facilitator',
+            is_active: false
+        });
+        await expect(database.getSessionParticipants(primarySession.id)).resolves.toEqual([
+            expect.objectContaining({
+                role: 'whitecell_lead'
+            })
+        ]);
+
+        const activeSessions = await database.getActiveSessions();
+        expect(activeSessions).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: primarySession.id })
+        ]));
+        expect(activeSessions.map((session) => session.id)).not.toContain(secondarySession.id);
+    });
+
+    it('persists proposal recipient statuses in communication metadata as shared backend state', async () => {
+        const { sessionStore, database } = await loadModules();
+        setClientIdentity(sessionStore, 'client-status-gm');
+        await database.authorizeOperatorAccess({
+            surface: 'gamemaster',
+            accessCode: 'admin2025',
+            operatorName: 'GM Proposal Status'
+        });
+
+        const session = await database.createSession({
+            name: 'Proposal Status Session',
+            session_code: 'STAT2026'
+        });
+
+        setClientIdentity(sessionStore, 'client-status-whitecell');
+        await database.authorizeOperatorAccess({
+            surface: 'whitecell',
+            accessCode: 'admin2025',
+            sessionId: session.id,
+            role: 'whitecell_lead',
+            operatorName: 'White Cell Lead'
+        });
+        await database.claimParticipantSeat(session.id, 'whitecell_lead', 'White Cell Lead');
+
+        const forwardedProposal = await database.createCommunication({
+            session_id: session.id,
+            from_role: 'white_cell',
+            to_role: 'green',
+            type: 'PROPOSAL_FORWARDED',
+            content: 'Forwarded proposal content',
+            metadata: {
+                source_proposal_id: 'proposal-1',
+                recipient_team: 'green',
+                proposal: {
+                    title: 'Joint Port Proposal'
+                }
+            }
+        });
+
+        setClientIdentity(sessionStore, 'client-status-green');
+        await database.claimParticipantSeat(session.id, 'green_facilitator', 'Green Facilitator');
+
+        const updatedCommunication = await database.updateProposalRecipientStatus(
+            forwardedProposal.id,
+            'acknowledged',
+            {
+                acknowledgement_note: 'Seen by Green lead'
+            }
+        );
+
+        expect(updatedCommunication).toMatchObject({
+            id: forwardedProposal.id,
+            metadata: expect.objectContaining({
+                proposal_recipient_state: expect.objectContaining({
+                    status: 'acknowledged',
+                    participant_team: 'green',
+                    participant_role: 'green_facilitator',
+                    acknowledgement_note: 'Seen by Green lead'
+                })
+            })
+        });
+    });
+
     it('applies stale-seat heartbeat recovery to every shipped live-demo role across all teams', async () => {
         const { sessionStore, database } = await loadModules();
 

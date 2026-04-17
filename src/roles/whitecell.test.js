@@ -575,4 +575,81 @@ describe('White Cell DOM contract', () => {
         expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-1' }));
         expect(showToast).toHaveBeenCalledWith({ message: 'Action shared with Red Team', type: 'success' });
     });
+
+    it('sends Tribe Street Journal updates with explicit recipient metadata', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { WHITE_CELL_UPDATE_KINDS } = await import('../features/communications/targeting.js');
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+
+        global.document = createFakeDocument();
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-10');
+        vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_support');
+        const createCommunication = vi.spyOn(database, 'createCommunication').mockResolvedValue({
+            id: 'comm-2',
+            to_role: 'green_notetaker',
+            type: 'GUIDANCE',
+            content: 'Population sentiment is turning more skeptical.'
+        });
+        const createTimelineEvent = vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({
+            id: 'timeline-2'
+        });
+        const communicationsUpdate = vi.spyOn(communicationsStore, 'updateFromServer').mockImplementation(() => {});
+        const timelineUpdate = vi.spyOn(timelineStore, 'updateFromServer').mockImplementation(() => {});
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'support';
+        controller.getCurrentGameState = vi.fn(() => ({ move: 4, phase: 1 }));
+
+        await controller.submitSectionUpdate(null, {
+            recipient: 'green_notetaker',
+            contentKind: WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL,
+            content: 'Population sentiment is turning more skeptical.',
+            sourceMetadata: {
+                source_event_id: 'event-7',
+                source_team: 'blue'
+            }
+        });
+
+        expect(createCommunication).toHaveBeenCalledWith(expect.objectContaining({
+            session_id: 'session-10',
+            from_role: 'white_cell',
+            to_role: 'green_notetaker',
+            type: 'GUIDANCE',
+            content: 'Population sentiment is turning more skeptical.',
+            metadata: expect.objectContaining({
+                content_kind: WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL,
+                source_event_id: 'event-7',
+                source_team: 'blue',
+                recipient: 'green_notetaker',
+                recipient_scope: 'role',
+                recipient_team: 'green',
+                recipient_role: 'green_notetaker'
+            })
+        }));
+        expect(createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            session_id: 'session-10',
+            type: 'GUIDANCE',
+            content: expect.stringContaining('Tribe Street Journal update'),
+            team: 'white_cell',
+            move: 4,
+            phase: 1,
+            metadata: expect.objectContaining({
+                role: 'whitecell_support',
+                content_kind: WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL,
+                source_event_id: 'event-7',
+                source_team: 'blue',
+                recipient: 'green_notetaker',
+                recipient_scope: 'role',
+                recipient_team: 'green',
+                recipient_role: 'green_notetaker'
+            })
+        }));
+        expect(communicationsUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'comm-2' }));
+        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-2' }));
+        expect(showToast).toHaveBeenCalledWith({ message: 'Update sent', type: 'success' });
+    });
 });

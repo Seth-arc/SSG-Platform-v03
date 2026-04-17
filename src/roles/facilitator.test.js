@@ -188,6 +188,9 @@ describe('Facilitator and scribe access', () => {
 
         expect(html).toContain('id="newActionBtn"');
         expect(html).toContain('New Proposal');
+        expect(html).toContain('data-section="receivedProposals"');
+        expect(html).toContain('id="receivedProposalsSection"');
+        expect(html).toContain('id="receivedProposalsList"');
     });
 
     it('does not render White Cell share controls in facilitator action cards', async () => {

@@ -50,6 +50,12 @@ import {
     parseTeamRole,
     resolveTeamContext
 } from '../core/teamContext.js';
+import {
+    WHITE_CELL_UPDATE_KINDS,
+    buildWhiteCellRecipientMetadata,
+    getWhiteCellCommunicationUpdateKind,
+    isTeamCaptureTimelineEvent
+} from '../features/communications/targeting.js';
 
 const logger = createLogger('WhiteCell');
 const WHITE_CELL_ALL_TEAMS_RECIPIENT = 'all';
@@ -106,6 +112,8 @@ export const WHITE_CELL_DOM_IDS = [
     'participantsRoleFilter',
     'participantsList',
     'actionsList',
+    'responsesList',
+    'proposalsList',
     'adjudicationQueue',
     'rfiBadge',
     'rfiQueue',
@@ -114,6 +122,9 @@ export const WHITE_CELL_DOM_IDS = [
     'commType',
     'commContent',
     'commHistory',
+    'tribeStreetJournalList',
+    'newVerbaAiUpdateBtn',
+    'verbaAiList',
     'timelineTeamFilter',
     'timelineRoleFilter',
     'timelineList'
@@ -539,8 +550,13 @@ export function filterWhiteCellTimelineEvents(events = [], {
 export class WhiteCellController {
     constructor() {
         this.actions = [];
+        this.blueTeamActions = [];
+        this.greenTeamProposals = [];
+        this.redTeamResponses = [];
         this.rfis = [];
         this.communications = [];
+        this.tribeStreetJournalEntries = [];
+        this.verbaAiUpdates = [];
         this.participants = [];
         this.timelineEvents = [];
         this.adminSessions = [];
@@ -675,6 +691,8 @@ export class WhiteCellController {
         const participantsRoleFilter = document.getElementById('participantsRoleFilter');
         const timelineTeamFilter = document.getElementById('timelineTeamFilter');
         const timelineRoleFilter = document.getElementById('timelineRoleFilter');
+        const tribeStreetJournalList = document.getElementById('tribeStreetJournalList');
+        const verbaAiComposeButton = document.getElementById('newVerbaAiUpdateBtn');
 
         if (this.isLeadOperator()) {
             startTimerBtn?.addEventListener('click', () => this.startTimer());
@@ -774,6 +792,33 @@ export class WhiteCellController {
             const exportType = button.dataset.exportType;
             this.handleExportAdmin(exportType).catch((err) => {
                 logger.error('Failed to export:', err);
+            });
+        });
+
+        tribeStreetJournalList?.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-journal-action="send-update"]');
+            if (!button) return;
+            const eventId = button.dataset.sourceEventId;
+            const sourceEvent = this.tribeStreetJournalEntries.find((entry) => entry.id === eventId);
+            if (!sourceEvent) return;
+            this.showSectionUpdateComposer({
+                title: 'Send Tribe Street Journal Update',
+                contentKind: WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL,
+                initialContent: sourceEvent.content || sourceEvent.description || '',
+                sourceMetadata: {
+                    source_event_id: sourceEvent.id,
+                    source_team: sourceEvent.team,
+                    source_event_type: sourceEvent.type || sourceEvent.event_type || 'NOTE'
+                }
+            });
+        });
+
+        verbaAiComposeButton?.addEventListener('click', () => {
+            this.showSectionUpdateComposer({
+                title: 'Send Verba AI Population Sentiment',
+                contentKind: WHITE_CELL_UPDATE_KINDS.VERBA_AI_POPULATION_SENTIMENT,
+                initialContent: '',
+                sourceMetadata: {}
             });
         });
     }
@@ -1144,8 +1189,13 @@ export class WhiteCellController {
 
     syncActionsFromStore() {
         this.actions = actionsStore.getPending();
+        this.blueTeamActions = this.actions.filter((action) => action?.team === 'blue');
+        this.greenTeamProposals = this.actions.filter((action) => action?.team === 'green');
+        this.redTeamResponses = this.actions.filter((action) => action?.team === 'red');
 
         this.renderActionReview();
+        this.renderMoveResponses();
+        this.renderProposals();
         this.renderAdjudicationQueue();
 
         const badge = document.getElementById('actionsBadge');
@@ -1171,12 +1221,50 @@ export class WhiteCellController {
         const container = document.getElementById('actionsList');
         if (!container) return;
 
-        if (this.actions.length === 0) {
-            container.innerHTML = '<p class="text-sm text-gray-500">No submitted actions are awaiting White Cell review.</p>';
+        if (this.blueTeamActions.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">No Blue Team actions are awaiting White Cell review.</p>';
             return;
         }
 
-        container.innerHTML = this.actions.map((action) =>
+        container.innerHTML = this.blueTeamActions.map((action) =>
+            this.renderActionCard(action, {
+                showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
+                includeOutcome: true
+            })
+        ).join('');
+
+        this.bindActionCardButtons(container);
+    }
+
+    renderMoveResponses() {
+        const container = document.getElementById('responsesList');
+        if (!container) return;
+
+        if (this.redTeamResponses.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">No Red Team move responses are awaiting White Cell review.</p>';
+            return;
+        }
+
+        container.innerHTML = this.redTeamResponses.map((action) =>
+            this.renderActionCard(action, {
+                showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
+                includeOutcome: true
+            })
+        ).join('');
+
+        this.bindActionCardButtons(container);
+    }
+
+    renderProposals() {
+        const container = document.getElementById('proposalsList');
+        if (!container) return;
+
+        if (this.greenTeamProposals.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">No Green Team proposals are awaiting White Cell review.</p>';
+            return;
+        }
+
+        container.innerHTML = this.greenTeamProposals.map((action) =>
             this.renderActionCard(action, {
                 showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
                 includeOutcome: true
@@ -1350,17 +1438,18 @@ export class WhiteCellController {
 
         try {
             const gameState = this.getCurrentGameState();
+            const recipientMetadata = buildWhiteCellRecipientMetadata(WHITE_CELL_RED_TEAM_RECIPIENT, {
+                shared_action_id: action.id,
+                source_team: action.team,
+                actor_role: this.getTimelineActorRole()
+            });
             const communication = await database.createCommunication({
                 session_id: sessionId,
                 from_role: 'white_cell',
                 to_role: WHITE_CELL_RED_TEAM_RECIPIENT,
                 type: 'GUIDANCE',
                 content: buildSharedActionCommunicationContent(action),
-                metadata: {
-                    shared_action_id: action.id,
-                    source_team: action.team,
-                    actor_role: this.getTimelineActorRole()
-                }
+                metadata: recipientMetadata
             });
             communicationsStore.updateFromServer('INSERT', communication);
 
@@ -1370,9 +1459,10 @@ export class WhiteCellController {
                 content: `White Cell shared Blue Team action with Red Team: ${actionTitle}`,
                 metadata: {
                     role: this.getTimelineActorRole(),
-                    shared_action_id: action.id,
-                    recipient: WHITE_CELL_RED_TEAM_RECIPIENT,
-                    source_team: action.team
+                    ...buildWhiteCellRecipientMetadata(WHITE_CELL_RED_TEAM_RECIPIENT, {
+                        shared_action_id: action.id,
+                        source_team: action.team
+                    })
                 },
                 team: 'white_cell',
                 move: gameState.move ?? 1,
@@ -1601,20 +1691,20 @@ export class WhiteCellController {
         ].join('\n');
 
         try {
+            const recipientMetadata = buildWhiteCellRecipientMetadata(recipientTeam, {
+                source_proposal_id: action.id,
+                source_team: action.team || 'green',
+                outcome,
+                review_stage: 'forwarded_to_recipient',
+                proposal: proposalSnapshot
+            });
             const communication = await database.createCommunication({
                 session_id: sessionId,
                 from_role: 'white_cell',
                 to_role: recipientTeam,
                 type: 'PROPOSAL_FORWARDED',
                 content: commContent,
-                metadata: {
-                    source_proposal_id: action.id,
-                    source_team: action.team || 'green',
-                    recipient_team: recipientTeam,
-                    outcome,
-                    review_stage: 'forwarded_to_recipient',
-                    proposal: proposalSnapshot
-                }
+                metadata: recipientMetadata
             });
             communicationsStore.updateFromServer('INSERT', communication);
 
@@ -1625,11 +1715,12 @@ export class WhiteCellController {
                 metadata: {
                     related_id: action.id,
                     role: this.getTimelineActorRole(),
-                    recipient_team: recipientTeam,
-                    source_team: action.team || 'green',
-                    outcome,
-                    review_stage: 'forwarded_to_recipient',
-                    proposal: true
+                    ...buildWhiteCellRecipientMetadata(recipientTeam, {
+                        source_team: action.team || 'green',
+                        outcome,
+                        review_stage: 'forwarded_to_recipient',
+                        proposal: true
+                    })
                 },
                 team: 'white_cell',
                 move: action.move ?? gameState.move ?? 1,
@@ -1765,7 +1856,8 @@ export class WhiteCellController {
                 content: 'White Cell responded to an RFI.',
                 metadata: {
                     related_id: rfiId,
-                    role: this.getTimelineActorRole()
+                    role: this.getTimelineActorRole(),
+                    ...buildWhiteCellRecipientMetadata(updatedRequest.team)
                 },
                 team: 'white_cell',
                 move: gameState.move ?? 1,
@@ -1803,13 +1895,14 @@ export class WhiteCellController {
 
         try {
             const gameState = this.getCurrentGameState();
+            const recipientMetadata = buildWhiteCellRecipientMetadata(recipient);
             const communication = await database.createCommunication({
                 session_id: sessionId,
                 from_role: 'white_cell',
                 to_role: recipient,
                 type,
                 content,
-                metadata: {}
+                metadata: recipientMetadata
             });
             communicationsStore.updateFromServer('INSERT', communication);
 
@@ -1817,7 +1910,10 @@ export class WhiteCellController {
                 session_id: sessionId,
                 type,
                 content: `White Cell ${type.toLowerCase()} sent to ${this.formatCommunicationRecipient(recipient)}`,
-                metadata: { role: this.getTimelineActorRole() },
+                metadata: {
+                    role: this.getTimelineActorRole(),
+                    ...recipientMetadata
+                },
                 team: 'white_cell',
                 move: gameState.move ?? 1,
                 phase: gameState.phase ?? 1
@@ -1837,9 +1933,136 @@ export class WhiteCellController {
         }
     }
 
+    showSectionUpdateComposer({
+        title,
+        contentKind,
+        initialContent = '',
+        sourceMetadata = {}
+    }) {
+        const content = document.createElement('div');
+        const recipientOptions = buildWhiteCellCommunicationRecipientOptions()
+            .map((option) => `<option value="${this.escapeHtml(option.value)}">${this.escapeHtml(option.label)}</option>`)
+            .join('');
+
+        content.innerHTML = `
+            <form id="whiteCellSectionUpdateForm" novalidate>
+                <div class="form-group">
+                    <label class="form-label" for="whiteCellSectionUpdateRecipient">Recipient</label>
+                    <select id="whiteCellSectionUpdateRecipient" class="form-input form-select">
+                        ${recipientOptions}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="whiteCellSectionUpdateContent">Update</label>
+                    <textarea
+                        id="whiteCellSectionUpdateContent"
+                        class="form-input form-textarea"
+                        rows="6"
+                        placeholder="Enter the update to send..."
+                    >${this.escapeHtml(initialContent)}</textarea>
+                </div>
+            </form>
+        `;
+
+        const modalRef = { current: null };
+        modalRef.current = showModal({
+            title,
+            content,
+            size: 'md',
+            buttons: [
+                { label: 'Cancel', variant: 'secondary', onClick: () => {} },
+                {
+                    label: 'Send Update',
+                    variant: 'primary',
+                    onClick: () => {
+                        const recipient = content.querySelector('#whiteCellSectionUpdateRecipient')?.value || WHITE_CELL_ALL_TEAMS_RECIPIENT;
+                        const message = content.querySelector('#whiteCellSectionUpdateContent')?.value?.trim();
+                        if (!message) {
+                            showToast({ message: 'Update text is required.', type: 'error' });
+                            return false;
+                        }
+
+                        this.submitSectionUpdate(modalRef.current, {
+                            recipient,
+                            contentKind,
+                            content: message,
+                            sourceMetadata
+                        }).catch((err) => {
+                            logger.error('Failed to send section update:', err);
+                        });
+                        return false;
+                    }
+                }
+            ]
+        });
+    }
+
+    async submitSectionUpdate(modal, {
+        recipient,
+        contentKind,
+        content,
+        sourceMetadata = {}
+    }) {
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) {
+            showToast({ message: 'No session selected.', type: 'error' });
+            return;
+        }
+
+        const loader = showLoader({ message: 'Sending update...' });
+        try {
+            const gameState = this.getCurrentGameState();
+            const recipientMetadata = buildWhiteCellRecipientMetadata(recipient, {
+                content_kind: contentKind,
+                ...sourceMetadata
+            });
+            const communication = await database.createCommunication({
+                session_id: sessionId,
+                from_role: 'white_cell',
+                to_role: recipient,
+                type: 'GUIDANCE',
+                content,
+                metadata: recipientMetadata
+            });
+            communicationsStore.updateFromServer('INSERT', communication);
+
+            const sectionLabel = contentKind === WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL
+                ? 'Tribe Street Journal update'
+                : 'Verba AI population sentiment';
+            const timelineEvent = await database.createTimelineEvent({
+                session_id: sessionId,
+                type: 'GUIDANCE',
+                content: `White Cell sent a ${sectionLabel} to ${this.formatCommunicationRecipient(recipient)}`,
+                metadata: {
+                    role: this.getTimelineActorRole(),
+                    ...recipientMetadata
+                },
+                team: 'white_cell',
+                move: gameState.move ?? 1,
+                phase: gameState.phase ?? 1
+            });
+            timelineStore.updateFromServer('INSERT', timelineEvent);
+
+            showToast({ message: 'Update sent', type: 'success' });
+            modal?.close();
+        } catch (err) {
+            logger.error('Failed to send section update:', err);
+            showToast({ message: err.message || 'Failed to send update', type: 'error' });
+        } finally {
+            hideLoader();
+        }
+    }
+
     syncCommunicationsFromStore() {
         this.communications = communicationsStore.getAll();
+        this.verbaAiUpdates = this.communications
+            .filter((communication) => (
+                communication?.from_role === 'white_cell'
+                && getWhiteCellCommunicationUpdateKind(communication) === WHITE_CELL_UPDATE_KINDS.VERBA_AI_POPULATION_SENTIMENT
+            ))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         this.renderCommunicationHistory();
+        this.renderVerbaAiList();
     }
 
     syncParticipantsFromStore() {
@@ -2150,32 +2373,109 @@ export class WhiteCellController {
         }
     }
 
-    renderCommunicationHistory() {
-        const container = document.getElementById('commHistory');
+    renderTribeStreetJournalList() {
+        const container = document.getElementById('tribeStreetJournalList');
         if (!container) return;
 
-        if (this.communications.length === 0) {
-            container.innerHTML = '<p class="text-sm text-gray-500">No communications sent yet.</p>';
+        if (this.tribeStreetJournalEntries.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">No team captures are available for review yet.</p>';
             return;
         }
 
-        container.innerHTML = this.communications.map((communication) => `
-            <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3);">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-2);">
-                    <div>
-                        <p class="text-sm font-semibold">${this.escapeHtml(this.formatCommunicationRecipient(communication.to_role))}</p>
-                        <p class="text-xs text-gray-500">${formatRelativeTime(communication.created_at)}</p>
+        container.innerHTML = this.tribeStreetJournalEntries.map((entry) => {
+            const eventType = entry.type || entry.event_type || 'NOTE';
+            const badgeVariant = {
+                NOTE: 'default',
+                MOMENT: 'warning',
+                QUOTE: 'info'
+            }[eventType] || 'default';
+            const actorLabel = entry.metadata?.actor || getRoleDisplayName(entry.metadata?.role) || 'Team capture';
+
+            return `
+                <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
+                        <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                            ${createBadge({ text: eventType, variant: badgeVariant, size: 'sm', rounded: true }).outerHTML}
+                            ${createBadge({ text: this.formatTeamLabel(entry.team), variant: 'primary', size: 'sm', rounded: true }).outerHTML}
+                            <span class="text-xs text-gray-500">${this.escapeHtml(actorLabel)}</span>
+                        </div>
+                        <span class="text-xs text-gray-400">${formatDateTime(entry.created_at)}</span>
                     </div>
-                    ${createBadge({ text: communication.type || 'MESSAGE', size: 'sm' }).outerHTML}
+                    <p class="text-sm">${this.escapeHtml(entry.content || entry.description || '')}</p>
+                    <div class="card-actions" style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); margin-top: var(--space-3);">
+                        <span class="text-xs text-gray-500">Move ${this.escapeHtml(String(entry.move || 1))} | Phase ${this.escapeHtml(String(entry.phase || 1))}</span>
+                        <button
+                            type="button"
+                            class="btn btn-secondary btn-sm"
+                            data-journal-action="send-update"
+                            data-source-event-id="${this.escapeHtml(entry.id || '')}"
+                        >Send Update</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    renderVerbaAiList() {
+        const container = document.getElementById('verbaAiList');
+        if (!container) return;
+
+        if (this.verbaAiUpdates.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">No Verba AI population sentiment updates have been sent yet.</p>';
+            return;
+        }
+
+        container.innerHTML = this.verbaAiUpdates.map((communication) => `
+            <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3); border-left: 3px solid var(--color-success);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
+                    <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                        ${createBadge({ text: 'VERBA AI', variant: 'success', size: 'sm', rounded: true }).outerHTML}
+                        <span class="text-xs text-gray-500">${this.escapeHtml(this.formatCommunicationRecipient(communication.to_role))}</span>
+                    </div>
+                    <span class="text-xs text-gray-400">${formatDateTime(communication.created_at)}</span>
                 </div>
                 <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
             </div>
         `).join('');
     }
 
+    renderCommunicationHistory() {
+        const container = document.getElementById('commHistory');
+        if (!container) return;
+
+        if (this.communications.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">No communications have been exchanged yet.</p>';
+            return;
+        }
+
+        container.innerHTML = this.communications.map((communication) => {
+            const isOutbound = communication.from_role === 'white_cell';
+            const counterpartLabel = isOutbound
+                ? `To ${this.formatCommunicationRecipient(communication.to_role)}`
+                : `From ${this.formatCommunicationRecipient(communication.from_role)}`;
+
+            return `
+                <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-2);">
+                        <div>
+                            <p class="text-sm font-semibold">${this.escapeHtml(counterpartLabel)}</p>
+                            <p class="text-xs text-gray-500">${formatRelativeTime(communication.created_at)}</p>
+                        </div>
+                        ${createBadge({ text: communication.type || 'MESSAGE', size: 'sm' }).outerHTML}
+                    </div>
+                    <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
+                </div>
+            `;
+        }).join('');
+    }
+
     formatCommunicationRecipient(recipient) {
         if (recipient === WHITE_CELL_ALL_TEAMS_RECIPIENT) {
             return 'All Teams';
+        }
+
+        if (recipient === 'white_cell') {
+            return 'White Cell';
         }
 
         if (TEAM_LABELS[recipient]) {
@@ -2187,8 +2487,12 @@ export class WhiteCellController {
 
     syncTimelineFromStore() {
         this.timelineEvents = timelineStore.getAll();
+        this.tribeStreetJournalEntries = this.timelineEvents
+            .filter((event) => isTeamCaptureTimelineEvent(event))
+            .sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0));
         this.configureTimelineFilters();
         this.renderTimeline();
+        this.renderTribeStreetJournalList();
     }
 
     configureTimelineFilters() {

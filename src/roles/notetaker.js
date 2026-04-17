@@ -14,6 +14,7 @@ import { sessionStore } from '../stores/session.js';
 import { gameStateStore } from '../stores/gameState.js';
 import { actionsStore } from '../stores/actions.js';
 import { timelineStore } from '../stores/timeline.js';
+import { communicationsStore } from '../stores/communications.js';
 import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
@@ -28,6 +29,12 @@ import {
     filterObservationTimelineByTeam,
     readParticipantScopedNotetakerSection
 } from '../features/notetaker/storage.js';
+import {
+    WHITE_CELL_UPDATE_KINDS,
+    getWhiteCellCommunicationUpdateKind,
+    isNotetakerScopedWhiteCellCommunication,
+    isWhiteCellTimelineEventVisibleToNotetaker
+} from '../features/communications/targeting.js';
 
 const logger = createLogger('Notetaker');
 
@@ -172,6 +179,7 @@ export class NotetakerController {
     constructor() {
         this.captures = [];
         this.actions = [];
+        this.inboxCommunications = [];
         this.dynamicsData = { ...DEFAULT_DYNAMICS_DATA };
         this.allianceData = { ...DEFAULT_ALLIANCE_DATA };
         this.observationTimeline = [];
@@ -226,6 +234,7 @@ export class NotetakerController {
         this.setupAutoSave();
         this.subscribeToLiveData();
         this.syncActionsFromStore();
+        this.syncInboxFromStore();
         this.syncTimelineFromStore();
         this.initialLoadComplete = true;
         await this.loadCurrentMoveData();
@@ -369,6 +378,12 @@ export class NotetakerController {
             })
         );
 
+        this.storeUnsubscribers.push(
+            communicationsStore.subscribe(() => {
+                this.syncInboxFromStore();
+            })
+        );
+
         this.syncGameState(gameStateStore.getState() || sessionStore.getSessionData()?.gameState || null);
     }
 
@@ -402,7 +417,7 @@ export class NotetakerController {
 
     syncTimelineFromStore() {
         const relevantEvents = timelineStore.getAll()
-            .filter((event) => [this.teamId, 'white_cell'].includes(event.team));
+            .filter((event) => isWhiteCellTimelineEventVisibleToNotetaker(event, this.teamContext));
 
         this.captures = relevantEvents
             .filter((event) => isObservationCaptureEvent(event))
@@ -410,6 +425,14 @@ export class NotetakerController {
 
         this.renderCaptures();
         this.renderTimeline(relevantEvents);
+    }
+
+    syncInboxFromStore() {
+        this.inboxCommunications = communicationsStore.getAll()
+            .filter((communication) => isNotetakerScopedWhiteCellCommunication(communication, this.teamContext))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        this.renderInbox();
     }
 
     /**
@@ -914,6 +937,40 @@ export class NotetakerController {
                     </div>
                 </div>
             `).join('');
+    }
+
+    renderInbox() {
+        const container = document.getElementById('inboxList');
+        if (!container) return;
+
+        if (this.inboxCommunications.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">No White Cell communications received yet.</p>';
+            return;
+        }
+
+        const updateLabelForCommunication = (communication) => {
+            const updateKind = getWhiteCellCommunicationUpdateKind(communication);
+            if (updateKind === WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL) {
+                return 'Tribe Street Journal Update';
+            }
+            if (updateKind === WHITE_CELL_UPDATE_KINDS.VERBA_AI_POPULATION_SENTIMENT) {
+                return 'Verba AI Population Sentiment';
+            }
+            return communication.type || 'White Cell Communication';
+        };
+
+        container.innerHTML = this.inboxCommunications.map((communication) => `
+            <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
+                    <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                        ${createBadge({ text: updateLabelForCommunication(communication), size: 'sm', rounded: true }).outerHTML}
+                        <span class="text-xs text-gray-500">White Cell</span>
+                    </div>
+                    <span class="text-xs text-gray-400">${formatDateTime(communication.created_at)}</span>
+                </div>
+                <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
+            </div>
+        `).join('');
     }
 
     /**

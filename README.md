@@ -11,6 +11,10 @@ Required environment variables:
 
 If either value is missing or left as a placeholder, the app blocks startup with a configuration notice on the landing page and control panel. Set the values from `.env.example`, restart the dev server, and reload the page.
 
+## Role and Backend Alignment Spec
+
+For the current role-by-role frontend contract and the backend behaviors that must align with it, see [LIVE_DEMO_BACKEND_ALIGNMENT.md](LIVE_DEMO_BACKEND_ALIGNMENT.md).
+
 ## E2E Readiness Gates
 
 - `npm run test:e2e:smoke`
