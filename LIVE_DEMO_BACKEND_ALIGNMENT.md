@@ -385,6 +385,7 @@ Backend alignment implications:
 - Adjudication and RFI answer flows must remain White Cell accessible.
 - Communication recipient targeting must support whole-team and specific-seat delivery.
 - Blue-to-Red `GUIDANCE` and Green proposal forwarding are current White Cell behaviors that the backend must preserve.
+- White Cell JSON and CSV exports should read the current backend session bundle for the active session.
 
 ### White Cell Support
 
@@ -535,6 +536,8 @@ For a brand-new Supabase project, the current blank-project migration order is:
 5. `data/2026-04-09_global_white_cell_role_contract.sql`
 6. `data/2026-04-16_game_master_remove_session_participant.sql`
 7. `data/2026-04-17_white_cell_backend_alignment.sql`
+
+See [SUPABASE_BLANK_PROJECT_RUNBOOK.md](/C:/Users/ssnguna/Local%20Sites/SSG-Platform-v03/SUPABASE_BLANK_PROJECT_RUNBOOK.md) for the exact SQL Editor checklist, operator-code setting step, and smoke-check queries for a fresh project.
 
 This chain covers the current backend contract needed for:
 

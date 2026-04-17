@@ -7,6 +7,23 @@ const showModal = vi.fn();
 const confirmModal = vi.fn();
 const showLoader = vi.fn(() => ({ hide: vi.fn() }));
 const hideLoader = vi.fn();
+const {
+    mockBuildJsonExportPayload,
+    mockDownloadJsonData,
+    mockDownloadCsv,
+    mockExportSessionActionsCsv,
+    mockExportSessionRequestsCsv,
+    mockExportSessionTimelineCsv,
+    mockExportSessionParticipantsCsv
+} = vi.hoisted(() => ({
+    mockBuildJsonExportPayload: vi.fn((bundle) => ({ exported: true, ...bundle })),
+    mockDownloadJsonData: vi.fn(),
+    mockDownloadCsv: vi.fn(),
+    mockExportSessionActionsCsv: vi.fn(() => 'actions-csv'),
+    mockExportSessionRequestsCsv: vi.fn(() => 'requests-csv'),
+    mockExportSessionTimelineCsv: vi.fn(() => 'timeline-csv'),
+    mockExportSessionParticipantsCsv: vi.fn(() => 'participants-csv')
+}));
 
 vi.mock('../components/ui/Toast.js', () => ({
     showToast
@@ -22,6 +39,21 @@ vi.mock('../components/ui/Loader.js', () => ({
     hideLoader,
     showInlineLoader: vi.fn(() => ({ hide: vi.fn() }))
 }));
+
+vi.mock('../features/export/index.js', async () => {
+    const actual = await vi.importActual('../features/export/index.js');
+
+    return {
+        ...actual,
+        buildJsonExportPayload: mockBuildJsonExportPayload,
+        downloadJsonData: mockDownloadJsonData,
+        downloadCsv: mockDownloadCsv,
+        exportSessionActionsCsv: mockExportSessionActionsCsv,
+        exportSessionRequestsCsv: mockExportSessionRequestsCsv,
+        exportSessionTimelineCsv: mockExportSessionTimelineCsv,
+        exportSessionParticipantsCsv: mockExportSessionParticipantsCsv
+    };
+});
 
 function escapeHtml(value) {
     return String(value)
@@ -651,5 +683,31 @@ describe('White Cell DOM contract', () => {
         expect(communicationsUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'comm-2' }));
         expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-2' }));
         expect(showToast).toHaveBeenCalledWith({ message: 'Update sent', type: 'success' });
+    });
+
+    it('exports CSV data from the fetched session bundle for the active session', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+
+        global.document = createFakeDocument();
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('12345678-session');
+        const fetchSessionBundle = vi.spyOn(database, 'fetchSessionBundle').mockResolvedValue({
+            session: { id: '12345678-session', name: 'Alpha Session' },
+            gameState: { move: 2, phase: 1 },
+            participants: [{ id: 'participant-1' }],
+            actions: [{ id: 'action-1' }],
+            requests: [{ id: 'request-1' }],
+            timeline: [{ id: 'timeline-1' }]
+        });
+
+        const controller = new WhiteCellController();
+        await controller.handleExportAdmin('actions-csv');
+
+        expect(fetchSessionBundle).toHaveBeenCalledWith('12345678-session');
+        expect(mockExportSessionActionsCsv).toHaveBeenCalledWith([{ id: 'action-1' }]);
+        expect(mockDownloadCsv).toHaveBeenCalledWith('actions-csv', 'session-12345678-actions.csv');
+        expect(showToast).toHaveBeenCalledWith({ message: 'Export downloaded.', type: 'success' });
     });
 });

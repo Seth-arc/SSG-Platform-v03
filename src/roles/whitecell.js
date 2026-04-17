@@ -31,6 +31,7 @@ import {
 import {
     buildJsonExportPayload,
     downloadJsonData,
+    downloadCsv,
     exportSessionActionsCsv,
     exportSessionRequestsCsv,
     exportSessionTimelineCsv,
@@ -2349,16 +2350,29 @@ export class WhiteCellController {
 
         const loader = showLoader({ message: 'Preparing export...' });
         try {
+            const bundle = await database.fetchSessionBundle(sessionId);
+
             if (exportType === 'actions-csv') {
-                await exportSessionActionsCsv(sessionId);
+                downloadCsv(
+                    exportSessionActionsCsv(bundle.actions),
+                    `session-${sessionId.slice(0, 8)}-actions.csv`
+                );
             } else if (exportType === 'rfis-csv') {
-                await exportSessionRequestsCsv(sessionId);
+                downloadCsv(
+                    exportSessionRequestsCsv(bundle.requests),
+                    `session-${sessionId.slice(0, 8)}-rfis.csv`
+                );
             } else if (exportType === 'timeline-csv') {
-                await exportSessionTimelineCsv(sessionId);
+                downloadCsv(
+                    exportSessionTimelineCsv(bundle.timeline),
+                    `session-${sessionId.slice(0, 8)}-timeline.csv`
+                );
             } else if (exportType === 'participants-csv') {
-                await exportSessionParticipantsCsv(sessionId);
+                downloadCsv(
+                    exportSessionParticipantsCsv(bundle.participants),
+                    `session-${sessionId.slice(0, 8)}-participants.csv`
+                );
             } else if (exportType === 'session-json') {
-                const bundle = await database.fetchSessionBundle(sessionId);
                 const payload = buildJsonExportPayload(bundle);
                 downloadJsonData(payload, `session-${sessionId.slice(0, 8)}.json`);
             } else {
