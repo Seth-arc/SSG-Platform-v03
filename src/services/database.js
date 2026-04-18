@@ -119,7 +119,7 @@ function normalizeSeatClaimRole(role = '') {
         : rawRole;
 
     return compatibilityNormalizedRole
-        .replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, '')
+        .replace(/[^a-z_]+/gi, '')
         .toLowerCase();
 }
 

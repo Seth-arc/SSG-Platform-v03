@@ -21,25 +21,7 @@ AS $$
         ELSE NULL
     END
     FROM (
-        SELECT LOWER(
-            REPLACE(
-                REPLACE(
-                    REPLACE(
-                        REPLACE(
-                            regexp_replace(COALESCE(requested_role, ''), '[[:space:]]+', '', 'g'),
-                            chr(8203),
-                            ''
-                        ),
-                        chr(8204),
-                        ''
-                    ),
-                    chr(8205),
-                    ''
-                ),
-                chr(65279),
-                ''
-            )
-        ) AS normalized_role
+        SELECT regexp_replace(LOWER(COALESCE(requested_role, '')), '[^a-z_]+', '', 'g') AS normalized_role
     ) normalized_input
 $$;
 
@@ -57,24 +39,11 @@ SET search_path = public
 AS $$
 DECLARE
     current_user_id UUID := auth.uid();
-    sanitized_requested_role TEXT := LOWER(
-        REPLACE(
-            REPLACE(
-                REPLACE(
-                    REPLACE(
-                        regexp_replace(COALESCE(requested_role, ''), '[[:space:]]+', '', 'g'),
-                        chr(8203),
-                        ''
-                    ),
-                    chr(8204),
-                    ''
-                ),
-                chr(8205),
-                ''
-            ),
-            chr(65279),
-            ''
-        )
+    sanitized_requested_role TEXT := regexp_replace(
+        LOWER(COALESCE(requested_role, '')),
+        '[^a-z_]+',
+        '',
+        'g'
     );
     normalized_role TEXT := CASE
         WHEN sanitized_requested_role ~ '^(?:(blue|red|green)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'

@@ -85,9 +85,8 @@ describe('database migration contracts', () => {
         const seatLimitBody = extractFunctionBody(sql, 'get_session_role_seat_limit');
         const claimSeatBody = extractFunctionBody(sql, 'claim_session_role_seat');
 
-        expect(seatLimitBody).toContain("regexp_replace(COALESCE(requested_role, ''), '[[:space:]]+', '', 'g')");
-        expect(seatLimitBody).toContain('chr(8203)');
-        expect(claimSeatBody).toContain("regexp_replace(COALESCE(requested_role, ''), '[[:space:]]+', '', 'g')");
+        expect(seatLimitBody).toContain("regexp_replace(LOWER(COALESCE(requested_role, '')), '[^a-z_]+', '', 'g')");
+        expect(claimSeatBody).toContain("regexp_replace(\n        LOWER(COALESCE(requested_role, '')),\n        '[^a-z_]+'");
         expect(claimSeatBody).toContain('sanitized_requested_role');
         expect(claimSeatBody).toContain('public.get_session_role_seat_limit(normalized_role)');
     });
