@@ -46,6 +46,7 @@ These rules are important because the backend should preserve them unless the fr
 
 - `Scribe` is a first-class seat and role string, but today it is an operational copy of the matching team's facilitator surface.
 - Public seat claims must hit the backend with canonical team-scoped role ids such as `blue_facilitator`, `blue_scribe`, and `blue_notetaker`, even though the landing UI exposes surface names.
+- Public seat-claim normalization should strip invisible whitespace and zero-width characters before the backend evaluates the canonical role id.
 - Team leads do not have a freeform outbound communications composer.
 - White Cell is the only role with a freeform communications composer.
 - Team-lead outbound paths are limited to:

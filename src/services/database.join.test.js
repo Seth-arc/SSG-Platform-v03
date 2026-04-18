@@ -87,4 +87,29 @@ describe('database secure join lookup', () => {
         });
         expect(mockSupabase.from).not.toHaveBeenCalled();
     });
+
+    it('normalizes invisible whitespace in seat-claim role ids before invoking the RPC', async () => {
+        mockSupabase.rpc.mockResolvedValue({
+            data: {
+                id: 'session-participant-1',
+                session_id: 'session-1',
+                participant_id: 'participant-1',
+                role: 'blue_scribe',
+                is_active: true,
+                claim_status: 'claimed'
+            },
+            error: null
+        });
+
+        const { database } = await import('./database.js');
+        await database.claimParticipantSeat('session-1', ' Blue_Scribe\u200B\r\n', 'Yah');
+
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('claim_session_role_seat', {
+            requested_session_id: 'session-1',
+            requested_role: 'blue_scribe',
+            requested_name: 'Yah',
+            requested_client_id: 'client-join-test',
+            requested_timeout_seconds: 90
+        });
+    });
 });

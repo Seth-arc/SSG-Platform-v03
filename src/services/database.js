@@ -108,6 +108,21 @@ function normalizeParticipantSeatRecord(record = null) {
     };
 }
 
+function normalizeSeatClaimRole(role = '') {
+    if (role === null || role === undefined) {
+        return role ?? '';
+    }
+
+    const rawRole = String(role);
+    const compatibilityNormalizedRole = typeof rawRole.normalize === 'function'
+        ? rawRole.normalize('NFKC')
+        : rawRole;
+
+    return compatibilityNormalizedRole
+        .replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, '')
+        .toLowerCase();
+}
+
 function normalizeOperatorGrantRecord(record = null) {
     if (!record || typeof record !== 'object') {
         return record;
@@ -547,10 +562,11 @@ export const database = {
      */
     async claimParticipantSeat(sessionId, role, name = '') {
         await ensureAuthenticatedBrowser();
+        const normalizedRole = normalizeSeatClaimRole(role);
 
         const { data, error } = await supabase.rpc('claim_session_role_seat', {
             requested_session_id: sessionId,
-            requested_role: role,
+            requested_role: normalizedRole,
             requested_name: name || null,
             requested_client_id: sessionStore.getClientId(),
             requested_timeout_seconds: CONFIG.HEARTBEAT_TIMEOUT_SECONDS
@@ -562,7 +578,7 @@ export const database = {
 
         const claimedSeat = normalizeParticipantSeatRecord(data);
         logger.info('Participant seat claimed:', {
-            role,
+            role: normalizedRole,
             sessionId: sessionId?.substring?.(0, 8),
             claimStatus: claimedSeat?.claim_status
         });

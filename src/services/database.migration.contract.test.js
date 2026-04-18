@@ -9,6 +9,10 @@ const WHITE_CELL_BACKEND_ALIGNMENT_PATH = new URL(
     '../../data/2026-04-17_white_cell_backend_alignment.sql',
     import.meta.url
 );
+const SEAT_CLAIM_ROLE_NORMALIZATION_PATH = new URL(
+    '../../data/2026-04-17_seat_claim_role_input_normalization.sql',
+    import.meta.url
+);
 
 function extractFunctionBody(sql, functionName) {
     const functionPattern = new RegExp(
@@ -74,5 +78,17 @@ describe('database migration contracts', () => {
         expect(removeParticipantBody).toContain('DELETE FROM public.session_participants');
         expect(removeParticipantBody).toContain('DELETE FROM public.operator_grants');
         expect(removeParticipantBody).toContain("og.surface = 'whitecell'");
+    });
+
+    it('normalizes seat-claim role input before seat-limit evaluation', () => {
+        const sql = readFileSync(SEAT_CLAIM_ROLE_NORMALIZATION_PATH, 'utf8');
+        const seatLimitBody = extractFunctionBody(sql, 'get_session_role_seat_limit');
+        const claimSeatBody = extractFunctionBody(sql, 'claim_session_role_seat');
+
+        expect(seatLimitBody).toContain("regexp_replace(COALESCE(requested_role, ''), '[[:space:]]+', '', 'g')");
+        expect(seatLimitBody).toContain('chr(8203)');
+        expect(claimSeatBody).toContain("regexp_replace(COALESCE(requested_role, ''), '[[:space:]]+', '', 'g')");
+        expect(claimSeatBody).toContain('sanitized_requested_role');
+        expect(claimSeatBody).toContain('public.get_session_role_seat_limit(normalized_role)');
     });
 });

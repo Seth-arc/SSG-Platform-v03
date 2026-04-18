@@ -24,11 +24,13 @@ Run these files in Supabase SQL Editor in this exact order. Do not skip ahead. D
 5. `data/2026-04-09_global_white_cell_role_contract.sql`
 6. `data/2026-04-16_game_master_remove_session_participant.sql`
 7. `data/2026-04-17_white_cell_backend_alignment.sql`
+8. `data/2026-04-17_seat_claim_role_input_normalization.sql`
 
 Why the order matters:
 
 - later files replace earlier RPC definitions
 - `2026-04-17_white_cell_backend_alignment.sql` must run after `2026-04-16_game_master_remove_session_participant.sql` or the project will fall back to Game Master-only participant removal
+- `2026-04-17_seat_claim_role_input_normalization.sql` must run last so the active seat-claim RPC strips hidden whitespace and zero-width characters before it evaluates seat limits
 
 ## Do Not Run For A Fresh Bootstrap
 
@@ -136,6 +138,7 @@ If the UI still shows the toast `This role cannot be claimed in the live demo.` 
 - the current frontend should be submitting a canonical role like `blue_scribe`, not bare `scribe`
 - the connected Supabase project should return `1` for `public.get_session_role_seat_limit('blue_scribe')`
 - if that query returns `null`, the project is still on an outdated seat-claim contract
+- if that query returns `1` but joins still fail, the active `claim_session_role_seat` RPC likely still needs the input-normalization patch in step 8
 
 ### 4. Verify communications metadata support exists
 
