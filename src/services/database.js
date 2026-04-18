@@ -123,6 +123,12 @@ function normalizeSeatClaimRole(role = '') {
         .toLowerCase();
 }
 
+function encodeDebugString(value = '') {
+    return Array.from(String(value || ''))
+        .map((character) => character.codePointAt(0)?.toString(16)?.padStart(4, '0'))
+        .join(' ');
+}
+
 function normalizeOperatorGrantRecord(record = null) {
     if (!record || typeof record !== 'object') {
         return record;
@@ -563,6 +569,14 @@ export const database = {
     async claimParticipantSeat(sessionId, role, name = '') {
         await ensureAuthenticatedBrowser();
         const normalizedRole = normalizeSeatClaimRole(role);
+        logger.debug('Seat claim request payload:', {
+            sessionId,
+            role,
+            normalizedRole,
+            roleCodePoints: encodeDebugString(role),
+            normalizedRoleCodePoints: encodeDebugString(normalizedRole),
+            clientId: sessionStore.getClientId()
+        });
 
         const { data, error } = await supabase.rpc('claim_session_role_seat', {
             requested_session_id: sessionId,
@@ -573,6 +587,7 @@ export const database = {
         });
 
         if (error) {
+            logger.error('Seat claim RPC failed:', error);
             throw fromSupabaseError(error, 'claimParticipantSeat');
         }
 
