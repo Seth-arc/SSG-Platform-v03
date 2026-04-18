@@ -38,31 +38,40 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    current_user_id UUID := auth.uid();
-    sanitized_requested_role TEXT := regexp_replace(
-        LOWER(COALESCE(requested_role, '')),
-        '[^a-z_]+',
-        '',
-        'g'
-    );
-    normalized_role TEXT := CASE
-        WHEN sanitized_requested_role ~ '^(?:(blue|red|green)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
-        WHEN sanitized_requested_role ~ '^(?:(blue|red|green)_)?whitecell_support$' THEN 'whitecell_support'
-        ELSE sanitized_requested_role
-    END;
-    normalized_name TEXT := NULLIF(BTRIM(requested_name), '');
-    normalized_client_id TEXT := NULLIF(BTRIM(requested_client_id), '');
-    normalized_timeout_seconds INTEGER := GREATEST(COALESCE(requested_timeout_seconds, 90), 1);
-    normalized_team TEXT := CASE
-        WHEN normalized_role ~ '^(blue|red|green)_' THEN split_part(normalized_role, '_', 1)
-        ELSE NULL
-    END;
-    role_limit INTEGER := public.get_session_role_seat_limit(normalized_role);
+    current_user_id UUID;
+    sanitized_requested_role TEXT;
+    normalized_role TEXT;
+    normalized_name TEXT;
+    normalized_client_id TEXT;
+    normalized_timeout_seconds INTEGER;
+    normalized_team TEXT;
+    role_limit INTEGER;
     active_claim_count INTEGER := 0;
     participant_row public.participants%ROWTYPE;
     seat_row public.session_participants%ROWTYPE;
     claim_status TEXT := 'claimed';
 BEGIN
+    current_user_id := auth.uid();
+    sanitized_requested_role := regexp_replace(
+        LOWER(COALESCE(requested_role, '')),
+        '[^a-z_]+',
+        '',
+        'g'
+    );
+    normalized_role := CASE
+        WHEN sanitized_requested_role ~ '^(?:(blue|red|green)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
+        WHEN sanitized_requested_role ~ '^(?:(blue|red|green)_)?whitecell_support$' THEN 'whitecell_support'
+        ELSE sanitized_requested_role
+    END;
+    normalized_name := NULLIF(BTRIM(requested_name), '');
+    normalized_client_id := NULLIF(BTRIM(requested_client_id), '');
+    normalized_timeout_seconds := GREATEST(COALESCE(requested_timeout_seconds, 90), 1);
+    normalized_team := CASE
+        WHEN normalized_role ~ '^(blue|red|green)_' THEN split_part(normalized_role, '_', 1)
+        ELSE NULL
+    END;
+    role_limit := public.get_session_role_seat_limit(normalized_role);
+
     IF current_user_id IS NULL THEN
         RAISE EXCEPTION 'Browser identity is required.'
             USING ERRCODE = '42501';
