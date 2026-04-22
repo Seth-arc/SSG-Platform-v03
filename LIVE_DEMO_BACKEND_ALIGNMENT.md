@@ -4,7 +4,7 @@
 
 This document captures the current frontend behavior that the backend must align to as-is.
 
-It is not a redesign document. It describes the current shipped role surfaces, what each role can do, who it can send communications to, who it receives communications from, what shows on each timeline, and which behaviors are still transitional.
+It is not a redesign document. It describes the current shipped role surfaces, what each role can do, who it can send communications to, who it receives communications from, what shows on each timeline, and which behaviors are currently frontend-only or local-only.
 
 Primary source files:
 
@@ -45,19 +45,17 @@ Each of Blue, Red, and Green currently exposes:
 These rules are important because the backend should preserve them unless the frontend is intentionally changed.
 
 - `Scribe` is a first-class seat and role string, but today it is an operational copy of the matching team's facilitator surface.
-- Public seat claims must hit the backend with canonical team-scoped role ids such as `blue_facilitator`, `blue_scribe`, and `blue_notetaker`, even though the landing UI exposes surface names.
-- Public seat-claim normalization should strip invisible whitespace and zero-width characters before the backend evaluates the canonical role id.
 - Team leads do not have a freeform outbound communications composer.
 - White Cell is the only role with a freeform communications composer.
 - Team-lead outbound paths are limited to:
   - RFI submission to White Cell
   - action, proposal, or move-response submission to White Cell
   - proposal response back to White Cell from the `Received Proposals` inbox
-- Blue, Red, and Green lead pages show their own team timeline plus only `white_cell` timeline events explicitly addressed to that team or lead seat.
-- Blue, Red, and Green notetaker pages show their own team timeline plus only `white_cell` timeline events explicitly addressed to that team or notetaker seat.
+- Blue, Red, and Green lead pages all show their own team timeline plus `white_cell` timeline events.
+- Blue, Red, and Green notetaker pages also show their own team timeline plus `white_cell` timeline events.
 - White Cell shows the full session timeline with team and role filters.
-- `Received Proposals` status chips (`Unread`, `Acknowledged`, `Responded`, `Declined`, `Ignored`) are stored in communication metadata as shared backend state.
-- `Verba AI Population Sentiments` is wired on White Cell and team surfaces.
+- `Received Proposals` status chips such as `Unread`, `Acknowledged`, and `Responded` are stored in browser `localStorage`, not as shared backend state.
+- `Verba AI Population Sentiments` exists in page shells, but is not currently backed by controller logic.
 
 ## Role-Specific Behavior
 
@@ -74,10 +72,10 @@ Can do:
 - Use the 3-page `Take Action` wizard.
 - See the current Blue Team move and action number while building an action.
 - Submit RFIs.
-- Use Quick Capture and Tribe Street Journal.
+- Use Quick Capture and Tribe Street Journal, including the embedded `tribestreetjournal.com` panel.
 - Read White Cell responses.
 - View `Received Proposals`.
-- Acknowledge, respond to, decline, or ignore a forwarded proposal.
+- Acknowledge, respond to, decline, ignore, or mark a forwarded proposal as read.
 
 Can send:
 
@@ -103,7 +101,7 @@ Receives communications from:
 Timeline shows:
 
 - Timeline events where `team` is `blue`
-- Timeline events where `team` is `white_cell` and the event metadata addresses Blue or a Blue lead seat
+- Timeline events where `team` is `white_cell`
 - Current implementation renders the most recent 50 matching events
 
 Backend alignment implications:
@@ -163,21 +161,18 @@ Cannot send:
 
 Receives communications from:
 
-- White Cell communications addressed to:
-  - `all`
-  - `blue`
-  - `blue_notetaker`
+- No dedicated communications inbox is rendered on the notetaker page
 
 Timeline shows:
 
 - Timeline events where `team` is `blue`
-- Timeline events where `team` is `white_cell` and the event metadata addresses Blue or the Blue notetaker seat
+- Timeline events where `team` is `white_cell`
 
 Backend alignment implications:
 
 - `notetaker_data` must remain participant-scoped for move notes.
 - Shared captures and participant-scoped notes are separate behaviors and should not be collapsed.
-- White Cell notetaker-targeted communications must be deliverable to the notetaker inbox.
+- White Cell can currently target notetaker roles in the communications composer, but the notetaker UI does not show an inbox for those messages.
 
 ### Red Facilitator
 
@@ -190,10 +185,10 @@ Can do:
 
 - Submit Red Team move responses
 - Submit RFIs
-- Use Quick Capture and Tribe Street Journal
+- Use Quick Capture and Tribe Street Journal, including the embedded `tribestreetjournal.com` panel
 - Read White Cell responses
 - View `Received Proposals`
-- Acknowledge, respond to, decline, or ignore a forwarded proposal
+- Acknowledge, respond to, decline, ignore, or mark a forwarded proposal as read
 
 Current response behavior:
 
@@ -221,7 +216,7 @@ Receives communications from:
 Timeline shows:
 
 - Timeline events where `team` is `red`
-- Timeline events where `team` is `white_cell` and the event metadata addresses Red or a Red lead seat
+- Timeline events where `team` is `white_cell`
 - Current implementation renders the most recent 50 matching events
 
 Backend alignment implications:
@@ -243,9 +238,9 @@ Current behavior:
 - Same notetaker model as Blue Notetaker, scoped to Red
 - Shared captures append to timeline
 - Move-scoped dynamics and alliance notes are participant-scoped
-- White Cell inbox shows communications addressed to `all`, `red`, or `red_notetaker`
+- No communications inbox
 - Read-only actions view
-- Timeline shows `red` events plus directly addressed `white_cell` events
+- Timeline shows `red` and `white_cell` events
 
 ### Green Facilitator
 
@@ -258,10 +253,8 @@ Can do:
 
 - Submit Green proposals for White Cell review
 - Submit RFIs
-- Use Quick Capture and Tribe Street Journal
+- Use Quick Capture and Tribe Street Journal, including the embedded `tribestreetjournal.com` panel
 - Read White Cell responses
-- View `Received Proposals`
-- Acknowledge, respond to, decline, or ignore a forwarded proposal
 
 Current proposal behavior:
 
@@ -269,17 +262,17 @@ Current proposal behavior:
 - New proposals are sent to White Cell review immediately.
 - Green specifies intended recipients such as Blue or Red inside the proposal flow.
 - Green does not directly message Blue or Red.
-- Green has the same `Received Proposals` inbox surface as Blue and Red.
+- Green does not have a `Received Proposals` section on its page.
 
 Can send:
 
 - `RFI -> White Cell`
 - `Proposal submission -> White Cell`
-- `Proposal response -> White Cell`
 
 Cannot send:
 
 - Direct communications to Blue or Red
+- Proposal responses from a recipient inbox, because Green is the originator role in this flow
 
 Receives communications from:
 
@@ -289,12 +282,11 @@ Receives communications from:
   - `green`
   - `green_facilitator`
   - `green_scribe`
-- White Cell forwarded proposals addressed to `green`
 
 Timeline shows:
 
 - Timeline events where `team` is `green`
-- Timeline events where `team` is `white_cell` and the event metadata addresses Green or a Green lead seat
+- Timeline events where `team` is `white_cell`
 - Current implementation renders the most recent 50 matching events
 
 Backend alignment implications:
@@ -316,9 +308,9 @@ Current behavior:
 - Same notetaker model as Blue and Red Notetaker, scoped to Green
 - Shared captures append to timeline
 - Move-scoped dynamics and alliance notes are participant-scoped
-- White Cell inbox shows communications addressed to `all`, `green`, or `green_notetaker`
+- No communications inbox
 - Read-only actions view
-- Timeline shows `green` events plus directly addressed `white_cell` events
+- Timeline shows `green` and `white_cell` events
 
 ### White Cell Lead
 
@@ -332,21 +324,15 @@ Can do:
 - Start, pause, and reset the timer
 - Advance and regress move and phase
 - Review submitted actions
-- Review submitted Green proposals
-- Review submitted Red move responses
 - Adjudicate submitted actions
 - Answer pending RFIs
 - Send White Cell communications
 - Share Blue actions to Red as `GUIDANCE`
-- Review Tribe Street Journal captures and forward them as White Cell updates
-- Compose and review Verba AI population sentiment updates
-- Create sessions
-- Delete sessions
 - View session participants
-- Remove participants from sessions
 - View session-wide communications history
 - View session-wide timeline with filters
-- Export selected-session data as JSON and CSV
+- Use the Tribe Street Journal review section, including the embedded `tribestreetjournal.com` panel
+- Use session and export tabs exposed on the White Cell page shell
 
 Can send communications to:
 
@@ -387,7 +373,6 @@ Backend alignment implications:
 - Adjudication and RFI answer flows must remain White Cell accessible.
 - Communication recipient targeting must support whole-team and specific-seat delivery.
 - Blue-to-Red `GUIDANCE` and Green proposal forwarding are current White Cell behaviors that the backend must preserve.
-- White Cell JSON and CSV exports should read the current backend session bundle for the active session.
 
 ### White Cell Support
 
@@ -405,12 +390,7 @@ Can do today:
 - Answer pending RFIs
 - Send White Cell communications
 - Share Blue actions to Red as `GUIDANCE`
-- Review Tribe Street Journal captures and forward them as White Cell updates
-- Compose and review Verba AI population sentiment updates
-- Create sessions
-- Delete sessions
-- Remove participants from sessions
-- Export selected-session data as JSON and CSV
+- Use the Tribe Street Journal review section, including the embedded `tribestreetjournal.com` panel
 
 Cannot do today:
 
@@ -455,7 +435,8 @@ Timeline behavior:
 
 Backend alignment implications:
 
-- Session create, delete, and participant removal are also exposed to White Cell to match the White Cell page shell.
+- Session create and delete remain Game Master protected operations.
+- Participant removal remains a Game Master protected operation.
 - Export paths should continue to work off session bundle reads.
 
 ## Communication Matrix
@@ -464,7 +445,7 @@ Backend alignment implications:
 | --- | --- | --- |
 | Blue Facilitator / Scribe | RFI, Blue action submission, proposal response | White Cell |
 | Red Facilitator / Scribe | RFI, move response submission, proposal response | White Cell |
-| Green Facilitator / Scribe | RFI, proposal submission, proposal response | White Cell |
+| Green Facilitator / Scribe | RFI, proposal submission | White Cell |
 | Blue / Red / Green Notetaker | Timeline captures, participant-scoped note saves | Stored to backend, not delivered as inbox communications |
 | White Cell Lead | Freeform communications, RFI answers, action adjudication, Blue guidance shares, Green proposal forwarding | All teams, whole teams, or specific facilitator / scribe / notetaker seats |
 | White Cell Support | Freeform communications, RFI answers, Blue guidance shares | All teams, whole teams, or specific facilitator / scribe / notetaker seats |
@@ -474,12 +455,12 @@ Backend alignment implications:
 
 | Role | Timeline contents |
 | --- | --- |
-| Blue Facilitator / Scribe | `blue` events plus directly addressed `white_cell` events |
-| Red Facilitator / Scribe | `red` events plus directly addressed `white_cell` events |
-| Green Facilitator / Scribe | `green` events plus directly addressed `white_cell` events |
-| Blue Notetaker | `blue` events plus directly addressed `white_cell` events |
-| Red Notetaker | `red` events plus directly addressed `white_cell` events |
-| Green Notetaker | `green` events plus directly addressed `white_cell` events |
+| Blue Facilitator / Scribe | `blue` events plus `white_cell` events |
+| Red Facilitator / Scribe | `red` events plus `white_cell` events |
+| Green Facilitator / Scribe | `green` events plus `white_cell` events |
+| Blue Notetaker | `blue` events plus `white_cell` events |
+| Red Notetaker | `red` events plus `white_cell` events |
+| Green Notetaker | `green` events plus `white_cell` events |
 | White Cell Lead / Support | Full session timeline with filters |
 | Game Master | No dedicated timeline surface; dashboard recent-activity summary and exports only |
 
@@ -487,13 +468,35 @@ Backend alignment implications:
 
 These are important because they affect what "align to the frontend as-is" really means.
 
-### White Cell/backend alignment now covered
+### Notetaker communication targeting mismatch
 
-- Notetaker pages render a White Cell inbox.
-- White Cell session, participant, and export controls are backed by the same privileged session-management RPC family.
-- Team lead and notetaker timelines only render directly addressed `white_cell` events.
-- Proposal recipient state is shared backend metadata on the forwarded proposal communication record.
-- White Cell placeholder sections are wired for `Proposals`, `Move Responses`, `Tribe Street Journal`, and `Verba AI Population Sentiments`.
+- White Cell can target notetaker seats in the communications composer.
+- Notetaker pages do not render a communications inbox.
+- Result: backend can store and deliver those messages, but the current notetaker frontend does not surface them.
+
+### White Cell shell exposes Game Master-like tabs
+
+- `whitecell.html` includes session, participants, and export tabs.
+- Session creation, session deletion, and participant removal are Game Master protected backend operations.
+- Result: the White Cell page shell visibly includes controls that may fail unless the authenticated user also holds a Game Master grant.
+
+### Team timelines are broader than direct messaging
+
+- Team lead and notetaker timelines show all `white_cell` team events, not only events addressed directly to that team or seat.
+- Result: timeline visibility is broader than communications targeting.
+
+### Proposal recipient status is not shared server state
+
+- `Unread`, `Acknowledged`, `Responded`, `Declined`, and `Ignored` are stored in browser `localStorage`.
+- Result: the backend is not currently the source of truth for proposal recipient state chips.
+
+### White Cell placeholder sections are not wired
+
+- `Proposals`
+- `Move Responses`
+- `Verba AI Population Sentiments`
+
+These exist in the White Cell page shell, but are not populated by the current controller.
 
 ### Observer contract is transitional
 
@@ -511,7 +514,7 @@ If the backend is being aligned to the current frontend without redesigning the 
 - Global White Cell operator roles:
   - `whitecell_lead`
   - `whitecell_support`
-- Privileged session control for Game Master and White Cell:
+- Game Master-only session control:
   - create session
   - delete session
   - remove participant
@@ -524,8 +527,10 @@ If the backend is being aligned to the current frontend without redesigning the 
 - White Cell adjudication flow
 - White Cell Blue-to-Red guidance flow
 - White Cell forwarding of approved Green proposals to Blue or Red
-- Team and notetaker timeline visibility that includes only directly addressed `white_cell` events
+- Team and notetaker timeline visibility that includes `white_cell` events
 - Participant-scoped notetaker move data plus shared capture timeline events
+
+The backend does not need to invent new entities for proposal recipient status if the plan is to preserve frontend behavior exactly as it works today. That state is currently local-only.
 
 ## Blank Supabase Migration Order
 
@@ -537,15 +542,12 @@ For a brand-new Supabase project, the current blank-project migration order is:
 4. `data/2026-04-08_facilitator_join_session_access_fix.sql`
 5. `data/2026-04-09_global_white_cell_role_contract.sql`
 6. `data/2026-04-16_game_master_remove_session_participant.sql`
-7. `data/2026-04-17_white_cell_backend_alignment.sql`
-
-See [SUPABASE_BLANK_PROJECT_RUNBOOK.md](/C:/Users/ssnguna/Local%20Sites/SSG-Platform-v03/SUPABASE_BLANK_PROJECT_RUNBOOK.md) for the exact SQL Editor checklist, operator-code setting step, and smoke-check queries for a fresh project.
 
 This chain covers the current backend contract needed for:
 
 - public facilitator, scribe, and notetaker seat claims
 - global White Cell operator roles
 - White Cell action and communications flows
-- Game Master and White Cell privileged session administration
+- Game Master participant removal
 
-It does not remove transitional legacy viewer code paths or redesign the shipped role flows.
+It does not replace frontend-only behavior such as local proposal status chips or unwired placeholder sections.

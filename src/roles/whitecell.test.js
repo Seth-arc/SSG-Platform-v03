@@ -685,6 +685,33 @@ describe('White Cell DOM contract', () => {
         expect(showToast).toHaveBeenCalledWith({ message: 'Update sent', type: 'success' });
     });
 
+    it('renders the Tribe Street Journal embed panel above White Cell journal captures', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const fakeDocument = createFakeDocument(['tribeStreetJournalEmbed', 'tribeStreetJournalList']);
+
+        global.document = fakeDocument;
+
+        const controller = new WhiteCellController();
+        controller.tribeStreetJournalEntries = [{
+            id: 'capture-1',
+            team: 'blue',
+            type: 'NOTE',
+            content: 'Dockworkers reported new inspection slowdowns.',
+            move: 3,
+            phase: 2,
+            created_at: '2026-04-10T14:00:00.000Z',
+            metadata: {
+                actor: 'Blue Notetaker'
+            }
+        }];
+
+        controller.renderTribeStreetJournalList();
+
+        expect(fakeDocument.elements.tribeStreetJournalEmbed.innerHTML).toContain('https://tribestreetjournal.com/');
+        expect(fakeDocument.elements.tribeStreetJournalEmbed.innerHTML).toContain('Open in new tab');
+        expect(fakeDocument.elements.tribeStreetJournalList.innerHTML).toContain('Dockworkers reported new inspection slowdowns.');
+    });
+
     it('exports CSV data from the fetched session bundle for the active session', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { database } = await import('../services/database.js');

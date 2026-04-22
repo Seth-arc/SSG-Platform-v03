@@ -180,6 +180,7 @@ describe('Facilitator and scribe access', () => {
         expect(html).toContain('data-section="tribeStreetJournal"');
         expect(html).toContain('id="tribeStreetJournalSection"');
         expect(html).toContain('Tribe Street Journal');
+        expect(html).toContain('id="tribeStreetJournalEmbed"');
         expect(html).toContain('id="tribeStreetJournalList"');
     });
 
@@ -301,5 +302,43 @@ describe('Facilitator and scribe access', () => {
             'blue-quote',
             'blue-note'
         ]);
+    });
+
+    it('renders the Tribe Street Journal embed panel above facilitator journal entries', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const embedContainer = createFakeElement('tribeStreetJournalEmbed');
+        const container = createFakeElement('tribeStreetJournalList');
+
+        global.document = {
+            createElement(tagName) {
+                return createFakeElement(null, tagName);
+            },
+            getElementById(id) {
+                return {
+                    tribeStreetJournalEmbed: embedContainer,
+                    tribeStreetJournalList: container
+                }[id] || null;
+            }
+        };
+
+        const controller = new FacilitatorController();
+        controller.journalUpdates = [];
+        controller.journalEntries = [{
+            id: 'journal-1',
+            type: 'NOTE',
+            content: 'Harbor operators expect customs delays by nightfall.',
+            move: 2,
+            phase: 1,
+            created_at: '2026-04-09T10:05:00.000Z',
+            metadata: {
+                actor: 'Blue Scribe'
+            }
+        }];
+
+        controller.renderTribeStreetJournalList();
+
+        expect(embedContainer.innerHTML).toContain('https://tribestreetjournal.com/');
+        expect(embedContainer.innerHTML).toContain('Open in new tab');
+        expect(container.innerHTML).toContain('Harbor operators expect customs delays by nightfall.');
     });
 });

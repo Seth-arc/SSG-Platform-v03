@@ -63,6 +63,10 @@ import {
     isWhiteCellSectionUpdate,
     isWhiteCellTimelineEventVisibleToLead
 } from '../features/communications/targeting.js';
+import {
+    TRIBE_STREET_JOURNAL_EMBED_URL,
+    createTribeStreetJournalEmbedMarkup
+} from '../features/tribeStreetJournalEmbed.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { validateAction } from '../utils/validation.js';
 import {
@@ -2923,6 +2927,7 @@ export class FacilitatorController {
     renderTribeStreetJournalList() {
         const container = document.getElementById('tribeStreetJournalList');
         if (!container) return;
+        this.renderTribeStreetJournalEmbed();
 
         const combinedEntries = [
             ...this.journalUpdates.map((communication) => ({
@@ -2949,7 +2954,8 @@ export class FacilitatorController {
             return;
         }
 
-        container.innerHTML = combinedEntries.map((entry) => {
+        container.innerHTML = `
+            ${combinedEntries.map((entry) => {
             if (entry.kind === 'white_cell_update') {
                 const timestamp = getEventTimestamp(entry);
                 return `
@@ -2988,7 +2994,17 @@ export class FacilitatorController {
                     <p class="text-xs text-gray-400" style="margin-top: var(--space-2);">Move ${entry.move || 1} | Phase ${entry.phase || 1}</p>
                 </div>
             `;
-        }).join('');
+        }).join('')}
+        `;
+    }
+
+    renderTribeStreetJournalEmbed() {
+        const container = document.getElementById('tribeStreetJournalEmbed');
+        if (!container || container.innerHTML?.includes(TRIBE_STREET_JOURNAL_EMBED_URL)) return;
+
+        container.innerHTML = createTribeStreetJournalEmbedMarkup({
+            title: `${this.teamContext?.teamLabel || this.teamLabel || 'Team'} Tribe Street Journal live site`
+        });
     }
 
     renderVerbaAiList() {

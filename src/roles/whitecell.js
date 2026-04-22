@@ -57,6 +57,10 @@ import {
     getWhiteCellCommunicationUpdateKind,
     isTeamCaptureTimelineEvent
 } from '../features/communications/targeting.js';
+import {
+    TRIBE_STREET_JOURNAL_EMBED_URL,
+    createTribeStreetJournalEmbedMarkup
+} from '../features/tribeStreetJournalEmbed.js';
 
 const logger = createLogger('WhiteCell');
 const WHITE_CELL_ALL_TEAMS_RECIPIENT = 'all';
@@ -115,6 +119,7 @@ export const WHITE_CELL_DOM_IDS = [
     'actionsList',
     'responsesList',
     'proposalsList',
+    'tribeStreetJournalEmbed',
     'adjudicationQueue',
     'rfiBadge',
     'rfiQueue',
@@ -2390,13 +2395,15 @@ export class WhiteCellController {
     renderTribeStreetJournalList() {
         const container = document.getElementById('tribeStreetJournalList');
         if (!container) return;
+        this.renderTribeStreetJournalEmbed();
 
         if (this.tribeStreetJournalEntries.length === 0) {
             container.innerHTML = '<p class="text-sm text-gray-500">No team captures are available for review yet.</p>';
             return;
         }
 
-        container.innerHTML = this.tribeStreetJournalEntries.map((entry) => {
+        container.innerHTML = `
+            ${this.tribeStreetJournalEntries.map((entry) => {
             const eventType = entry.type || entry.event_type || 'NOTE';
             const badgeVariant = {
                 NOTE: 'default',
@@ -2427,7 +2434,17 @@ export class WhiteCellController {
                     </div>
                 </div>
             `;
-        }).join('');
+        }).join('')}
+        `;
+    }
+
+    renderTribeStreetJournalEmbed() {
+        const container = document.getElementById('tribeStreetJournalEmbed');
+        if (!container || container.innerHTML?.includes(TRIBE_STREET_JOURNAL_EMBED_URL)) return;
+
+        container.innerHTML = createTribeStreetJournalEmbedMarkup({
+            title: 'White Cell Tribe Street Journal live site'
+        });
     }
 
     renderVerbaAiList() {
