@@ -195,6 +195,7 @@ Current response behavior:
 - Red uses the actions area as a `Move Responses` surface rather than the Blue action planner.
 - New Red responses are submitted directly to White Cell review.
 - Red does not start with the Blue draft-save pattern on first creation.
+- Red response rows still persist through the shared `actions` table and carry a concrete `mechanism` label of `Move Response`.
 
 Can send:
 
@@ -263,6 +264,7 @@ Current proposal behavior:
 - Green specifies intended recipients such as Blue or Red inside the proposal flow.
 - Green does not directly message Blue or Red.
 - Green does not have a `Received Proposals` section on its page.
+- Green proposal rows still persist through the shared `actions` table and carry a concrete `mechanism` label of `Proposal`.
 
 Can send:
 

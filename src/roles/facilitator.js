@@ -39,6 +39,7 @@ import {
     serializeBlueActionDetails
 } from '../features/actions/blueActionDetails.js';
 import {
+    PROPOSAL_ACTION_MECHANISM,
     PROPOSAL_ORIGINATORS,
     PROPOSAL_CATEGORIES,
     PROPOSAL_SECTORS,
@@ -47,6 +48,7 @@ import {
     getProposalViewModel
 } from '../features/actions/proposalDetails.js';
 import {
+    MOVE_RESPONSE_ACTION_MECHANISM,
     serializeMoveResponseDetails,
     getMoveResponseViewModel
 } from '../features/actions/moveResponseDetails.js';
@@ -1323,7 +1325,7 @@ export class FacilitatorController {
     buildRedResponsePayload(data) {
         return {
             goal: data.title,
-            mechanism: null,
+            mechanism: MOVE_RESPONSE_ACTION_MECHANISM,
             sector: null,
             exposure_type: null,
             priority: 'NORMAL',
@@ -1708,7 +1710,7 @@ export class FacilitatorController {
     buildGreenProposalPayload(data, { recipientTeam }) {
         return {
             goal: data.title,
-            mechanism: null,
+            mechanism: PROPOSAL_ACTION_MECHANISM,
             sector: data.focusSector,
             exposure_type: null,
             priority: 'NORMAL',

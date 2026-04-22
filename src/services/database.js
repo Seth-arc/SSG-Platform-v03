@@ -17,6 +17,14 @@ import {
     isValidActionStatus
 } from '../core/enums.js';
 import {
+    PROPOSAL_ACTION_MECHANISM,
+    parseProposalDetails
+} from '../features/actions/proposalDetails.js';
+import {
+    MOVE_RESPONSE_ACTION_MECHANISM,
+    parseMoveResponseDetails
+} from '../features/actions/moveResponseDetails.js';
+import {
     annotateObservationTimelineEntries,
     buildNotetakerParticipantContext,
     mergeObservationTimeline,
@@ -127,6 +135,41 @@ function encodeDebugString(value = '') {
     return Array.from(String(value || ''))
         .map((character) => character.codePointAt(0)?.toString(16)?.padStart(4, '0'))
         .join(' ');
+}
+
+function resolvePersistedActionMechanism(actionData = {}) {
+    const explicitMechanism = typeof actionData.mechanism === 'string'
+        ? actionData.mechanism.trim()
+        : '';
+    if (explicitMechanism) {
+        return explicitMechanism;
+    }
+
+    if (parseProposalDetails(actionData.ally_contingencies)) {
+        return PROPOSAL_ACTION_MECHANISM;
+    }
+
+    if (parseMoveResponseDetails(actionData.ally_contingencies)) {
+        return MOVE_RESPONSE_ACTION_MECHANISM;
+    }
+
+    return null;
+}
+
+function resolveActionWritePayload(actionData = {}, operation = 'actionWrite', {
+    requireMechanism = false
+} = {}) {
+    const mechanism = resolvePersistedActionMechanism(actionData);
+    const shouldWriteMechanism = requireMechanism || 'mechanism' in actionData || Boolean(mechanism);
+
+    if (shouldWriteMechanism && !mechanism) {
+        throw new DatabaseError('Action mechanism is required.', operation);
+    }
+
+    return {
+        ...actionData,
+        ...(shouldWriteMechanism ? { mechanism } : {})
+    };
 }
 
 function normalizeOperatorGrantRecord(record = null) {
@@ -794,26 +837,29 @@ export const database = {
         if (!isValidActionStatus(status)) {
             throw new DatabaseError(`Invalid action status: ${status}`, 'createAction');
         }
+        const resolvedActionData = resolveActionWritePayload(actionData, 'createAction', {
+            requireMechanism: true
+        });
 
         const { data, error } = await supabase
             .from('actions')
             .insert({
-                session_id: actionData.session_id,
-                client_id: actionData.client_id,
-                move: actionData.move,
-                phase: actionData.phase,
-                team: actionData.team,
-                mechanism: actionData.mechanism,
-                sector: actionData.sector,
-                exposure_type: actionData.exposure_type,
-                targets: actionData.targets || [],
-                goal: actionData.goal,
-                expected_outcomes: actionData.expected_outcomes,
-                ally_contingencies: actionData.ally_contingencies,
-                priority: actionData.priority,
+                session_id: resolvedActionData.session_id,
+                client_id: resolvedActionData.client_id,
+                move: resolvedActionData.move,
+                phase: resolvedActionData.phase,
+                team: resolvedActionData.team,
+                mechanism: resolvedActionData.mechanism,
+                sector: resolvedActionData.sector,
+                exposure_type: resolvedActionData.exposure_type,
+                targets: resolvedActionData.targets || [],
+                goal: resolvedActionData.goal,
+                expected_outcomes: resolvedActionData.expected_outcomes,
+                ally_contingencies: resolvedActionData.ally_contingencies,
+                priority: resolvedActionData.priority,
                 status,
-                submitted_at: actionData.submitted_at || null,
-                adjudicated_at: actionData.adjudicated_at || null
+                submitted_at: resolvedActionData.submitted_at || null,
+                adjudicated_at: resolvedActionData.adjudicated_at || null
             })
             .select()
             .single();
@@ -899,11 +945,12 @@ export const database = {
         if ('status' in updates && !isValidActionStatus(updates.status)) {
             throw new DatabaseError(`Invalid action status: ${updates.status}`, 'updateAction');
         }
+        const resolvedUpdates = resolveActionWritePayload(updates, 'updateAction');
 
         const { data, error } = await supabase
             .from('actions')
             .update({
-                ...updates,
+                ...resolvedUpdates,
                 updated_at: new Date().toISOString()
             })
             .eq('id', actionId)

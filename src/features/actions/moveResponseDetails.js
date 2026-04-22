@@ -9,6 +9,7 @@
  */
 
 export const MOVE_RESPONSE_DETAILS_PREFIX = 'Move Response Details';
+export const MOVE_RESPONSE_ACTION_MECHANISM = 'Move Response';
 
 function normalizeString(value) {
     return typeof value === 'string'

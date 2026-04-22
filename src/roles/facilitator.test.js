@@ -254,6 +254,48 @@ describe('Facilitator and scribe access', () => {
         expect(markup).toContain('Blue Team | Move 2 | Action 2');
     });
 
+    it('builds Green proposals with a concrete persisted mechanism label', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+
+        const payload = controller.buildGreenProposalPayload({
+            title: 'Align biotech export posture',
+            originators: ['EU', 'Japan'],
+            objective: 'Coordinate export controls across allied channels.',
+            category: 'Alignment',
+            intendedPartners: 'Blue Team',
+            focusSector: 'Biotechnology',
+            delivery: 'Joint Statement',
+            timingAndConditions: 'Next move after White Cell approval.',
+            expectedOutcomes: 'Reduce room for adversarial arbitrage.'
+        }, {
+            recipientTeam: 'blue'
+        });
+
+        expect(payload.mechanism).toBe('Proposal');
+        expect(payload.ally_contingencies).toContain('Proposal Details');
+        expect(payload.ally_contingencies).toContain('Recipient Team: blue');
+    });
+
+    it('builds Red move responses with a concrete persisted mechanism label', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+
+        const payload = controller.buildRedResponsePayload({
+            title: 'Counter logistics corridor squeeze',
+            strategicAssessment: 'Blue is tightening maritime leverage.',
+            responseStrategy: 'Exploit alternate port relationships.',
+            keyActions: 'Shift freight and publicize redundancy measures.',
+            targetsAndPressurePoints: 'Port authorities and customs timing.',
+            deliveryChannel: 'Backchannel assurances to carriers.',
+            expectedEffect: 'Preserve throughput and deny escalation payoff.'
+        });
+
+        expect(payload.mechanism).toBe('Move Response');
+        expect(payload.ally_contingencies).toContain('Move Response Details');
+        expect(payload.ally_contingencies).toContain('Delivery Channel: Backchannel assurances to carriers.');
+    });
+
     it('builds Tribe Street Journal entries from team capture events only', async () => {
         const { buildTribeStreetJournalEntries } = await loadFacilitatorModule();
 

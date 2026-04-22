@@ -9,6 +9,7 @@
  */
 
 export const PROPOSAL_DETAILS_PREFIX = 'Proposal Details';
+export const PROPOSAL_ACTION_MECHANISM = 'Proposal';
 
 export const PROPOSAL_ORIGINATORS = Object.freeze([
     'EU',
