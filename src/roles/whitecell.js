@@ -39,7 +39,7 @@ import {
 } from '../features/export/index.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { CONFIG } from '../core/config.js';
-import { ENUMS, canAdjudicateAction, getPhaseLabel } from '../core/enums.js';
+import { ENUMS, canAdjudicateAction, getPhaseLabel, isDraftAction } from '../core/enums.js';
 import { navigateToApp } from '../core/navigation.js';
 import {
     OPERATOR_SURFACES,
@@ -1201,10 +1201,16 @@ export class WhiteCellController {
     }
 
     syncActionsFromStore() {
+        const allActions = actionsStore.getAll();
         this.actions = actionsStore.getPending();
         this.blueTeamActions = this.actions.filter((action) => action?.team === 'blue');
-        this.greenTeamProposals = this.actions.filter((action) => action?.team === 'green');
+        this.greenTeamProposals = allActions.filter((action) => (
+            action?.team === 'green'
+            && !isDraftAction(action)
+            && this.isProposalAction(action)
+        ));
         this.redTeamResponses = this.actions.filter((action) => action?.team === 'red');
+        const pendingGreenTeamProposals = this.greenTeamProposals.filter((action) => canAdjudicateAction(action));
 
         this.renderActionReview();
         this.renderMoveResponses();
@@ -1212,7 +1218,7 @@ export class WhiteCellController {
         this.renderAdjudicationQueue();
 
         this.updateSidebarBadge('actionsBadge', this.blueTeamActions.length);
-        this.updateSidebarBadge('proposalsBadge', this.greenTeamProposals.length);
+        this.updateSidebarBadge('proposalsBadge', pendingGreenTeamProposals.length);
         this.updateSidebarBadge('responsesBadge', this.redTeamResponses.length);
     }
 
@@ -1388,7 +1394,7 @@ export class WhiteCellController {
         if (!container) return;
 
         if (this.greenTeamProposals.length === 0) {
-            container.innerHTML = '<p class="text-sm text-gray-500">No Green Team proposals are awaiting White Cell review.</p>';
+            container.innerHTML = '<p class="text-sm text-gray-500">No Green Team proposals have been submitted yet.</p>';
             return;
         }
 

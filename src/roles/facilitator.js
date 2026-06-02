@@ -533,8 +533,21 @@ export class FacilitatorController {
                 content: communication.content,
                 type: communication.type || 'MESSAGE'
             }));
+        const forwardedProposals = communicationsStore.getAll()
+            .filter((communication) =>
+                communication?.type === 'PROPOSAL_FORWARDED'
+                && isWhiteCellCommunicationVisibleToLead(communication, this.teamContext)
+            )
+            .map((communication) => ({
+                id: `proposal-${communication.id}`,
+                kind: 'proposal',
+                created_at: communication.created_at,
+                title: `Received Proposal: ${communication?.metadata?.proposal?.title || 'Untitled proposal'}`,
+                content: communication.content,
+                type: 'FORWARDED PROPOSAL'
+            }));
 
-        this.responses = [...answeredRfis, ...directResponses].sort(
+        this.responses = [...answeredRfis, ...directResponses, ...forwardedProposals].sort(
             (a, b) => new Date(b.created_at) - new Date(a.created_at)
         );
 

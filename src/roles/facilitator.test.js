@@ -373,6 +373,64 @@ describe('Facilitator and scribe access', () => {
         expect(payload.ally_contingencies).toContain('Recipient Team: blue');
     });
 
+    it('shows forwarded proposals in both the received proposals inbox and the responses feed', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { buildWhiteCellRecipientMetadata } = await import('../features/communications/targeting.js');
+
+        const responsesList = createFakeElement('responsesList');
+        const proposalsList = createFakeElement('receivedProposalsList');
+        const proposalsBadge = createFakeElement('receivedProposalsBadge');
+
+        global.document = {
+            createElement(tagName) {
+                return createFakeElement(null, tagName);
+            },
+            getElementById(id) {
+                return {
+                    responsesList,
+                    receivedProposalsList: proposalsList,
+                    receivedProposalsBadge: proposalsBadge
+                }[id] || null;
+            }
+        };
+
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([{
+            id: 'comm-forwarded-1',
+            from_role: 'whitecell_lead',
+            to_role: 'whitecell_lead',
+            type: 'PROPOSAL_FORWARDED',
+            content: 'Forwarded Green Team proposal (sent by White Cell after review).',
+            created_at: '2026-04-09T10:06:00.000Z',
+            metadata: buildWhiteCellRecipientMetadata('blue', {
+                source_team: 'green',
+                outcome: 'SUCCESS',
+                proposal: {
+                    title: 'Joint Port Proposal',
+                    originators: ['EU', 'Japan'],
+                    category: 'Alignment',
+                    intendedPartners: 'Blue Team',
+                    focusSector: 'Biotechnology',
+                    delivery: 'Joint Statement',
+                    objective: 'Align port licensing posture.',
+                    timingAndConditions: 'Immediately after White Cell review.',
+                    expectedOutcomes: 'Reduce room for arbitrage.'
+                }
+            })
+        }]);
+
+        const controller = new FacilitatorController();
+        controller.syncResponsesFromStores();
+        controller.syncReceivedProposalsFromStore();
+
+        expect(responsesList.innerHTML).toContain('Received Proposal: Joint Port Proposal');
+        expect(responsesList.innerHTML).toContain('FORWARDED PROPOSAL');
+        expect(proposalsList.innerHTML).toContain('Joint Port Proposal');
+        expect(proposalsList.innerHTML).toContain('Forwarded from Green Team');
+        expect(proposalsBadge.textContent).toBe('1');
+        expect(proposalsBadge.hidden).toBe(false);
+    });
+
     it('builds Red move responses with a concrete persisted mechanism label', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();

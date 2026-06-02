@@ -481,6 +481,53 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.actionsBadge.textContent).not.toBe('3');
     });
 
+    it('keeps reviewed Green proposals visible in the White Cell proposals queue', async () => {
+        const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
+        global.document = fakeDocument;
+
+        const greenProposal = {
+            id: 'action-104',
+            team: 'green',
+            move: 2,
+            phase: 1,
+            goal: 'Coordinate biotech export alignment',
+            mechanism: 'Proposal',
+            status: 'adjudicated',
+            outcome: 'SUCCESS',
+            adjudication_notes: 'Forwarded to Blue Team for review.',
+            created_at: '2026-04-08T09:10:00.000Z',
+            submitted_at: '2026-04-08T09:15:00.000Z',
+            adjudicated_at: '2026-04-08T09:20:00.000Z',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce arbitrage across allied export controls.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'Japan'],
+                objective: 'Align licensing posture before the next move.',
+                category: 'Alignment',
+                intendedPartners: 'Blue Team',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Immediately after White Cell review.',
+                recipientTeam: 'blue'
+            })
+        };
+
+        vi.spyOn(actionsStore, 'getPending').mockReturnValue([]);
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([greenProposal]);
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+
+        controller.syncActionsFromStore();
+
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Coordinate biotech export alignment');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Outcome:</strong> SUCCESS');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Notes:</strong> Forwarded to Blue Team for review.');
+        expect(fakeDocument.elements.proposalsBadge.hidden).toBe(true);
+    });
+
     it('renders facilitator action details needed for White Cell adjudication', async () => {
         const { WhiteCellController, buildSharedActionCommunicationContent } = await loadWhiteCellModule();
         const { actionsStore } = await import('../stores/actions.js');

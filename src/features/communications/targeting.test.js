@@ -43,6 +43,20 @@ describe('white cell targeting helpers', () => {
         }, BLUE_TEAM_CONTEXT)).toBe(false);
     });
 
+    it('uses recipient metadata and white cell role aliases when deciding lead visibility', () => {
+        expect(isWhiteCellCommunicationVisibleToLead({
+            from_role: 'whitecell_lead',
+            to_role: 'whitecell_lead',
+            metadata: buildWhiteCellRecipientMetadata('blue')
+        }, BLUE_TEAM_CONTEXT)).toBe(true);
+
+        expect(isWhiteCellCommunicationVisibleToLead({
+            from_role: 'whitecell_support',
+            to_role: '',
+            metadata: buildWhiteCellRecipientMetadata('blue_scribe')
+        }, BLUE_TEAM_CONTEXT)).toBe(true);
+    });
+
     it('shows notetaker communications only when they are addressed to the team or the notetaker seat', () => {
         expect(isNotetakerScopedWhiteCellCommunication({
             from_role: 'white_cell',

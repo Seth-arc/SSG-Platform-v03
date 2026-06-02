@@ -9,6 +9,19 @@ function normalizeRecipientValue(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
 
+function isWhiteCellSenderRole(role = '') {
+    const normalizedRole = normalizeRecipientValue(role).toLowerCase();
+    if (!normalizedRole) {
+        return false;
+    }
+
+    if (normalizedRole === 'white_cell' || normalizedRole === 'whitecell') {
+        return true;
+    }
+
+    return parseTeamRole(normalizedRole).surface === ROLE_SURFACES.WHITECELL;
+}
+
 export function resolveCommunicationRecipientContext(recipient = '') {
     const normalizedRecipient = normalizeRecipientValue(recipient);
     if (!normalizedRecipient) {
@@ -67,7 +80,7 @@ export function getWhiteCellCommunicationUpdateKind(communication = {}) {
 }
 
 export function isWhiteCellSectionUpdate(communication = {}, kind = null) {
-    return communication?.from_role === 'white_cell'
+    return isWhiteCellSenderRole(communication?.from_role)
         && Boolean(kind)
         && getWhiteCellCommunicationUpdateKind(communication) === kind;
 }
@@ -90,13 +103,99 @@ function buildNotetakerRecipientSet(teamContext = {}) {
 }
 
 export function isWhiteCellCommunicationVisibleToLead(communication = {}, teamContext = {}) {
-    return communication?.from_role === 'white_cell'
-        && buildLeadRecipientSet(teamContext).has(communication?.to_role);
+    return isVisibleWhiteCellCommunication(
+        communication,
+        buildLeadRecipientSet(teamContext),
+        teamContext.teamId
+    );
 }
 
 export function isWhiteCellCommunicationVisibleToNotetaker(communication = {}, teamContext = {}) {
-    return communication?.from_role === 'white_cell'
-        && buildNotetakerRecipientSet(teamContext).has(communication?.to_role);
+    return isVisibleWhiteCellCommunication(
+        communication,
+        buildNotetakerRecipientSet(teamContext),
+        teamContext.teamId
+    );
+}
+
+function getCommunicationRecipientMetadata(communication = {}) {
+    const metadata = communication?.metadata && typeof communication.metadata === 'object'
+        ? communication.metadata
+        : {};
+    const explicitRecipientMetadata = {
+        recipient: normalizeRecipientValue(metadata.recipient || metadata.to_role || ''),
+        recipientScope: normalizeRecipientValue(metadata.recipient_scope || ''),
+        recipientTeam: normalizeRecipientValue(metadata.recipient_team || ''),
+        recipientRole: normalizeRecipientValue(metadata.recipient_role || '')
+    };
+
+    if (
+        explicitRecipientMetadata.recipient
+        || explicitRecipientMetadata.recipientScope
+        || explicitRecipientMetadata.recipientTeam
+        || explicitRecipientMetadata.recipientRole
+    ) {
+        return explicitRecipientMetadata;
+    }
+
+    const fallbackRecipientContext = resolveCommunicationRecipientContext(communication?.to_role || '');
+    return {
+        recipient: fallbackRecipientContext.recipient || '',
+        recipientScope: fallbackRecipientContext.recipientScope || '',
+        recipientTeam: fallbackRecipientContext.recipientTeam || '',
+        recipientRole: fallbackRecipientContext.recipientRole || ''
+    };
+}
+
+function isVisibleWhiteCellCommunication(communication = {}, recipientSet = new Set(), expectedTeamId = null) {
+    if (!isWhiteCellSenderRole(communication?.from_role)) {
+        return false;
+    }
+
+    const recipientMetadata = getCommunicationRecipientMetadata(communication);
+    if (
+        !recipientMetadata.recipient
+        && !recipientMetadata.recipientScope
+        && !recipientMetadata.recipientTeam
+        && !recipientMetadata.recipientRole
+    ) {
+        return false;
+    }
+
+    if (recipientMetadata.recipientScope === 'all') {
+        return recipientSet.has('all');
+    }
+
+    if (recipientMetadata.recipientScope === 'role') {
+        return (
+            (recipientMetadata.recipientRole && recipientSet.has(recipientMetadata.recipientRole))
+            || (recipientMetadata.recipient && recipientSet.has(recipientMetadata.recipient))
+        );
+    }
+
+    if (recipientMetadata.recipientScope === 'team') {
+        return (
+            (recipientMetadata.recipientTeam && recipientMetadata.recipientTeam === expectedTeamId)
+            || (recipientMetadata.recipient && recipientSet.has(recipientMetadata.recipient))
+        );
+    }
+
+    if (recipientMetadata.recipientRole) {
+        return (
+            recipientSet.has(recipientMetadata.recipientRole)
+            || (recipientMetadata.recipient && recipientSet.has(recipientMetadata.recipient))
+        );
+    }
+
+    if (recipientMetadata.recipientTeam && recipientMetadata.recipientTeam === expectedTeamId) {
+        return true;
+    }
+
+    if (recipientMetadata.recipient && recipientSet.has(recipientMetadata.recipient)) {
+        return true;
+    }
+
+    return false;
 }
 
 function getTimelineRecipientMetadata(event = {}) {

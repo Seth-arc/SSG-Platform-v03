@@ -1,0 +1,404 @@
+{
+  "exportedAt": "2026-06-02T15:47:12.392Z",
+  "version": "2.0.0",
+  "session": {
+    "id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+    "name": "Latest Test",
+    "status": "active",
+    "session_code": "TEST2026",
+    "metadata": {
+      "description": "Checking backend functionality across platform",
+      "session_code": "TEST2026"
+    },
+    "created_at": "2026-06-02T14:52:52.534725+00:00",
+    "updated_at": "2026-06-02T14:52:52.534725+00:00"
+  },
+  "gameState": {
+    "id": "f0ededdc-7f7e-4b5e-ad74-5f21d6c011ca",
+    "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+    "move": 1,
+    "phase": 1,
+    "timer_seconds": 5400,
+    "timer_running": false,
+    "timer_last_update": null,
+    "last_updated": "2026-06-02T14:52:52.534725+00:00",
+    "created_at": "2026-06-02T14:52:52.534725+00:00"
+  },
+  "actions": [
+    {
+      "id": "5504b152-eab2-4cd3-a2cf-9d24533a1b40",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:11:01.745097+00:00",
+      "updated_at": "2026-06-02T15:33:15.412766+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "green",
+      "client_id": "client_1780412876156_1yej6j0o2",
+      "mechanism": "Proposal",
+      "sector": "Biotechnology",
+      "exposure_type": null,
+      "targets": [],
+      "goal": "Test",
+      "expected_outcomes": "We anticipate that this will X in 12 months.",
+      "ally_contingencies": "Proposal Details\nOriginators: EU, France, UK\nObjective: Checking whether the white cell receives proposals to review from the Green Team.\nCategory: Partnership\nIntended Partners: USA\nDelivery: Backchannel Negotiation\nTiming And Conditions: We want you to X by Y.\nRecipient Team: blue",
+      "status": "adjudicated",
+      "adjudication": {
+        "outcome": "SUCCESS",
+        "adjudicated_at": "2026-06-02T15:33:15.111+00:00",
+        "adjudication_notes": "Here you go.",
+        "adjudicated_by_role": "whitecell_lead",
+        "adjudicated_by_auth_user_id": "2168626d-e919-43a1-b03a-6a6ef69202ef"
+      },
+      "submitted_at": null,
+      "adjudicated_at": "2026-06-02T15:33:15.111+00:00",
+      "draft_duration_seconds": null,
+      "submission_to_adjudication_seconds": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "priority": "NORMAL",
+      "outcome": "SUCCESS",
+      "adjudication_notes": "Here you go."
+    },
+    {
+      "id": "87ccb683-6e10-4902-8194-a26065f8c9f7",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:03:06.208451+00:00",
+      "updated_at": "2026-06-02T15:03:06.739065+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "blue",
+      "client_id": "client_1780412246320_l60wak2px",
+      "mechanism": "Economic",
+      "sector": "Biotechnology",
+      "exposure_type": "Extraction",
+      "targets": [
+        "PRC"
+      ],
+      "goal": "Imposing Sanctions on the PRC",
+      "expected_outcomes": "Success in the form of PRC retreat.",
+      "ally_contingencies": "Blue Team Action Details\nObjective: Testing whether the Take Action modal for the Blue Team: 1. Correctly delivers actions to the White Cell with necessary detail. 2. Is correctly stamped in the timeline. 3. Allows the White Cell to provide feedback\nLever: Sanctions\nImplementation: Executive Order\nEnforcement Timeline: 12 months\nCoordinated: Legislative, Executive\nInformed: Corporate, Allied",
+      "status": "submitted",
+      "adjudication": null,
+      "submitted_at": "2026-06-02T15:03:06.618+00:00",
+      "adjudicated_at": null,
+      "draft_duration_seconds": null,
+      "submission_to_adjudication_seconds": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "priority": "NORMAL",
+      "outcome": null,
+      "adjudication_notes": null
+    }
+  ],
+  "requests": [
+    {
+      "id": "f7068b40-eb6d-41a6-b23b-53d5502de82a",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:45:43.920217+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "green",
+      "client_id": "client_1780412876156_1yej6j0o2",
+      "priority": "NORMAL",
+      "categories": [
+        "Alliance Response"
+      ],
+      "query": "Testing whether Green can send RFIs\n\nContext: help!",
+      "status": "answered",
+      "answered_at": "2026-06-02T15:45:53.23+00:00",
+      "response_time_seconds": 9,
+      "response": "Got it",
+      "responded_at": "2026-06-02T15:45:53.23+00:00"
+    },
+    {
+      "id": "e7fc3c89-e273-41e6-8f9c-1cdab3741acf",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:05:03.86715+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "blue",
+      "client_id": "client_1780412246320_l60wak2px",
+      "priority": "HIGH",
+      "categories": [
+        "Alliance Response"
+      ],
+      "query": "Testing the RFI functionality to ensure White Cell receives it and is able to complete a response.\n\nContext: Help!",
+      "status": "answered",
+      "answered_at": "2026-06-02T15:05:43.99+00:00",
+      "response_time_seconds": 40,
+      "response": "Hey. I received your RFI, it makes sense.",
+      "responded_at": "2026-06-02T15:05:43.99+00:00"
+    }
+  ],
+  "timeline": [
+    {
+      "id": "a48c13ca-5583-428a-9a25-a7b692867686",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:45:53.457414+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "white_cell",
+      "type": "RFI_ANSWERED",
+      "content": "White Cell responded to an RFI.",
+      "client_id": null,
+      "category": null,
+      "faction_tag": null,
+      "debate_marker": null,
+      "metadata": {
+        "role": "whitecell_lead",
+        "recipient": "green",
+        "related_id": "f7068b40-eb6d-41a6-b23b-53d5502de82a",
+        "recipient_role": null,
+        "recipient_team": "green",
+        "recipient_scope": "team"
+      }
+    },
+    {
+      "id": "5c4385b0-af42-435b-a07a-597745c6c6c1",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:45:44.098554+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "green",
+      "type": "RFI_CREATED",
+      "content": "Green Team submitted an RFI to White Cell.",
+      "client_id": null,
+      "category": null,
+      "faction_tag": null,
+      "debate_marker": null,
+      "metadata": {
+        "role": "green_facilitator",
+        "related_id": "f7068b40-eb6d-41a6-b23b-53d5502de82a"
+      }
+    },
+    {
+      "id": "93ef9d09-955c-40eb-bb15-d104712f76a8",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:33:15.563845+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "white_cell",
+      "type": "ACTION_ADJUDICATED",
+      "content": "Proposal review recorded: Forwarded to Blue Team",
+      "client_id": null,
+      "category": null,
+      "faction_tag": null,
+      "debate_marker": null,
+      "metadata": {
+        "role": "whitecell_lead",
+        "proposal": true,
+        "related_id": "5504b152-eab2-4cd3-a2cf-9d24533a1b40",
+        "proposal_recipient_team": "blue",
+        "proposal_review_decision": "forward_to_recipient"
+      }
+    },
+    {
+      "id": "b31f83e9-301a-4205-a924-c610c5bd0cc2",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:11:01.930081+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "green",
+      "type": "ACTION_SUBMITTED",
+      "content": "Proposal submitted for White Cell review (intended recipient: Blue Team): Test",
+      "client_id": null,
+      "category": null,
+      "faction_tag": null,
+      "debate_marker": null,
+      "metadata": {
+        "role": "green_facilitator",
+        "proposal": true,
+        "related_id": "5504b152-eab2-4cd3-a2cf-9d24533a1b40",
+        "review_stage": "white_cell_review",
+        "recipient_team": "blue"
+      }
+    },
+    {
+      "id": "bbb0d1ac-a45c-4499-9067-2ba1b6add948",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:05:44.27261+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "white_cell",
+      "type": "RFI_ANSWERED",
+      "content": "White Cell responded to an RFI.",
+      "client_id": null,
+      "category": null,
+      "faction_tag": null,
+      "debate_marker": null,
+      "metadata": {
+        "role": "whitecell_lead",
+        "recipient": "blue",
+        "related_id": "e7fc3c89-e273-41e6-8f9c-1cdab3741acf",
+        "recipient_role": null,
+        "recipient_team": "blue",
+        "recipient_scope": "team"
+      }
+    },
+    {
+      "id": "f74aa514-9cc6-49df-a8c7-8a8b7e05ee2d",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:05:04.01415+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "blue",
+      "type": "RFI_CREATED",
+      "content": "Blue Team submitted an RFI to White Cell.",
+      "client_id": null,
+      "category": null,
+      "faction_tag": null,
+      "debate_marker": null,
+      "metadata": {
+        "role": "blue_facilitator",
+        "related_id": "e7fc3c89-e273-41e6-8f9c-1cdab3741acf"
+      }
+    },
+    {
+      "id": "b635475e-4e14-4579-a615-d01674e04457",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:03:06.870483+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "blue",
+      "type": "ACTION_SUBMITTED",
+      "content": "Action submitted to White Cell: Imposing Sanctions on the PRC",
+      "client_id": null,
+      "category": null,
+      "faction_tag": null,
+      "debate_marker": null,
+      "metadata": {
+        "role": "blue_facilitator",
+        "related_id": "87ccb683-6e10-4902-8194-a26065f8c9f7"
+      }
+    },
+    {
+      "id": "b9717687-1697-44cc-8958-303828454f06",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T15:03:06.397709+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "blue",
+      "type": "ACTION_CREATED",
+      "content": "Draft action created: Imposing Sanctions on the PRC",
+      "client_id": null,
+      "category": null,
+      "faction_tag": null,
+      "debate_marker": null,
+      "metadata": {
+        "role": "blue_facilitator",
+        "related_id": "87ccb683-6e10-4902-8194-a26065f8c9f7"
+      }
+    },
+    {
+      "id": "1dc91510-6d1e-41b9-9fbf-aa5f90b2f7e7",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "created_at": "2026-06-02T14:58:02.345243+00:00",
+      "move": 1,
+      "phase": 1,
+      "team": "white_cell",
+      "type": "ANNOUNCEMENT",
+      "content": "White Cell announcement sent to All Teams",
+      "client_id": null,
+      "category": null,
+      "faction_tag": null,
+      "debate_marker": null,
+      "metadata": {
+        "role": "whitecell_lead",
+        "recipient": "all",
+        "recipient_role": null,
+        "recipient_team": null,
+        "recipient_scope": "all"
+      }
+    }
+  ],
+  "participants": [
+    {
+      "id": "6e862468-73bf-4dfa-ad80-34d4d02f09d1",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "participant_id": "23cb82a4-1b76-41db-b772-e99dc97faec5",
+      "role": "whitecell_lead",
+      "joined_at": "2026-06-02T14:53:22.054739+00:00",
+      "left_at": null,
+      "last_seen": "2026-06-02T15:47:06.715129+00:00",
+      "total_active_time": 0,
+      "contributions_count": 0,
+      "is_active": true,
+      "heartbeat_at": "2026-06-02T15:47:06.715129+00:00",
+      "disconnected_at": null,
+      "participants": {
+        "name": "Sethu Nguna",
+        "client_id": "client_1780409240991_1ogky4fbb"
+      },
+      "display_name": "Sethu Nguna",
+      "client_id": "client_1780409240991_1ogky4fbb",
+      "participantSessionId": "6e862468-73bf-4dfa-ad80-34d4d02f09d1",
+      "participantId": "23cb82a4-1b76-41db-b772-e99dc97faec5"
+    },
+    {
+      "id": "ba569290-c3c5-4295-aec2-84ed355dcd1a",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "participant_id": "1f4c6d6d-01e4-4f6e-a5d7-777780aa5d56",
+      "role": "blue_facilitator",
+      "joined_at": "2026-06-02T14:57:52.604052+00:00",
+      "left_at": null,
+      "last_seen": "2026-06-02T15:46:46.719632+00:00",
+      "total_active_time": 0,
+      "contributions_count": 0,
+      "is_active": true,
+      "heartbeat_at": "2026-06-02T15:46:46.719632+00:00",
+      "disconnected_at": null,
+      "participants": {
+        "name": "Blue Facilitator",
+        "client_id": "client_1780412246320_l60wak2px"
+      },
+      "display_name": "Blue Facilitator",
+      "client_id": "client_1780412246320_l60wak2px",
+      "participantSessionId": "ba569290-c3c5-4295-aec2-84ed355dcd1a",
+      "participantId": "1f4c6d6d-01e4-4f6e-a5d7-777780aa5d56"
+    },
+    {
+      "id": "6caf277d-0020-440c-9b1a-19bbaf0c0c1c",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "participant_id": "644b05ca-4de2-4350-9bd3-963e0e2abc21",
+      "role": "red_facilitator",
+      "joined_at": "2026-06-02T15:07:38.439702+00:00",
+      "left_at": null,
+      "last_seen": "2026-06-02T15:46:46.726607+00:00",
+      "total_active_time": 0,
+      "contributions_count": 0,
+      "is_active": true,
+      "heartbeat_at": "2026-06-02T15:46:46.726607+00:00",
+      "disconnected_at": null,
+      "participants": {
+        "name": "Red Facilitator",
+        "client_id": "client_1780412671408_3t37qg0ap"
+      },
+      "display_name": "Red Facilitator",
+      "client_id": "client_1780412671408_3t37qg0ap",
+      "participantSessionId": "6caf277d-0020-440c-9b1a-19bbaf0c0c1c",
+      "participantId": "644b05ca-4de2-4350-9bd3-963e0e2abc21"
+    },
+    {
+      "id": "612d27b0-0f86-4826-89c6-9d94fd0ffccd",
+      "session_id": "13996577-96f8-4e6d-a46b-40ad5a151003",
+      "participant_id": "5239fe06-a8c1-4381-9f2e-6509c5c23b5f",
+      "role": "green_facilitator",
+      "joined_at": "2026-06-02T15:08:14.797502+00:00",
+      "left_at": null,
+      "last_seen": "2026-06-02T15:46:46.717729+00:00",
+      "total_active_time": 0,
+      "contributions_count": 0,
+      "is_active": true,
+      "heartbeat_at": "2026-06-02T15:46:46.717729+00:00",
+      "disconnected_at": null,
+      "participants": {
+        "name": "Green Facilitator",
+        "client_id": "client_1780412876156_1yej6j0o2"
+      },
+      "display_name": "Green Facilitator",
+      "client_id": "client_1780412876156_1yej6j0o2",
+      "participantSessionId": "612d27b0-0f86-4826-89c6-9d94fd0ffccd",
+      "participantId": "5239fe06-a8c1-4381-9f2e-6509c5c23b5f"
+    }
+  ]
+}
