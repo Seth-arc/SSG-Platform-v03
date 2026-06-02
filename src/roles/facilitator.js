@@ -70,6 +70,7 @@ import {
     createTribeStreetJournalEmbedMarkup
 } from '../features/tribeStreetJournalEmbed.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
+import { getCheckedValues, renderCheckboxOptions } from '../utils/checkboxGroup.js';
 import { validateAction } from '../utils/validation.js';
 import {
     ENUMS,
@@ -1843,23 +1844,6 @@ export class FacilitatorController {
             `).join('')}
         `;
 
-        const renderCheckbox = (group, value, selectedValues = []) => {
-            const inputId = `${group}${value.replace(/[^a-z0-9]+/gi, '')}`;
-            return `
-                <label class="form-check" for="${inputId}">
-                    <input
-                        id="${inputId}"
-                        class="form-checkbox"
-                        type="checkbox"
-                        data-blue-action-checkbox="${group}"
-                        value="${value}"
-                        ${selectedValues.includes(value) ? 'checked' : ''}
-                    >
-                    <span class="form-check-label">${value}</span>
-                </label>
-            `;
-        };
-
         content.innerHTML = `
             <form id="blueActionWizardForm" novalidate>
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
@@ -1979,13 +1963,22 @@ export class FacilitatorController {
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="actionFocusCountries">Focus Countries *</label>
-                        <select id="actionFocusCountries" class="form-select" multiple size="5">
-                            ${BLUE_ACTION_COUNTRIES.map((value) => `
-                                <option value="${value}" ${blueAction.focusCountries.includes(value) ? 'selected' : ''}>${value}</option>
-                            `).join('')}
-                        </select>
-                        <p class="form-hint">Hold Ctrl (Windows) or Command (Mac) to select multiple countries.</p>
+                        <span class="form-label" id="actionFocusCountriesLabel">Focus Countries *</span>
+                        <div
+                            class="form-check-grid"
+                            role="group"
+                            aria-labelledby="actionFocusCountriesLabel"
+                            aria-describedby="actionFocusCountriesHint"
+                        >
+                            ${renderCheckboxOptions({
+                                values: BLUE_ACTION_COUNTRIES,
+                                selectedValues: blueAction.focusCountries,
+                                dataAttribute: 'data-blue-action-checkbox',
+                                group: 'country',
+                                idPrefix: 'actionFocusCountry'
+                            })}
+                        </div>
+                        <p class="form-hint" id="actionFocusCountriesHint">Select one or more countries.</p>
                     </div>
 
                     <div class="form-group">
@@ -2010,17 +2003,25 @@ export class FacilitatorController {
                         <div class="card card-bordered" style="padding: var(--space-4);">
                             <h4 class="font-semibold" style="margin: 0 0 var(--space-3);">Coordinated</h4>
                             <div style="display: grid; gap: var(--space-3);">
-                                ${BLUE_ACTION_COORDINATED_OPTIONS.map((value) => (
-                                    renderCheckbox('coordinated', value, blueAction.coordinated)
-                                )).join('')}
+                                ${renderCheckboxOptions({
+                                    values: BLUE_ACTION_COORDINATED_OPTIONS,
+                                    selectedValues: blueAction.coordinated,
+                                    dataAttribute: 'data-blue-action-checkbox',
+                                    group: 'coordinated',
+                                    idPrefix: 'coordinated'
+                                })}
                             </div>
                         </div>
                         <div class="card card-bordered" style="padding: var(--space-4);">
                             <h4 class="font-semibold" style="margin: 0 0 var(--space-3);">Informed</h4>
                             <div style="display: grid; gap: var(--space-3);">
-                                ${BLUE_ACTION_INFORMED_OPTIONS.map((value) => (
-                                    renderCheckbox('informed', value, blueAction.informed)
-                                )).join('')}
+                                ${renderCheckboxOptions({
+                                    values: BLUE_ACTION_INFORMED_OPTIONS,
+                                    selectedValues: blueAction.informed,
+                                    dataAttribute: 'data-blue-action-checkbox',
+                                    group: 'informed',
+                                    idPrefix: 'informed'
+                                })}
                             </div>
                         </div>
                     </div>
@@ -2189,17 +2190,9 @@ export class FacilitatorController {
     }
 
     getBlueActionWizardData(form) {
-        const focusCountries = Array.from(
-            form.querySelector('#actionFocusCountries')?.selectedOptions || []
-        ).map((option) => option.value);
-
-        const coordinated = Array.from(
-            form.querySelectorAll('[data-blue-action-checkbox="coordinated"]:checked')
-        ).map((checkbox) => checkbox.value);
-
-        const informed = Array.from(
-            form.querySelectorAll('[data-blue-action-checkbox="informed"]:checked')
-        ).map((checkbox) => checkbox.value);
+        const focusCountries = getCheckedValues(form, '[data-blue-action-checkbox="country"]');
+        const coordinated = getCheckedValues(form, '[data-blue-action-checkbox="coordinated"]');
+        const informed = getCheckedValues(form, '[data-blue-action-checkbox="informed"]');
 
         const sectorSelectValue = form.querySelector('#actionBlueSector')?.value || '';
         const implementationSelectValue = form.querySelector('#actionImplementation')?.value || '';
@@ -2460,10 +2453,6 @@ export class FacilitatorController {
             .map((value) => `<option value="${value}" ${action.exposure_type === value ? 'selected' : ''}>${value}</option>`)
             .join('');
 
-        const targetOptions = ENUMS.TARGETS
-            .map((value) => `<option value="${value}" ${selectedTargets.includes(value) ? 'selected' : ''}>${value}</option>`)
-            .join('');
-
         const priorityOptions = ENUMS.PRIORITY
             .map((value) => `<option value="${value}" ${(action.priority || 'NORMAL') === value ? 'selected' : ''}>${value}</option>`)
             .join('');
@@ -2509,11 +2498,22 @@ export class FacilitatorController {
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="actionTargets">Targets *</label>
-                    <select id="actionTargets" class="form-select" multiple size="5" required>
-                        ${targetOptions}
-                    </select>
-                    <p class="form-hint">Hold Ctrl (Windows) or Command (Mac) to select multiple.</p>
+                    <span class="form-label" id="actionTargetsLabel">Targets *</span>
+                    <div
+                        class="form-check-grid"
+                        role="group"
+                        aria-labelledby="actionTargetsLabel"
+                        aria-describedby="actionTargetsHint"
+                    >
+                        ${renderCheckboxOptions({
+                            values: ENUMS.TARGETS,
+                            selectedValues: selectedTargets,
+                            dataAttribute: 'data-action-checkbox',
+                            group: 'target',
+                            idPrefix: 'actionTarget'
+                        })}
+                    </div>
+                    <p class="form-hint" id="actionTargetsHint">Select one or more targets.</p>
                 </div>
 
                 <div class="form-group">
@@ -2532,16 +2532,13 @@ export class FacilitatorController {
     }
 
     getActionFormData() {
-        const targetsSelect = document.getElementById('actionTargets');
         const formData = {
             goal: document.getElementById('actionGoal')?.value?.trim(),
             mechanism: document.getElementById('actionMechanism')?.value,
             sector: document.getElementById('actionSector')?.value,
             exposure_type: document.getElementById('actionExposureType')?.value || null,
             priority: document.getElementById('actionPriority')?.value || 'NORMAL',
-            targets: targetsSelect
-                ? Array.from(targetsSelect.selectedOptions).map((option) => option.value)
-                : [],
+            targets: getCheckedValues(document, '[data-action-checkbox="target"]'),
             expected_outcomes: document.getElementById('actionExpectedOutcomes')?.value?.trim(),
             ally_contingencies: document.getElementById('actionAllyContingencies')?.value?.trim()
         };
@@ -2764,10 +2761,6 @@ export class FacilitatorController {
         const priorityOptions = ENUMS.PRIORITY
             .map((value) => `<option value="${value}">${value}</option>`)
             .join('');
-        const categoryOptions = ENUMS.RFI_CATEGORIES
-            .map((value) => `<option value="${value}">${value}</option>`)
-            .join('');
-
         content.innerHTML = `
             <form id="rfiForm">
                 <div class="form-group">
@@ -2783,11 +2776,21 @@ export class FacilitatorController {
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="rfiCategories">Categories *</label>
-                        <select id="rfiCategories" class="form-select" multiple size="4" required>
-                            ${categoryOptions}
-                        </select>
-                        <p class="form-hint">Hold Ctrl (Windows) or Command (Mac) to select multiple.</p>
+                        <span class="form-label" id="rfiCategoriesLabel">Categories *</span>
+                        <div
+                            class="form-check-grid"
+                            role="group"
+                            aria-labelledby="rfiCategoriesLabel"
+                            aria-describedby="rfiCategoriesHint"
+                        >
+                            ${renderCheckboxOptions({
+                                values: ENUMS.RFI_CATEGORIES,
+                                dataAttribute: 'data-rfi-checkbox',
+                                group: 'category',
+                                idPrefix: 'rfiCategory'
+                            })}
+                        </div>
+                        <p class="form-hint" id="rfiCategoriesHint">Select all categories that apply.</p>
                     </div>
                 </div>
                 <div class="form-group">
@@ -2828,10 +2831,7 @@ export class FacilitatorController {
         const question = document.getElementById('rfiQuestion')?.value?.trim();
         const context = document.getElementById('rfiContext')?.value?.trim();
         const priority = document.getElementById('rfiPriority')?.value;
-        const categoriesSelect = document.getElementById('rfiCategories');
-        const categories = categoriesSelect
-            ? Array.from(categoriesSelect.selectedOptions).map((option) => option.value)
-            : [];
+        const categories = getCheckedValues(document, '[data-rfi-checkbox="category"]');
 
         if (!question) {
             showToast({ message: 'Question is required', type: 'error' });

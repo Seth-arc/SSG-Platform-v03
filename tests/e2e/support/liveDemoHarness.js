@@ -280,7 +280,9 @@ export async function createDraftAction(page, {
     await modal.locator('#actionBlueSector').selectOption(sector);
     await modal.locator('#actionSupplyChainFocus').selectOption(supplyChainFocus);
     await modal.locator('#actionImplementation').selectOption(implementation);
-    await modal.locator('#actionFocusCountries').selectOption(focusCountries);
+    for (const focusCountry of focusCountries) {
+        await modal.locator(`[data-blue-action-checkbox="country"][value="${focusCountry}"]`).check();
+    }
     await modal.locator('#actionEnforcementTimeline').selectOption(enforcementTimeline);
     await modal.locator('#actionExpectedOutcomes').fill(expectedOutcomes);
     await modal.getByRole('button', { name: 'Next' }).click();

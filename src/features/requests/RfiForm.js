@@ -11,6 +11,7 @@ import { sessionStore } from '../../stores/session.js';
 import { showToast } from '../../components/ui/Toast.js';
 import { createLogger } from '../../utils/logger.js';
 import { ENUMS } from '../../core/enums.js';
+import { getCheckedValues, renderCheckboxOptions } from '../../utils/checkboxGroup.js';
 
 const logger = createLogger('RfiForm');
 
@@ -27,10 +28,6 @@ export function createRfiForm(options = {}) {
     const priorityOptions = ENUMS.PRIORITY
         .map(value => `<option value="${value}">${value}</option>`)
         .join('');
-    const categoryOptions = ENUMS.RFI_CATEGORIES
-        .map(value => `<option value="${value}">${value}</option>`)
-        .join('');
-
     const form = document.createElement('form');
     form.className = 'rfi-form';
 
@@ -69,11 +66,21 @@ export function createRfiForm(options = {}) {
                 </select>
             </div>
             <div class="form-group">
-                <label class="form-label" for="rfiCategories">Categories *</label>
-                <select id="rfiCategories" class="form-select" multiple size="4" required>
-                    ${categoryOptions}
-                </select>
-                <p class="form-hint">Hold Ctrl (Windows) or Command (Mac) to select multiple.</p>
+                <span class="form-label" id="rfiCategoriesLabel">Categories *</span>
+                <div
+                    class="form-check-grid"
+                    role="group"
+                    aria-labelledby="rfiCategoriesLabel"
+                    aria-describedby="rfiCategoriesHint"
+                >
+                    ${renderCheckboxOptions({
+                        values: ENUMS.RFI_CATEGORIES,
+                        dataAttribute: 'data-rfi-checkbox',
+                        group: 'category',
+                        idPrefix: 'rfiCategory'
+                    })}
+                </div>
+                <p class="form-hint" id="rfiCategoriesHint">Select all categories that apply.</p>
             </div>
         </div>
 
@@ -96,10 +103,7 @@ export function createRfiForm(options = {}) {
         const question = form.querySelector('#rfiQuestion').value.trim();
         const context = form.querySelector('#rfiContext').value.trim();
         const priority = form.querySelector('#rfiPriority').value;
-        const categoriesSelect = form.querySelector('#rfiCategories');
-        const categories = categoriesSelect
-            ? Array.from(categoriesSelect.selectedOptions).map(option => option.value)
-            : [];
+        const categories = getCheckedValues(form, '[data-rfi-checkbox="category"]');
 
         if (!question) {
             showToast({ message: 'Question is required', type: 'error' });

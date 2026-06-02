@@ -194,9 +194,35 @@ select.move-selector {
     cursor: pointer;
 }
 
+.form-check-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-2);
+}
+
+.form-check-card {
+    align-items: flex-start;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.form-check-card:hover {
+    border-color: var(--color-text-muted);
+    background: var(--color-surface-alt);
+}
+
+.form-check-card .form-checkbox {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
 .form-check-label {
     font-size: var(--text-sm);
     color: var(--color-text);
+    line-height: var(--leading-relaxed);
 }
 
 .form-check-inline {

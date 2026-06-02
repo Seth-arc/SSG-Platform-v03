@@ -254,6 +254,102 @@ describe('Facilitator and scribe access', () => {
         expect(markup).toContain('Blue Team | Move 2 | Action 2');
     });
 
+    it('renders checkbox groups for facilitator modal multi-select fields', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        global.document = createFakeDocument();
+
+        const controller = new FacilitatorController();
+        const blueWizardMarkup = controller.createBlueActionWizardContent().innerHTML;
+        const actionFormMarkup = controller.createActionFormContent().innerHTML;
+
+        expect(blueWizardMarkup).toContain('data-blue-action-checkbox="country"');
+        expect(blueWizardMarkup).toContain('Select one or more countries.');
+        expect(blueWizardMarkup).not.toContain('Hold Ctrl');
+
+        expect(actionFormMarkup).toContain('data-action-checkbox="target"');
+        expect(actionFormMarkup).toContain('Select one or more targets.');
+        expect(actionFormMarkup).not.toContain('Hold Ctrl');
+
+        controller.showCreateRfiModal();
+
+        const rfiModalConfig = showModal.mock.calls.at(-1)?.[0];
+        expect(rfiModalConfig?.content?.innerHTML).toContain('data-rfi-checkbox="category"');
+        expect(rfiModalConfig?.content?.innerHTML).toContain('Select all categories that apply.');
+        expect(rfiModalConfig?.content?.innerHTML).not.toContain('Hold Ctrl');
+    });
+
+    it('collects checked checkbox values from facilitator action forms', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+
+        const blueWizardFieldValues = {
+            '#actionTitle': 'Secure corridor access',
+            '#actionInstrument': 'Economic',
+            '#actionObjective': 'Stabilize trade flows.',
+            '#actionLever': 'Export Controls',
+            '#actionBlueSector': 'Biotechnology',
+            '#actionSupplyChainFocus': 'Critical Minerals',
+            '#actionImplementation': 'Executive Order',
+            '#actionEnforcementTimeline': '6 months',
+            '#actionExpectedOutcomes': 'Reduce dependency on vulnerable routes.',
+            '#actionBlueSectorOther': '',
+            '#actionImplementationOther': ''
+        };
+
+        const wizardData = controller.getBlueActionWizardData({
+            querySelector(selector) {
+                if (!(selector in blueWizardFieldValues)) {
+                    return null;
+                }
+
+                return { value: blueWizardFieldValues[selector] };
+            },
+            querySelectorAll(selector) {
+                if (selector === '[data-blue-action-checkbox="country"]:checked') {
+                    return [{ value: 'Kenya' }, { value: 'Ghana' }];
+                }
+
+                if (selector === '[data-blue-action-checkbox="coordinated"]:checked') {
+                    return [{ value: 'Executive' }];
+                }
+
+                if (selector === '[data-blue-action-checkbox="informed"]:checked') {
+                    return [{ value: 'Allied' }];
+                }
+
+                return [];
+            }
+        });
+
+        expect(wizardData.focusCountries).toEqual(['Kenya', 'Ghana']);
+        expect(wizardData.coordinated).toEqual(['Executive']);
+        expect(wizardData.informed).toEqual(['Allied']);
+
+        global.document = {
+            getElementById(id) {
+                return {
+                    actionGoal: { value: 'Secure corridor access' },
+                    actionMechanism: { value: 'economic' },
+                    actionSector: { value: 'biotechnology' },
+                    actionExposureType: { value: 'Supply Chain' },
+                    actionPriority: { value: 'HIGH' },
+                    actionExpectedOutcomes: { value: 'Reduce dependency on vulnerable routes.' },
+                    actionAllyContingencies: { value: 'Coordinate with allied exporters.' }
+                }[id] || null;
+            },
+            querySelectorAll(selector) {
+                if (selector === '[data-action-checkbox="target"]:checked') {
+                    return [{ value: 'PRC' }, { value: 'RUS' }];
+                }
+
+                return [];
+            }
+        };
+
+        const formData = controller.getActionFormData();
+        expect(formData.targets).toEqual(['PRC', 'RUS']);
+    });
+
     it('builds Green proposals with a concrete persisted mechanism label', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();

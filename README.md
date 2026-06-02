@@ -68,7 +68,7 @@ Suggested rehearsal order:
 3. On the live Pages target, have the Game Master create one session and distribute the session code.
 4. Join one facilitator, one scribe, and two notetakers on the same team.
 5. Join White Cell Lead and White Cell Support with the operator access code.
-6. On Blue Team, use the three-page `Take Action` wizard to save a draft or submit directly after the confirmation modal. The wizard now shows the Blue Team move and action number being built, and White Cell surfaces the same sequence label during review. Confirm the scribe seat sees the same team-lead action feed and workflow, then submit any remaining draft to White Cell.
+6. On Blue Team, use the three-page `Take Action` wizard to save a draft or submit directly after the confirmation modal. Multi-select fields in facilitator modals now use explicit checkbox groups instead of Ctrl/Command multi-select. The wizard shows the Blue Team move and action number being built, and White Cell surfaces the same sequence label during review. Confirm the scribe seat sees the same team-lead action feed and workflow, then submit any remaining draft to White Cell.
 7. Have at least two notetakers save different seat-scoped notes and shared captures at the same time.
 8. Adjudicate the submitted action from White Cell Lead.
 9. Use Game Master `Participant Roster` to remove one occupied seat, then rejoin it from a second browser.

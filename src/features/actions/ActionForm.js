@@ -10,6 +10,7 @@ import { gameStateStore } from '../../stores/index.js';
 import { showToast } from '../../components/ui/Toast.js';
 import { ENUMS } from '../../core/enums.js';
 import { createLogger } from '../../utils/logger.js';
+import { getCheckedValues, renderCheckboxOptions } from '../../utils/checkboxGroup.js';
 import { validateAction } from '../../utils/validation.js';
 
 const logger = createLogger('ActionForm');
@@ -75,11 +76,22 @@ export function createActionForm(options = {}) {
         </div>
 
         <div class="form-group">
-            <label class="form-label" for="actionTargets">Targets *</label>
-            <select id="actionTargets" class="form-select" multiple size="5" required>
-                ${createMultiOptions(ENUMS.TARGETS, action.targets || (action.target ? [action.target] : []))}
-            </select>
-            <p class="form-hint">Hold Ctrl (Windows) or Command (Mac) to select multiple.</p>
+            <span class="form-label" id="actionTargetsLabel">Targets *</span>
+            <div
+                class="form-check-grid"
+                role="group"
+                aria-labelledby="actionTargetsLabel"
+                aria-describedby="actionTargetsHint"
+            >
+                ${renderCheckboxOptions({
+                    values: Object.values(ENUMS.TARGETS),
+                    selectedValues: action.targets || (action.target ? [action.target] : []),
+                    dataAttribute: 'data-action-checkbox',
+                    group: 'target',
+                    idPrefix: 'actionTarget'
+                })}
+            </div>
+            <p class="form-hint" id="actionTargetsHint">Select one or more targets.</p>
         </div>
 
         <div class="form-group">
@@ -153,10 +165,7 @@ export function createActionForm(options = {}) {
  * @returns {Object}
  */
 function getFormData(form) {
-    const targetsSelect = form.querySelector('#actionTargets');
-    const targets = targetsSelect
-        ? Array.from(targetsSelect.selectedOptions).map(option => option.value)
-        : [];
+    const targets = getCheckedValues(form, '[data-action-checkbox="target"]');
 
     return {
         goal: form.querySelector('#actionGoal').value.trim(),
@@ -194,20 +203,6 @@ function createOptions(enumObj, selected) {
     return Object.entries(enumObj)
         .map(([key, value]) =>
             `<option value="${value}" ${value === selected ? 'selected' : ''}>${value}</option>`
-        )
-        .join('');
-}
-
-/**
- * Create multi-select options HTML
- * @param {Array|Object} enumObj - Enum array/object
- * @param {string[]} selectedValues - Selected values
- * @returns {string}
- */
-function createMultiOptions(enumObj, selectedValues = []) {
-    return Object.values(enumObj)
-        .map(value =>
-            `<option value="${value}" ${selectedValues.includes(value) ? 'selected' : ''}>${value}</option>`
         )
         .join('');
 }
