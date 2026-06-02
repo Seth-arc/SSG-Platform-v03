@@ -74,4 +74,31 @@ describe('supabase unavailable adapter', () => {
         });
         expect(failure.message).toContain('offline');
     });
+
+    it('classifies anonymous auth policy failures by Supabase error code', () => {
+        const failure = classifySupabaseAuthFailure({
+            code: 'anonymous_provider_disabled',
+            message: 'Unsupported provider: anonymous'
+        });
+
+        expect(failure).toMatchObject({
+            title: 'Supabase Auth Configuration Required',
+            eyebrow: 'Configuration Required'
+        });
+        expect(failure.message).toContain('anonymous sign-ins or new-user signups are disabled');
+        expect(failure.note).toContain('new-user signups');
+    });
+
+    it('classifies signup-disabled auth failures from Supabase policy messages', () => {
+        const failure = classifySupabaseAuthFailure({
+            code: 'signup_disabled',
+            message: 'Signups not allowed for this instance'
+        });
+
+        expect(failure).toMatchObject({
+            title: 'Supabase Auth Configuration Required',
+            eyebrow: 'Configuration Required'
+        });
+        expect(failure.message).toContain('new-user signups are disabled');
+    });
 });

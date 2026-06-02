@@ -172,3 +172,12 @@ If the landing page blocks with `Supabase Backend Unavailable`, the frontend is 
 - the operator machine is offline or behind a network policy blocking Supabase
 
 Fix the reachability issue first. Do not treat it as a session-code or seat-claim defect.
+
+## Landing Page Auth Policy Symptom
+
+If the landing page reports that browser identity bootstrap failed after the backend is reachable, check Supabase Auth policy before debugging join RPCs:
+
+- `Anonymous sign-ins` must be enabled for the project
+- `Allow new users to sign up` must remain enabled, because anonymous bootstrap uses the Auth signup flow
+
+If either setting is off, public facilitator, scribe, notetaker, and White Cell operator bootstrap will fail before session lookup.

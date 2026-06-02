@@ -13,6 +13,8 @@ If either value is missing or left as a placeholder, the app blocks startup with
 
 If the landing page shows `Supabase Backend Unavailable`, the configured URL passed validation but the auth host could not be reached at runtime. Treat that as a fail-closed backend issue, not a participant join problem. Verify `VITE_SUPABASE_URL` points at a live Supabase project, confirm DNS/network access, rebuild if the environment changed, and reload the page.
 
+If browser identity bootstrap fails after the backend is reachable, treat that as a Supabase Auth policy problem first. The deployed project must allow anonymous sign-ins for public participants, and it must not globally block new-user signups, because anonymous bootstrap is implemented through the Auth signup flow.
+
 ## Role and Backend Alignment Spec
 
 For the current role-by-role frontend contract and the backend behaviors that must align with it, see [LIVE_DEMO_BACKEND_ALIGNMENT.md](LIVE_DEMO_BACKEND_ALIGNMENT.md).

@@ -31,9 +31,17 @@ const UNREACHABLE_BACKEND_PATTERNS = [
 const ANONYMOUS_AUTH_DISABLED_PATTERNS = [
     /anonymous sign-?ins? (?:are )?disabled/i,
     /anonymous provider disabled/i,
+    /signup(?:s)? (?:are )?disabled/i,
+    /signups? not allowed/i,
+    /provider disabled/i,
     /Unsupported provider:\s*anonymous/i,
     /Unsupported provider:\s*anon/i
 ];
+const ANONYMOUS_AUTH_DISABLED_CODES = new Set([
+    'anonymous_provider_disabled',
+    'signup_disabled',
+    'provider_disabled'
+]);
 
 let validation = validateConfig();
 let initializationError = null;
@@ -148,6 +156,22 @@ function collectErrorText(error) {
             segments.push(candidate.message);
         }
 
+        if (typeof candidate.code === 'string') {
+            segments.push(candidate.code);
+        }
+
+        if (typeof candidate.error_code === 'string') {
+            segments.push(candidate.error_code);
+        }
+
+        if (typeof candidate.name === 'string') {
+            segments.push(candidate.name);
+        }
+
+        if (typeof candidate.status === 'number') {
+            segments.push(String(candidate.status));
+        }
+
         if (typeof candidate.details === 'string') {
             segments.push(candidate.details);
         }
@@ -190,13 +214,23 @@ export function classifySupabaseAuthFailure(
         };
     }
 
-    if (ANONYMOUS_AUTH_DISABLED_PATTERNS.some((pattern) => pattern.test(errorText))) {
+    if (ANONYMOUS_AUTH_DISABLED_CODES.has(error?.code) || ANONYMOUS_AUTH_DISABLED_CODES.has(error?.error_code)) {
         return {
-            issue: 'Supabase anonymous sign-ins are disabled for this project.',
-            message: 'Supabase anonymous sign-ins are disabled for this project. Enable them before participants or operators join from the landing page.',
+            issue: 'Supabase anonymous sign-ins or new-user signups are disabled for this project.',
+            message: 'Supabase anonymous sign-ins or new-user signups are disabled for this project. Enable them before participants or operators join from the landing page.',
             title: 'Supabase Auth Configuration Required',
             eyebrow: 'Configuration Required',
-            note: 'Enable anonymous sign-ins in the Supabase Auth settings, then reload this page.'
+            note: 'Enable anonymous sign-ins and confirm new-user signups are allowed in the Supabase Auth settings, then reload this page.'
+        };
+    }
+
+    if (ANONYMOUS_AUTH_DISABLED_PATTERNS.some((pattern) => pattern.test(errorText))) {
+        return {
+            issue: 'Supabase anonymous sign-ins or new-user signups are disabled for this project.',
+            message: 'Supabase anonymous sign-ins or new-user signups are disabled for this project. Enable them before participants or operators join from the landing page.',
+            title: 'Supabase Auth Configuration Required',
+            eyebrow: 'Configuration Required',
+            note: 'Enable anonymous sign-ins and confirm new-user signups are allowed in the Supabase Auth settings, then reload this page.'
         };
     }
 
