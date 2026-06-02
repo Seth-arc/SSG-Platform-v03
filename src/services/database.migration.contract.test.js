@@ -13,6 +13,10 @@ const SEAT_CLAIM_ROLE_NORMALIZATION_PATH = new URL(
     '../../data/2026-04-17_seat_claim_role_input_normalization.sql',
     import.meta.url
 );
+const OPERATOR_CODE_RUNTIME_CONFIG_PATH = new URL(
+    '../../data/2026-06-02_operator_code_runtime_config_table.sql',
+    import.meta.url
+);
 
 function extractFunctionBody(sql, functionName) {
     const functionPattern = new RegExp(
@@ -91,5 +95,19 @@ describe('database migration contracts', () => {
         expect(claimSeatBody).toContain('role_limit := public.get_session_role_seat_limit(normalized_role);');
         expect(claimSeatBody).not.toContain('role_limit INTEGER := public.get_session_role_seat_limit(normalized_role);');
         expect(claimSeatBody).toContain('public.get_session_role_seat_limit(normalized_role)');
+    });
+
+    it('moves operator code hash lookup into the protected runtime config table', () => {
+        const sql = readFileSync(OPERATOR_CODE_RUNTIME_CONFIG_PATH, 'utf8');
+        const operatorCodeHashBody = extractFunctionBody(sql, 'live_demo_operator_code_hash');
+
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.live_demo_runtime_config');
+        expect(sql).toContain("REVOKE ALL ON public.live_demo_runtime_config FROM anon;");
+        expect(sql).toContain("REVOKE ALL ON public.live_demo_runtime_config FROM authenticated;");
+        expect(sql).toContain("current_setting('app.settings.live_demo_operator_code_sha256', true)");
+        expect(sql).toContain('SECURITY DEFINER');
+        expect(operatorCodeHashBody).toContain('FROM public.live_demo_runtime_config');
+        expect(operatorCodeHashBody).toContain("WHERE config_key = 'operator_code_sha256'");
+        expect(operatorCodeHashBody).not.toContain('current_setting(');
     });
 });

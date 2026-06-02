@@ -1245,8 +1245,8 @@ COMMENT ON FUNCTION public.lookup_joinable_session_by_code(TEXT) IS 'Authenticat
 -- behavior while normalizing global whitecell_lead / whitecell_support roles.
 -- Review those files alongside this schema when
 -- auditing the current Supabase project.
---   Required deployment setting:
---     app.settings.live_demo_operator_code_sha256
+--   Required deployment row:
+--     public.live_demo_runtime_config.config_key = 'operator_code_sha256'
 --     The hardened operator RPCs do not ship with a fallback access code hash.
 --
 -- Review index for the hardened live-demo model:

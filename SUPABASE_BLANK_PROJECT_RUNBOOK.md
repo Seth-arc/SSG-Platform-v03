@@ -25,12 +25,14 @@ Run these files in Supabase SQL Editor in this exact order. Do not skip ahead. D
 6. `data/2026-04-16_game_master_remove_session_participant.sql`
 7. `data/2026-04-17_white_cell_backend_alignment.sql`
 8. `data/2026-04-17_seat_claim_role_input_normalization.sql`
+9. `data/2026-06-02_operator_code_runtime_config_table.sql`
 
 Why the order matters:
 
 - later files replace earlier RPC definitions
 - `2026-04-17_white_cell_backend_alignment.sql` must run after `2026-04-16_game_master_remove_session_participant.sql` or the project will fall back to Game Master-only participant removal
-- `2026-04-17_seat_claim_role_input_normalization.sql` must run last so the active seat-claim RPC strips hidden whitespace and zero-width characters before it evaluates seat limits
+- `2026-04-17_seat_claim_role_input_normalization.sql` must run before step 9 so the active seat-claim RPC strips hidden whitespace and zero-width characters before the final operator-code migration is applied
+- `2026-06-02_operator_code_runtime_config_table.sql` must run after the hardening chain so the final operator-code helper reads from `public.live_demo_runtime_config` instead of the unsupported `app.settings...` database setting path
 
 ## Do Not Run For A Fresh Bootstrap
 
@@ -41,39 +43,38 @@ These files are older point fixes and should not be run separately when you are 
 
 Their behavior is already covered by `COMPLETE_SCHEMA.sql` plus the later migration chain above.
 
-## Required Operator Code Setting
+## Required Operator Code Row
 
-The hardened operator RPCs require a SHA-256 hash in a database setting. Without this, Game Master and White Cell authorization will fail even if the schema and RPCs exist.
+The hardened operator RPCs require a SHA-256 hash row in `public.live_demo_runtime_config`. Without this, Game Master and White Cell authorization will fail even if the schema and RPCs exist.
 
-Choose the operator code you want to use, compute its SHA-256 hash, then persist it at the database level.
+Choose the operator code you want to use, then upsert its SHA-256 hash into the protected runtime-config table.
 
-Example SQL to generate the hash for a chosen access code:
-
-```sql
-select encode(extensions.digest('replace-this-code', 'sha256'), 'hex') as operator_code_sha256;
-```
-
-Then persist it:
+Example SQL:
 
 ```sql
-alter database postgres
-set "app.settings.live_demo_operator_code_sha256" = 'replace-with-the-generated-sha256-hash';
+insert into public.live_demo_runtime_config (config_key, config_value)
+values (
+    'operator_code_sha256',
+    encode(extensions.digest('replace-this-code', 'sha256'), 'hex')
+)
+on conflict (config_key) do update
+set config_value = excluded.config_value,
+    updated_at = now();
 ```
 
 Notes:
 
-- replace `postgres` only if your Supabase database uses a different name
 - do not ship `admin2025` outside local testing
-- after changing the database setting, open a new SQL Editor tab before re-checking it so the new session sees the persisted value
+- `2026-06-02_operator_code_runtime_config_table.sql` already creates the table and migrates any legacy `app.settings.live_demo_operator_code_sha256` value forward when one exists
 
 ## Smoke Checks
 
-Run these after all seven files and the operator-code setting are in place.
+Run these after all nine files and the operator-code row are in place.
 
-### 1. Verify the operator hash setting exists
+### 1. Verify the operator hash row exists
 
 ```sql
-select current_setting('app.settings.live_demo_operator_code_sha256', true) as live_demo_operator_code_sha256;
+select public.live_demo_operator_code_hash() as live_demo_operator_code_sha256;
 ```
 
 Pass looks like:
@@ -82,7 +83,18 @@ Pass looks like:
 - value is not null
 - value is not an empty string
 
-### 2. Verify the key live-demo RPCs exist
+### 2. Verify the selected operator code matches
+
+```sql
+select public.live_demo_validate_operator_code('replace-this-code') as matches;
+```
+
+Pass looks like:
+
+- one row
+- `matches = true`
+
+### 3. Verify the key live-demo RPCs exist
 
 ```sql
 select
@@ -114,7 +126,7 @@ Pass looks like these functions are present:
 - `operator_send_communication(uuid, text, text, text, text, uuid, jsonb)`
 - `update_proposal_recipient_status(uuid, text, jsonb)`
 
-### 3. Verify the seat-limit contract
+### 4. Verify the seat-limit contract
 
 ```sql
 select
@@ -140,7 +152,7 @@ If the UI still shows the toast `This role cannot be claimed in the live demo.` 
 - if that query returns `null`, the project is still on an outdated seat-claim contract
 - if that query returns `1` but joins still fail, the active `claim_session_role_seat` RPC likely still needs the input-normalization patch in step 8
 
-### 4. Verify communications metadata support exists
+### 5. Verify communications metadata support exists
 
 ```sql
 select
