@@ -19,6 +19,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       VITE_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}/
       PAGES_ENABLEMENT_TOKEN: ${{ secrets.PAGES_ENABLEMENT_TOKEN }}
     steps:
@@ -55,6 +57,27 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Fail if Pages Supabase secrets are missing
+        run: |
+          if [ -z "${VITE_SUPABASE_URL}" ] || [ -z "${VITE_SUPABASE_ANON_KEY}" ]; then
+            echo "::error title=Missing Pages Supabase secrets::Add repository secrets VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before deploying GitHub Pages."
+            exit 1
+          fi
+
+          case "${VITE_SUPABASE_URL}" in
+            *your-project*|*project-ref*)
+              echo "::error title=Invalid Pages Supabase URL::VITE_SUPABASE_URL still contains a placeholder value."
+              exit 1
+              ;;
+          esac
+
+          case "${VITE_SUPABASE_ANON_KEY}" in
+            *your-anon-key*|*your-supabase-anon-key*|*placeholder*|*changeme*)
+              echo "::error title=Invalid Pages Supabase anon key::VITE_SUPABASE_ANON_KEY still contains a placeholder value."
+              exit 1
+              ;;
+          esac
 
       - name: Build static site
         run: npm run build

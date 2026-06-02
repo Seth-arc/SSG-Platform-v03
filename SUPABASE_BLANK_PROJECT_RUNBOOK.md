@@ -168,6 +168,7 @@ If any file in the chain errors, stop there. Do not continue with later files un
 If the landing page blocks with `Supabase Backend Unavailable`, the frontend is configured with a syntactically valid Supabase URL, but the auth host could not be reached. Typical causes are:
 
 - the Pages build still points at an old or deleted project ref
+- the GitHub Pages workflow is missing the `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` repository secrets
 - DNS cannot resolve the configured `*.supabase.co` host
 - the operator machine is offline or behind a network policy blocking Supabase
 
@@ -181,3 +182,12 @@ If the landing page reports that browser identity bootstrap failed after the bac
 - `Allow new users to sign up` must remain enabled, because anonymous bootstrap uses the Auth signup flow
 
 If either setting is off, public facilitator, scribe, notetaker, and White Cell operator bootstrap will fail before session lookup.
+
+## GitHub Pages Secret Wiring
+
+The GitHub Pages deployment workflow expects repository secrets named:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+If either secret is missing, the Pages build should fail before publishing. Do not rely on local `.env` or `.env.local` files to supply production Pages values.

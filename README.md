@@ -15,6 +15,8 @@ If the landing page shows `Supabase Backend Unavailable`, the configured URL pas
 
 If browser identity bootstrap fails after the backend is reachable, treat that as a Supabase Auth policy problem first. The deployed project must allow anonymous sign-ins for public participants, and it must not globally block new-user signups, because anonymous bootstrap is implemented through the Auth signup flow.
 
+For GitHub Pages deployments, the workflow now reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from repository secrets with those exact names. The deployed Pages build does not rely on local `.env` or `.env.local` values from your machine.
+
 ## Role and Backend Alignment Spec
 
 For the current role-by-role frontend contract and the backend behaviors that must align with it, see [LIVE_DEMO_BACKEND_ALIGNMENT.md](LIVE_DEMO_BACKEND_ALIGNMENT.md).
@@ -159,7 +161,7 @@ Validate these manually against the real backend because the automated suite doe
 
 This build targets a GitHub Pages project site URL shaped like `https://<owner>.github.io/<repo-slug>/`.
 
-The Pages deployment workflow sets `VITE_PUBLIC_BASE_PATH=/<repo-slug>/` from the repository name so multi-page routes resolve under the repo slug. If you deploy this build anywhere else, override `VITE_PUBLIC_BASE_PATH` to the correct base path, such as `/` for a root site or custom domain.
+The Pages deployment workflow sets `VITE_PUBLIC_BASE_PATH=/<repo-slug>/` from the repository name so multi-page routes resolve under the repo slug. It also requires repository secrets named `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` so the deployed Pages build uses the intended live Supabase project. If you deploy this build anywhere else, override `VITE_PUBLIC_BASE_PATH` to the correct base path, such as `/` for a root site or custom domain.
 
 ## GitHub Pages Bootstrap
 
