@@ -170,6 +170,7 @@ describe('White Cell DOM contract', () => {
         controller.regressMove = vi.fn();
         controller.advanceMove = vi.fn();
         controller.handleCommunicationSubmit = vi.fn();
+        controller.renderTimeline = vi.fn();
 
         controller.bindEventListeners();
 
@@ -186,6 +187,22 @@ describe('White Cell DOM contract', () => {
             preventDefault() {},
             currentTarget: fakeDocument.elements.commForm
         });
+        fakeDocument.elements.timelineTeamFilter.value = 'blue';
+        fakeDocument.elements.timelineTeamFilter.listeners.change({
+            currentTarget: fakeDocument.elements.timelineTeamFilter
+        });
+        fakeDocument.elements.timelineRoleFilter.value = 'facilitator';
+        fakeDocument.elements.timelineRoleFilter.listeners.change({
+            currentTarget: fakeDocument.elements.timelineRoleFilter
+        });
+        fakeDocument.elements.timelineMoveFilter.value = '2';
+        fakeDocument.elements.timelineMoveFilter.listeners.change({
+            currentTarget: fakeDocument.elements.timelineMoveFilter
+        });
+        fakeDocument.elements.timelineActivityTypeFilter.value = 'ACTION_CREATED';
+        fakeDocument.elements.timelineActivityTypeFilter.listeners.change({
+            currentTarget: fakeDocument.elements.timelineActivityTypeFilter
+        });
 
         expect(controller.startTimer).toHaveBeenCalledTimes(1);
         expect(controller.pauseTimer).toHaveBeenCalledTimes(1);
@@ -195,6 +212,13 @@ describe('White Cell DOM contract', () => {
         expect(controller.regressMove).toHaveBeenCalledTimes(1);
         expect(controller.advanceMove).toHaveBeenCalledTimes(1);
         expect(controller.handleCommunicationSubmit).toHaveBeenCalledTimes(1);
+        expect(controller.timelineFilters).toMatchObject({
+            team: 'blue',
+            role: 'facilitator',
+            move: '2',
+            activityType: 'ACTION_CREATED'
+        });
+        expect(controller.renderTimeline).toHaveBeenCalledTimes(4);
     });
 
     it('blocks access without a matching operator grant and enforces team/session scope', async () => {
@@ -337,7 +361,7 @@ describe('White Cell DOM contract', () => {
         expect(roleOptions.map((option) => option.value)).not.toContain('whitecell');
     });
 
-    it('filters live participants and timeline events by selected teams and roles', async () => {
+    it('filters White Cell timeline events by team, role, move, and activity type', async () => {
         const {
             buildWhiteCellParticipantRoster,
             buildWhiteCellTimelineFilterOptions,
@@ -367,24 +391,28 @@ describe('White Cell DOM contract', () => {
                 id: 'timeline-facilitator-action',
                 team: 'blue',
                 type: 'ACTION_CREATED',
+                move: 2,
                 metadata: { role: 'blue_facilitator' }
             },
             {
                 id: 'timeline-facilitator-capture',
                 team: 'blue',
                 type: 'NOTE',
+                move: 2,
                 metadata: { role: 'blue_facilitator', actor: 'facilitator' }
             },
             {
                 id: 'timeline-notetaker',
                 team: 'green',
                 type: 'QUOTE',
+                move: 3,
                 metadata: { role: 'green_notetaker', actor: 'notetaker' }
             },
             {
                 id: 'timeline-whitecell',
                 team: 'white_cell',
                 type: 'GUIDANCE',
+                move: 1,
                 metadata: { role: 'whitecell_support' }
             }
         ];
@@ -397,7 +425,17 @@ describe('White Cell DOM contract', () => {
             'timeline-facilitator-capture'
         ]);
 
-        const { teamOptions, roleOptions } = buildWhiteCellTimelineFilterOptions(timelineEvents);
+        expect(filterWhiteCellTimelineEvents(timelineEvents, {
+            move: '2',
+            activityType: 'ACTION_CREATED'
+        }).map((event) => event.id)).toEqual(['timeline-facilitator-action']);
+
+        const {
+            teamOptions,
+            roleOptions,
+            moveOptions,
+            activityTypeOptions
+        } = buildWhiteCellTimelineFilterOptions(timelineEvents);
         expect(teamOptions).toEqual(expect.arrayContaining([
             { value: '', label: 'All Teams' },
             { value: 'blue', label: 'Blue Team' },
@@ -409,6 +447,19 @@ describe('White Cell DOM contract', () => {
             { value: 'facilitator', label: 'Facilitators' },
             { value: 'notetaker', label: 'Notetakers' },
             { value: 'whitecell', label: 'White Cell' }
+        ]));
+        expect(moveOptions).toEqual([
+            { value: '', label: 'All Moves' },
+            { value: '1', label: 'Move 1' },
+            { value: '2', label: 'Move 2' },
+            { value: '3', label: 'Move 3' }
+        ]);
+        expect(activityTypeOptions).toEqual(expect.arrayContaining([
+            { value: '', label: 'All Activity Types' },
+            { value: 'ACTION_CREATED', label: 'Action Created' },
+            { value: 'GUIDANCE', label: 'Guidance' },
+            { value: 'NOTE', label: 'Note' },
+            { value: 'QUOTE', label: 'Quote' }
         ]));
     });
 

@@ -82,6 +82,29 @@ const WHITE_CELL_FILTER_ROLE_ORDER = Object.freeze([
     ROLE_SURFACES.VIEWER,
     'system'
 ]);
+const WHITE_CELL_TIMELINE_ACTIVITY_TYPE_ORDER = Object.freeze([
+    'PHASE_CHANGE',
+    'MOVE_CHANGE',
+    'TIMER_START',
+    'TIMER_PAUSE',
+    'TIMER_RESET',
+    'ACTION_CREATED',
+    'ACTION_SUBMITTED',
+    'ACTION_ADJUDICATED',
+    'PROPOSAL_FORWARDED',
+    'PROPOSAL_RESPONSE',
+    'PROPOSAL_RESPONDED',
+    'RFI_CREATED',
+    'RFI_ANSWERED',
+    'INJECT',
+    'ANNOUNCEMENT',
+    'GUIDANCE',
+    'NOTE',
+    'MOMENT',
+    'QUOTE',
+    'PARTICIPANT_JOINED',
+    'PARTICIPANT_LEFT'
+]);
 const WHITE_CELL_TIMELINE_FACILITATOR_TYPES = Object.freeze([
     'ACTION_CREATED',
     'ACTION_SUBMITTED',
@@ -140,6 +163,8 @@ export const WHITE_CELL_DOM_IDS = [
     'verbaAiList',
     'timelineTeamFilter',
     'timelineRoleFilter',
+    'timelineMoveFilter',
+    'timelineActivityTypeFilter',
     'timelineList'
 ];
 
@@ -338,6 +363,67 @@ export function getWhiteCellFilterRoleLabel(role = null) {
     return labels[role] || role || 'Unknown role';
 }
 
+function getWhiteCellTimelineEventType(event = {}) {
+    return event.type || event.event_type || null;
+}
+
+export function getWhiteCellTimelineMoveFilterValue(event = {}) {
+    const moveValue = Number(event.move);
+
+    if (!Number.isFinite(moveValue) || moveValue <= 0) {
+        return null;
+    }
+
+    return String(moveValue);
+}
+
+export function getWhiteCellTimelineActivityTypeFilterValue(event = {}) {
+    return getWhiteCellTimelineEventType(event);
+}
+
+function formatWhiteCellTimelineFallbackLabel(value = null) {
+    return String(value || '')
+        .split('_')
+        .filter(Boolean)
+        .map((segment) => {
+            if (segment === segment.toUpperCase() && segment.length <= 3) {
+                return segment;
+            }
+
+            return `${segment.charAt(0)}${segment.slice(1).toLowerCase()}`;
+        })
+        .join(' ')
+        || 'Unknown activity type';
+}
+
+export function getWhiteCellTimelineActivityTypeLabel(activityType = null) {
+    const labels = {
+        PHASE_CHANGE: 'Phase Change',
+        MOVE_CHANGE: 'Move Change',
+        TIMER_START: 'Timer Start',
+        TIMER_PAUSE: 'Timer Pause',
+        TIMER_RESET: 'Timer Reset',
+        ACTION_CREATED: 'Action Created',
+        ACTION_SUBMITTED: 'Action Submitted',
+        ACTION_ADJUDICATED: 'Action Adjudicated',
+        PROPOSAL_FORWARDED: 'Proposal Forwarded',
+        PROPOSAL_RESPONSE: 'Proposal Response',
+        PROPOSAL_RESPONDED: 'Proposal Responded',
+        RFI_CREATED: 'RFI Created',
+        RFI_ANSWERED: 'RFI Answered',
+        INJECT: 'Inject',
+        ANNOUNCEMENT: 'Announcement',
+        GUIDANCE: 'Guidance',
+        NOTE: 'Note',
+        MOMENT: 'Moment',
+        QUOTE: 'Quote',
+        PARTICIPANT_JOINED: 'Participant Joined',
+        PARTICIPANT_LEFT: 'Participant Left'
+    };
+
+    return labels[activityType] || formatWhiteCellTimelineFallbackLabel(activityType);
+}
+
 export function canShareActionToRedTeam(action = {}) {
     return action?.team === 'blue';
 }
@@ -474,7 +560,7 @@ export function getWhiteCellTimelineRoleFilterValue(event = {}) {
         return explicitRole;
     }
 
-    const eventType = event.type || event.event_type || null;
+    const eventType = getWhiteCellTimelineEventType(event);
     const actor = String(event?.metadata?.actor || '').toLowerCase();
 
     if (event.team === 'white_cell') {
@@ -509,10 +595,14 @@ export function getWhiteCellTimelineRoleFilterValue(event = {}) {
 export function buildWhiteCellTimelineFilterOptions(events = []) {
     const teamValues = new Set();
     const roleValues = new Set();
+    const moveValues = new Set();
+    const activityTypeValues = new Set();
 
     events.forEach((event) => {
         const teamValue = event.team || null;
         const roleValue = getWhiteCellTimelineRoleFilterValue(event);
+        const moveValue = getWhiteCellTimelineMoveFilterValue(event);
+        const activityTypeValue = getWhiteCellTimelineActivityTypeFilterValue(event);
 
         if (teamValue) {
             teamValues.add(teamValue);
@@ -520,6 +610,14 @@ export function buildWhiteCellTimelineFilterOptions(events = []) {
 
         if (roleValue) {
             roleValues.add(roleValue);
+        }
+
+        if (moveValue) {
+            moveValues.add(moveValue);
+        }
+
+        if (activityTypeValue) {
+            activityTypeValues.add(activityTypeValue);
         }
     });
 
@@ -537,22 +635,50 @@ export function buildWhiteCellTimelineFilterOptions(events = []) {
                 value,
                 label: getWhiteCellFilterRoleLabel(value)
             }))
+        ],
+        moveOptions: [
+            { value: '', label: 'All Moves' },
+            ...Array.from(moveValues)
+                .sort((left, right) => Number(left) - Number(right))
+                .map((value) => ({
+                    value,
+                    label: `Move ${value}`
+                }))
+        ],
+        activityTypeOptions: [
+            { value: '', label: 'All Activity Types' },
+            ...sortWhiteCellFilterValues(activityTypeValues, WHITE_CELL_TIMELINE_ACTIVITY_TYPE_ORDER).map((value) => ({
+                value,
+                label: getWhiteCellTimelineActivityTypeLabel(value)
+            }))
         ]
     };
 }
 
 export function filterWhiteCellTimelineEvents(events = [], {
     team = null,
-    role = null
+    role = null,
+    move = null,
+    activityType = null
 } = {}) {
     return events.filter((event) => {
         const timelineRole = getWhiteCellTimelineRoleFilterValue(event);
+        const timelineMove = getWhiteCellTimelineMoveFilterValue(event);
+        const timelineActivityType = getWhiteCellTimelineActivityTypeFilterValue(event);
 
         if (team && event.team !== team) {
             return false;
         }
 
         if (role && timelineRole !== role) {
+            return false;
+        }
+
+        if (move && timelineMove !== String(move)) {
+            return false;
+        }
+
+        if (activityType && timelineActivityType !== activityType) {
             return false;
         }
 
@@ -582,7 +708,9 @@ export class WhiteCellController {
         };
         this.timelineFilters = {
             team: null,
-            role: null
+            role: null,
+            move: null,
+            activityType: null
         };
         this.teamContext = resolveTeamContext();
         this.teamId = null;
@@ -704,6 +832,8 @@ export class WhiteCellController {
         const participantsRoleFilter = document.getElementById('participantsRoleFilter');
         const timelineTeamFilter = document.getElementById('timelineTeamFilter');
         const timelineRoleFilter = document.getElementById('timelineRoleFilter');
+        const timelineMoveFilter = document.getElementById('timelineMoveFilter');
+        const timelineActivityTypeFilter = document.getElementById('timelineActivityTypeFilter');
         const tribeStreetJournalList = document.getElementById('tribeStreetJournalList');
         const verbaAiComposeButton = document.getElementById('newVerbaAiUpdateBtn');
 
@@ -747,6 +877,14 @@ export class WhiteCellController {
         });
         timelineRoleFilter?.addEventListener('change', (event) => {
             this.timelineFilters.role = event.currentTarget.value || null;
+            this.renderTimeline();
+        });
+        timelineMoveFilter?.addEventListener('change', (event) => {
+            this.timelineFilters.move = event.currentTarget.value || null;
+            this.renderTimeline();
+        });
+        timelineActivityTypeFilter?.addEventListener('change', (event) => {
+            this.timelineFilters.activityType = event.currentTarget.value || null;
             this.renderTimeline();
         });
 
@@ -2812,13 +2950,24 @@ export class WhiteCellController {
     configureTimelineFilters() {
         const teamSelect = document.getElementById('timelineTeamFilter');
         const roleSelect = document.getElementById('timelineRoleFilter');
-        if (!teamSelect || !roleSelect) return;
+        const moveSelect = document.getElementById('timelineMoveFilter');
+        const activityTypeSelect = document.getElementById('timelineActivityTypeFilter');
+        if (!teamSelect || !roleSelect || !moveSelect || !activityTypeSelect) return;
 
-        const { teamOptions, roleOptions } = buildWhiteCellTimelineFilterOptions(this.timelineEvents);
+        const {
+            teamOptions,
+            roleOptions,
+            moveOptions,
+            activityTypeOptions
+        } = buildWhiteCellTimelineFilterOptions(this.timelineEvents);
         this.populateFilterSelect(teamSelect, teamOptions, this.timelineFilters.team);
         this.populateFilterSelect(roleSelect, roleOptions, this.timelineFilters.role);
+        this.populateFilterSelect(moveSelect, moveOptions, this.timelineFilters.move);
+        this.populateFilterSelect(activityTypeSelect, activityTypeOptions, this.timelineFilters.activityType);
         this.timelineFilters.team = teamSelect.value || null;
         this.timelineFilters.role = roleSelect.value || null;
+        this.timelineFilters.move = moveSelect.value || null;
+        this.timelineFilters.activityType = activityTypeSelect.value || null;
     }
 
     populateFilterSelect(selectElement, options, currentValue) {
@@ -2841,17 +2990,22 @@ export class WhiteCellController {
         if (!container) return;
 
         const filteredEvents = filterWhiteCellTimelineEvents(this.timelineEvents, this.timelineFilters);
-        const hasActiveFilters = Boolean(this.timelineFilters.team || this.timelineFilters.role);
+        const hasActiveFilters = Boolean(
+            this.timelineFilters.team
+            || this.timelineFilters.role
+            || this.timelineFilters.move
+            || this.timelineFilters.activityType
+        );
 
         if (filteredEvents.length === 0) {
             container.innerHTML = hasActiveFilters
-                ? '<p class="text-sm text-gray-500">No timeline events match the selected team and role filters.</p>'
+                ? '<p class="text-sm text-gray-500">No timeline events match the selected filters.</p>'
                 : '<p class="text-sm text-gray-500">No events yet.</p>';
             return;
         }
 
         container.innerHTML = filteredEvents.slice(0, 50).map((event) => {
-            const eventType = event.type || event.event_type || 'EVENT';
+            const eventType = getWhiteCellTimelineEventType(event) || 'EVENT';
             const eventContent = event.content || event.description || '';
             const teamLabel = this.formatTeamLabel(event.team);
             const rawRole = resolveWhiteCellTimelineMetadataRole(event);
