@@ -189,9 +189,37 @@ describe('Facilitator and scribe access', () => {
 
         expect(html).toContain('id="newActionBtn"');
         expect(html).toContain('New Proposal');
+        expect(html).toContain('No Proposals Yet');
+        expect(html).toContain('Create your first proposal to start the White Cell review flow.');
+        expect(html).not.toContain('No Actions Yet');
         expect(html).toContain('data-section="receivedProposals"');
         expect(html).toContain('id="receivedProposalsSection"');
         expect(html).toContain('id="receivedProposalsList"');
+    });
+
+    it('renders proposal-specific empty-state copy for the Green facilitator queue', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'green';
+        controller.teamLabel = 'Green Team';
+        controller.actions = [];
+        controller.isReadOnly = false;
+
+        const actionsList = createFakeElement('actionsList');
+        global.document = {
+            getElementById(id) {
+                return {
+                    actionsList
+                }[id] || null;
+            }
+        };
+
+        controller.renderActionsList();
+
+        expect(actionsList.innerHTML).toContain('No Proposals Yet');
+        expect(actionsList.innerHTML).toContain('Create your first proposal to start the White Cell review flow.');
+        expect(actionsList.innerHTML).not.toContain('No Actions Yet');
+        expect(actionsList.innerHTML).not.toContain('strategic action');
     });
 
     it('does not render White Cell share controls in facilitator action cards', async () => {

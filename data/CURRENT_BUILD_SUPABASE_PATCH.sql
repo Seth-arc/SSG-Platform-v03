@@ -208,6 +208,8 @@ ALTER TABLE public.communications
             'INJECT',
             'ANNOUNCEMENT',
             'GUIDANCE',
+            'PROPOSAL_FORWARDED',
+            'PROPOSAL_RESPONSE',
             'rfi_response',
             'RFI_RESPONSE',
             'broadcast',

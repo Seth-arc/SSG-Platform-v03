@@ -8,6 +8,44 @@
 
 BEGIN;
 
+DO $$
+DECLARE
+    communications_constraint_name TEXT;
+BEGIN
+    SELECT conname
+    INTO communications_constraint_name
+    FROM pg_constraint
+    WHERE conrelid = 'public.communications'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) ILIKE '%type IN%';
+
+    IF communications_constraint_name IS NOT NULL THEN
+        EXECUTE format(
+            'ALTER TABLE public.communications DROP CONSTRAINT %I',
+            communications_constraint_name
+        );
+    END IF;
+END $$;
+
+ALTER TABLE public.communications
+    ADD CONSTRAINT communications_type_check
+    CHECK (
+        type IN (
+            'INJECT',
+            'ANNOUNCEMENT',
+            'GUIDANCE',
+            'PROPOSAL_FORWARDED',
+            'PROPOSAL_RESPONSE',
+            'rfi_response',
+            'RFI_RESPONSE',
+            'broadcast',
+            'direct',
+            'system',
+            'game_update',
+            'message'
+        )
+    );
+
 CREATE OR REPLACE FUNCTION public.live_demo_can_read_session(requested_session_id UUID)
 RETURNS BOOLEAN
 LANGUAGE SQL

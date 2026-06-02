@@ -785,7 +785,19 @@ CREATE TABLE IF NOT EXISTS communications (
     move INTEGER NOT NULL CHECK (move >= 1 AND move <= 3),
     from_role TEXT NOT NULL,
     to_role TEXT NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('rfi_response', 'game_update', 'message')),
+    type TEXT NOT NULL CHECK (
+        type IN (
+            'rfi_response',
+            'game_update',
+            'message',
+            'RFI_RESPONSE',
+            'INJECT',
+            'ANNOUNCEMENT',
+            'GUIDANCE',
+            'PROPOSAL_FORWARDED',
+            'PROPOSAL_RESPONSE'
+        )
+    ),
     title TEXT,
     content TEXT NOT NULL,
     client_id TEXT,

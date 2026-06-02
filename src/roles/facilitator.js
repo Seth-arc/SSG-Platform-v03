@@ -898,6 +898,15 @@ export class FacilitatorController {
     renderActionsList() {
         const actionsList = document.getElementById('actionsList');
         if (!actionsList) return;
+        const isGreenProposalFlow = this.teamId === 'green';
+        const emptyStateTitle = isGreenProposalFlow ? 'No Proposals Yet' : 'No Actions Yet';
+        const emptyStateMessage = this.isReadOnly
+            ? (isGreenProposalFlow
+                ? 'No team proposals have been created yet.'
+                : 'No facilitator actions have been created yet.')
+            : (isGreenProposalFlow
+                ? 'Create your first proposal to start the White Cell review flow.'
+                : 'Create your first strategic action to start the draft to White Cell review flow.');
 
         if (this.actions.length === 0) {
             actionsList.innerHTML = `
@@ -907,12 +916,8 @@ export class FacilitatorController {
                             <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
                         </svg>
                     </div>
-                    <h3 class="empty-state-title">No Actions Yet</h3>
-                    <p class="empty-state-message">
-                        ${this.isReadOnly
-                            ? 'No facilitator actions have been created yet.'
-                            : 'Create your first strategic action to start the draft to White Cell review flow.'}
-                    </p>
+                    <h3 class="empty-state-title">${emptyStateTitle}</h3>
+                    <p class="empty-state-message">${emptyStateMessage}</p>
                 </div>
             `;
             return;
@@ -960,6 +965,7 @@ export class FacilitatorController {
         const canManageDraft = !this.isReadOnly && canEditAction(action);
         const canSubmitDraft = !this.isReadOnly && canSubmitAction(action);
         const canRemoveDraft = !this.isReadOnly && canDeleteAction(action);
+        const isGreenProposalFlow = this.teamId === 'green';
         const outcomeBadge = action.outcome
             ? createOutcomeBadge(action.outcome).outerHTML
             : '';
@@ -1008,27 +1014,33 @@ export class FacilitatorController {
 
         let lifecycleMessage = `
             <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                Draft actions can be edited, submitted, or deleted by the active team-lead seat.
+                ${isGreenProposalFlow
+                    ? 'Draft proposals can be edited, sent to White Cell, or deleted by the active team-lead seat.'
+                    : 'Draft actions can be edited, submitted, or deleted by the active team-lead seat.'}
             </p>
         `;
 
         if (isSubmittedAction(action)) {
             lifecycleMessage = `
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                    Submitted to White Cell ${action.submitted_at ? formatRelativeTime(action.submitted_at) : ''}.
-                    This action is now read-only for facilitator and scribe seats until adjudication.
+                    ${isGreenProposalFlow ? 'Sent to White Cell' : 'Submitted to White Cell'} ${action.submitted_at ? formatRelativeTime(action.submitted_at) : ''}.
+                    ${isGreenProposalFlow
+                        ? 'This proposal is now read-only for facilitator and scribe seats until White Cell review.'
+                        : 'This action is now read-only for facilitator and scribe seats until adjudication.'}
                 </p>
             `;
         } else if (isAdjudicatedAction(action)) {
             lifecycleMessage = `
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                    White Cell adjudicated this action ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
+                    White Cell ${isGreenProposalFlow ? 'reviewed this proposal' : 'adjudicated this action'} ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
                 </p>
             `;
         } else if (this.isReadOnly) {
             lifecycleMessage = `
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                    Observer mode is read-only. Draft actions are visible but cannot be changed from this page.
+                    ${isGreenProposalFlow
+                        ? 'Observer mode is read-only. Draft proposals are visible but cannot be changed from this page.'
+                        : 'Observer mode is read-only. Draft actions are visible but cannot be changed from this page.'}
                 </p>
             `;
         }

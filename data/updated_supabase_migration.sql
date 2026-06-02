@@ -139,7 +139,16 @@ CREATE TABLE IF NOT EXISTS communications (
     phase INTEGER CHECK (phase IS NULL OR (phase >= 1 AND phase <= 5)),
     from_role TEXT NOT NULL,
     to_role TEXT NOT NULL DEFAULT 'all',
-    type TEXT NOT NULL CHECK (type IN ('INJECT', 'ANNOUNCEMENT', 'GUIDANCE', 'RFI_RESPONSE')),
+    type TEXT NOT NULL CHECK (
+        type IN (
+            'INJECT',
+            'ANNOUNCEMENT',
+            'GUIDANCE',
+            'RFI_RESPONSE',
+            'PROPOSAL_FORWARDED',
+            'PROPOSAL_RESPONSE'
+        )
+    ),
     content TEXT NOT NULL,
     metadata JSONB DEFAULT '{}'::jsonb,
     client_id TEXT,

@@ -61,6 +61,14 @@ describe('database migration contracts', () => {
         expect(sendCommunicationBody).toContain('requested_metadata');
     });
 
+    it('allows proposal communication types in the current communications contract', () => {
+        const sql = readFileSync(WHITE_CELL_BACKEND_ALIGNMENT_PATH, 'utf8');
+
+        expect(sql).toContain("'PROPOSAL_FORWARDED'");
+        expect(sql).toContain("'PROPOSAL_RESPONSE'");
+        expect(sql).toContain('ADD CONSTRAINT communications_type_check');
+    });
+
     it('ships a backend proposal recipient status RPC with the canonical inbox states', () => {
         const sql = readFileSync(WHITE_CELL_BACKEND_ALIGNMENT_PATH, 'utf8');
         const proposalStatusBody = extractFunctionBody(sql, 'update_proposal_recipient_status');
