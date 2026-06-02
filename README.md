@@ -116,6 +116,11 @@ Suggested rehearsal order:
 5. Sidebar badges are queue-specific: `Actions` counts Blue Team actions, `Proposals` counts Green Team proposals, `Move Responses` counts Red Team move responses, and `RFI` counts pending requests only.
 6. Once White Cell forwards a Green proposal, the originating Green facilitator proposal card continues to reflect the recipient team's latest status, including `Acknowledged`, `Declined`, `Ignored`, and `Responded`.
 
+### White Cell Timeline Filters
+
+- The White Cell `Session Timeline` now supports combined `Team`, `Role`, `Move`, and `Activity Type` filters.
+- Use the filters together to isolate a specific team or operator surface within a single move instead of scanning the full event stream.
+
 ### Export Limitations
 
 - Exports are available only from the Game Master surface.
