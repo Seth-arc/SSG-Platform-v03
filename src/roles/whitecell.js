@@ -1834,13 +1834,22 @@ export class WhiteCellController {
      *   - a PROPOSAL_FORWARDED timeline event tagged with the source proposal
      *     id so the post-sim review can reconstruct the lineage.
      */
-    async forwardProposalToRecipient(action, { outcome = 'SUCCESS', reviewDecision = PROPOSAL_REVIEW_DECISIONS.FORWARD_TO_RECIPIENT } = {}) {
-        if (!action) return;
+    async forwardProposalToRecipient(action, {
+        outcome = 'SUCCESS',
+        reviewDecision = PROPOSAL_REVIEW_DECISIONS.FORWARD_TO_RECIPIENT,
+        recipientTeam: explicitRecipientTeam = null,
+        sourceAction = null
+    } = {}) {
+        const resolvedAction = action || sourceAction;
+        if (!resolvedAction) return;
 
-        const proposalDetails = parseProposalDetails(action.ally_contingencies);
-        if (!proposalDetails) return;
-
-        const recipientTeam = proposalDetails.recipientTeam;
+        const actionWithProposalDetails = parseProposalDetails(action?.ally_contingencies)
+            ? action
+            : sourceAction;
+        const proposalDetails = parseProposalDetails(actionWithProposalDetails?.ally_contingencies);
+        const recipientTeam = ['blue', 'red'].includes(explicitRecipientTeam)
+            ? explicitRecipientTeam
+            : proposalDetails?.recipientTeam;
         if (!recipientTeam || !['blue', 'red'].includes(recipientTeam)) {
             logger.warn('Proposal review requested forwarding, but recipient_team is missing or invalid:', recipientTeam);
             return;
@@ -1851,16 +1860,16 @@ export class WhiteCellController {
 
         const alreadyForwarded = communicationsStore.getAll().some((comm) => (
             comm?.type === 'PROPOSAL_FORWARDED'
-            && comm?.metadata?.source_proposal_id === action.id
+            && comm?.metadata?.source_proposal_id === resolvedAction.id
         ));
         if (alreadyForwarded) {
             logger.info('Proposal already forwarded; skipping duplicate forward.', {
-                proposalId: action.id
+                proposalId: resolvedAction.id
             });
             return;
         }
 
-        const viewModel = getProposalViewModel(action);
+        const viewModel = getProposalViewModel(actionWithProposalDetails || resolvedAction);
         const recipientLabel = recipientTeam === 'blue' ? 'Blue Team' : 'Red Team';
         const proposalTitle = viewModel.title || 'Untitled proposal';
         const originators = formatProposalSelection(viewModel.originators, 'Not specified');
@@ -1895,8 +1904,8 @@ export class WhiteCellController {
 
         try {
             const recipientMetadata = buildWhiteCellRecipientMetadata(recipientTeam, {
-                source_proposal_id: action.id,
-                source_team: action.team || 'green',
+                source_proposal_id: resolvedAction.id,
+                source_team: resolvedAction.team || 'green',
                 outcome,
                 review_decision: reviewDecision,
                 review_stage: 'forwarded_to_recipient',
@@ -1917,10 +1926,10 @@ export class WhiteCellController {
                 type: 'PROPOSAL_FORWARDED',
                 content: `Green proposal forwarded to ${recipientLabel} after White Cell approval: ${proposalTitle}`,
                 metadata: {
-                    related_id: action.id,
+                    related_id: resolvedAction.id,
                     role: this.getTimelineActorRole(),
                     ...buildWhiteCellRecipientMetadata(recipientTeam, {
-                        source_team: action.team || 'green',
+                        source_team: resolvedAction.team || 'green',
                         outcome,
                         review_decision: reviewDecision,
                         review_stage: 'forwarded_to_recipient',
@@ -1928,8 +1937,8 @@ export class WhiteCellController {
                     })
                 },
                 team: 'white_cell',
-                move: action.move ?? gameState.move ?? 1,
-                phase: action.phase ?? gameState.phase ?? 1
+                move: resolvedAction.move ?? gameState.move ?? 1,
+                phase: resolvedAction.phase ?? gameState.phase ?? 1
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
         } catch (err) {
@@ -1997,7 +2006,9 @@ export class WhiteCellController {
             if (selectedDecision === PROPOSAL_REVIEW_DECISIONS.FORWARD_TO_RECIPIENT) {
                 await this.forwardProposalToRecipient(updatedAction, {
                     outcome: decision.outcome,
-                    reviewDecision: selectedDecision
+                    reviewDecision: selectedDecision,
+                    recipientTeam: reviewOptions.recipientTeam,
+                    sourceAction: action
                 });
             }
 

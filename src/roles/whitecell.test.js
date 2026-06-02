@@ -831,6 +831,99 @@ describe('White Cell DOM contract', () => {
         expect(modal.close).toHaveBeenCalled();
     });
 
+    it('forwards a proposal even when the adjudication response omits proposal details', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+
+        global.document = {
+            querySelector(selector) {
+                if (selector === 'input[name="proposalReviewDecision"]:checked') {
+                    return { value: 'forward_to_recipient' };
+                }
+
+                return null;
+            },
+            getElementById(id) {
+                if (id === 'adjudicationNotes') {
+                    return { value: 'Forward using the approved recipient.' };
+                }
+
+                return null;
+            }
+        };
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-13');
+        vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_lead');
+        vi.spyOn(database, 'adjudicateAction').mockResolvedValue({
+            id: 'action-94',
+            team: 'green',
+            move: 2,
+            phase: 1,
+            status: 'adjudicated',
+            outcome: 'SUCCESS',
+            goal: 'Coordinate biotech export alignment',
+            mechanism: 'Proposal',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce arbitrage across allied export controls.'
+        });
+        const createCommunication = vi.spyOn(database, 'createCommunication').mockResolvedValue({
+            id: 'comm-proposal-3',
+            to_role: 'blue',
+            type: 'PROPOSAL_FORWARDED',
+            content: 'forwarded proposal'
+        });
+        vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({
+            id: 'timeline-proposal-3'
+        });
+        vi.spyOn(actionsStore, 'updateFromServer').mockImplementation(() => {});
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([]);
+        vi.spyOn(communicationsStore, 'updateFromServer').mockImplementation(() => {});
+        vi.spyOn(timelineStore, 'updateFromServer').mockImplementation(() => {});
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        controller.getCurrentGameState = vi.fn(() => ({ move: 6, phase: 1 }));
+
+        await controller.handleProposalReview({ close: vi.fn() }, {
+            id: 'action-94',
+            team: 'green',
+            move: 2,
+            phase: 1,
+            status: 'submitted',
+            goal: 'Coordinate biotech export alignment',
+            mechanism: 'Proposal',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce arbitrage across allied export controls.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'Japan'],
+                objective: 'Align licensing posture before the next move.',
+                category: 'Alignment',
+                intendedPartners: 'Blue Team',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Immediately after White Cell review.',
+                recipientTeam: 'blue'
+            })
+        });
+
+        expect(createCommunication).toHaveBeenCalledWith(expect.objectContaining({
+            session_id: 'session-13',
+            to_role: 'blue',
+            type: 'PROPOSAL_FORWARDED',
+            metadata: expect.objectContaining({
+                source_proposal_id: 'action-94',
+                source_team: 'green',
+                recipient_team: 'blue'
+            })
+        }));
+        expect(createCommunication.mock.calls[0][0].content).toContain('Title: Coordinate biotech export alignment');
+        expect(createCommunication.mock.calls[0][0].content).toContain('Objective: Align licensing posture before the next move.');
+    });
+
     it('records proposal change requests without forwarding them to another team', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
