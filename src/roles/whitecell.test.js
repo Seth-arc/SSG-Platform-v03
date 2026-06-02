@@ -530,6 +530,342 @@ describe('White Cell DOM contract', () => {
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Enforcement Timeline: 12 months');
     });
 
+    it('renders structured Green proposal details for White Cell review', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        global.document = createFakeDocument();
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            {
+                id: 'action-89',
+                team: 'green',
+                move: 2,
+                created_at: '2026-04-08T09:00:00.000Z'
+            },
+            {
+                id: 'action-90',
+                team: 'green',
+                move: 2,
+                created_at: '2026-04-08T10:00:00.000Z'
+            }
+        ]);
+
+        const controller = new WhiteCellController();
+        const proposal = {
+            id: 'action-90',
+            goal: 'Coordinate biotech export alignment',
+            mechanism: 'Proposal',
+            team: 'green',
+            move: 2,
+            phase: 1,
+            status: 'submitted',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce arbitrage across allied export controls.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'Japan'],
+                objective: 'Align licensing posture before the next move.',
+                category: 'Alignment',
+                intendedPartners: 'Blue Team',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Immediately after White Cell review.',
+                recipientTeam: 'blue'
+            })
+        };
+
+        const markup = controller.renderActionCard(proposal, {
+            showAdjudicateAction: true,
+            includeOutcome: false
+        });
+
+        expect(markup).toContain('Proposal Overview');
+        expect(markup).toContain('Routing &amp; Delivery');
+        expect(markup).toContain('Originators');
+        expect(markup).toContain('Recipient Team');
+        expect(markup).toContain('Blue Team');
+        expect(markup).toContain('Review Proposal');
+        expect(markup).not.toContain('Proposal Details');
+    });
+
+    it('shows proposal-specific review options in the White Cell modal', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        global.document = createFakeDocument();
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            {
+                id: 'action-91',
+                team: 'green',
+                move: 2,
+                created_at: '2026-04-08T09:00:00.000Z'
+            }
+        ]);
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+
+        controller.showAdjudicateModal({
+            id: 'action-91',
+            goal: 'Coordinate biotech export alignment',
+            mechanism: 'Proposal',
+            team: 'green',
+            move: 2,
+            phase: 1,
+            status: 'submitted',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce arbitrage across allied export controls.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'Japan'],
+                objective: 'Align licensing posture before the next move.',
+                category: 'Alignment',
+                intendedPartners: 'Blue Team',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Immediately after White Cell review.',
+                recipientTeam: 'blue'
+            })
+        });
+
+        const modalConfig = showModal.mock.calls.at(-1)?.[0];
+        expect(modalConfig?.title).toBe('Review Proposal');
+        expect(modalConfig?.buttons?.[1]?.label).toBe('Submit Proposal Review');
+        expect(modalConfig?.content?.innerHTML).toContain('Forward to Blue Team');
+        expect(modalConfig?.content?.innerHTML).toContain('Request Changes');
+        expect(modalConfig?.content?.innerHTML).toContain('Reject Proposal');
+        expect(modalConfig?.content?.innerHTML).toContain('Green Team must submit a new proposal');
+        expect(modalConfig?.content?.innerHTML).toContain('Proposal Overview');
+    });
+
+    it('forwards a proposal to its intended partner when White Cell selects forward', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+
+        global.document = {
+            querySelector(selector) {
+                if (selector === 'input[name="proposalReviewDecision"]:checked') {
+                    return { value: 'forward_to_recipient' };
+                }
+
+                return null;
+            },
+            getElementById(id) {
+                if (id === 'adjudicationNotes') {
+                    return { value: 'Forward for Blue Team consideration.' };
+                }
+
+                return null;
+            }
+        };
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-11');
+        vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_lead');
+        const adjudicateAction = vi.spyOn(database, 'adjudicateAction').mockResolvedValue({
+            id: 'action-92',
+            team: 'green',
+            move: 2,
+            phase: 1,
+            status: 'adjudicated',
+            outcome: 'SUCCESS',
+            goal: 'Coordinate biotech export alignment',
+            mechanism: 'Proposal',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce arbitrage across allied export controls.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'Japan'],
+                objective: 'Align licensing posture before the next move.',
+                category: 'Alignment',
+                intendedPartners: 'Blue Team',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Immediately after White Cell review.',
+                recipientTeam: 'blue'
+            })
+        });
+        const createCommunication = vi.spyOn(database, 'createCommunication').mockResolvedValue({
+            id: 'comm-proposal-1',
+            to_role: 'blue',
+            type: 'PROPOSAL_FORWARDED',
+            content: 'forwarded proposal'
+        });
+        const createTimelineEvent = vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({
+            id: 'timeline-proposal-1'
+        });
+        const actionsUpdate = vi.spyOn(actionsStore, 'updateFromServer').mockImplementation(() => {});
+        const communicationsGetAll = vi.spyOn(communicationsStore, 'getAll').mockReturnValue([]);
+        const communicationsUpdate = vi.spyOn(communicationsStore, 'updateFromServer').mockImplementation(() => {});
+        const timelineUpdate = vi.spyOn(timelineStore, 'updateFromServer').mockImplementation(() => {});
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        controller.getCurrentGameState = vi.fn(() => ({ move: 4, phase: 2 }));
+
+        const modal = { close: vi.fn() };
+        const proposal = {
+            id: 'action-92',
+            team: 'green',
+            move: 2,
+            phase: 1,
+            status: 'submitted',
+            goal: 'Coordinate biotech export alignment',
+            mechanism: 'Proposal',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce arbitrage across allied export controls.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'Japan'],
+                objective: 'Align licensing posture before the next move.',
+                category: 'Alignment',
+                intendedPartners: 'Blue Team',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Immediately after White Cell review.',
+                recipientTeam: 'blue'
+            })
+        };
+
+        await controller.handleProposalReview(modal, proposal);
+
+        expect(adjudicateAction).toHaveBeenCalledWith('action-92', expect.objectContaining({
+            outcome: 'SUCCESS',
+            adjudication_notes: 'Forward for Blue Team consideration.'
+        }));
+        expect(createCommunication).toHaveBeenCalledWith(expect.objectContaining({
+            session_id: 'session-11',
+            from_role: 'white_cell',
+            to_role: 'blue',
+            type: 'PROPOSAL_FORWARDED',
+            metadata: expect.objectContaining({
+                source_proposal_id: 'action-92',
+                source_team: 'green',
+                outcome: 'SUCCESS',
+                review_decision: 'forward_to_recipient'
+            })
+        }));
+        expect(createCommunication.mock.calls[0][0].content).toContain('White Cell decision: Forwarded to Blue Team');
+        expect(createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            session_id: 'session-11',
+            type: 'ACTION_ADJUDICATED',
+            content: 'Proposal review recorded: Forwarded to Blue Team',
+            metadata: expect.objectContaining({
+                role: 'whitecell_lead',
+                proposal_review_decision: 'forward_to_recipient',
+                proposal_recipient_team: 'blue',
+                proposal: true
+            })
+        }));
+        expect(actionsUpdate).toHaveBeenCalledWith('UPDATE', expect.objectContaining({ id: 'action-92' }));
+        expect(communicationsGetAll).toHaveBeenCalled();
+        expect(communicationsUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'comm-proposal-1' }));
+        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-proposal-1' }));
+        expect(showToast).toHaveBeenCalledWith({ message: 'Proposal forwarded to Blue Team', type: 'success' });
+        expect(modal.close).toHaveBeenCalled();
+    });
+
+    it('records proposal change requests without forwarding them to another team', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+
+        global.document = {
+            querySelector(selector) {
+                if (selector === 'input[name="proposalReviewDecision"]:checked') {
+                    return { value: 'request_changes' };
+                }
+
+                return null;
+            },
+            getElementById(id) {
+                if (id === 'adjudicationNotes') {
+                    return { value: 'Clarify the timing conditions before we forward this.' };
+                }
+
+                return null;
+            }
+        };
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-12');
+        vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_lead');
+        const adjudicateAction = vi.spyOn(database, 'adjudicateAction').mockResolvedValue({
+            id: 'action-93',
+            team: 'green',
+            move: 2,
+            phase: 1,
+            status: 'adjudicated',
+            outcome: 'PARTIAL_SUCCESS',
+            goal: 'Coordinate biotech export alignment',
+            mechanism: 'Proposal',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce arbitrage across allied export controls.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'Japan'],
+                objective: 'Align licensing posture before the next move.',
+                category: 'Alignment',
+                intendedPartners: 'Blue Team',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Immediately after White Cell review.',
+                recipientTeam: 'blue'
+            })
+        });
+        const createCommunication = vi.spyOn(database, 'createCommunication').mockResolvedValue({
+            id: 'comm-proposal-2'
+        });
+        const createTimelineEvent = vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({
+            id: 'timeline-proposal-2'
+        });
+        const actionsUpdate = vi.spyOn(actionsStore, 'updateFromServer').mockImplementation(() => {});
+        const communicationsUpdate = vi.spyOn(communicationsStore, 'updateFromServer').mockImplementation(() => {});
+        const timelineUpdate = vi.spyOn(timelineStore, 'updateFromServer').mockImplementation(() => {});
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        controller.getCurrentGameState = vi.fn(() => ({ move: 5, phase: 1 }));
+
+        await controller.handleProposalReview({ close: vi.fn() }, {
+            id: 'action-93',
+            team: 'green',
+            move: 2,
+            phase: 1,
+            status: 'submitted',
+            goal: 'Coordinate biotech export alignment',
+            mechanism: 'Proposal',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce arbitrage across allied export controls.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'Japan'],
+                objective: 'Align licensing posture before the next move.',
+                category: 'Alignment',
+                intendedPartners: 'Blue Team',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Immediately after White Cell review.',
+                recipientTeam: 'blue'
+            })
+        });
+
+        expect(adjudicateAction).toHaveBeenCalledWith('action-93', expect.objectContaining({
+            outcome: 'PARTIAL_SUCCESS',
+            adjudication_notes: 'Clarify the timing conditions before we forward this.'
+        }));
+        expect(createCommunication).not.toHaveBeenCalled();
+        expect(communicationsUpdate).not.toHaveBeenCalled();
+        expect(createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            session_id: 'session-12',
+            type: 'ACTION_ADJUDICATED',
+            content: 'Proposal review recorded: Changes requested',
+            metadata: expect.objectContaining({
+                proposal_review_decision: 'request_changes',
+                proposal_recipient_team: 'blue',
+                proposal: true
+            })
+        }));
+        expect(actionsUpdate).toHaveBeenCalledWith('UPDATE', expect.objectContaining({ id: 'action-93' }));
+        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-proposal-2' }));
+        expect(showToast).toHaveBeenCalledWith({ message: 'Proposal review saved: changes requested', type: 'success' });
+    });
+
     it('sends Blue team actions to the Red team as White Cell communications', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { database } = await import('../services/database.js');

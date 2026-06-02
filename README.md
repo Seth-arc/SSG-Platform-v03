@@ -103,6 +103,16 @@ Suggested rehearsal order:
 3. Click `Open White Cell Lead` or `Open White Cell Support`.
 4. Game Master uses only `Open Game Master`.
 
+### Proposal Review
+
+1. White Cell Lead opens `Green Proposals` and selects `Review Proposal`.
+2. Choose one of the explicit review decisions:
+   - `Forward to Blue Team` or `Forward to Red Team`, based on the proposal's intended recipient
+   - `Request Changes`
+   - `Reject Proposal`
+3. Forwarding creates the White Cell communication for the addressed team immediately.
+4. `Request Changes` and `Reject Proposal` record the White Cell review without forwarding the current proposal. If Green Team wants to continue that line, they must submit a new proposal revision.
+
 ### Export Limitations
 
 - Exports are available only from the Game Master surface.
