@@ -8,6 +8,9 @@
 
 BEGIN;
 
+ALTER TABLE public.communications
+    DROP CONSTRAINT IF EXISTS communications_type_check;
+
 DO $$
 DECLARE
     communications_constraint_name TEXT;
@@ -461,8 +464,7 @@ BEGIN
                 'participant_team', participant_team,
                 'participant_auth_user_id', auth.uid()
             )
-        ),
-        updated_at = NOW()
+        )
     WHERE c.id = requested_communication_id
     RETURNING *
     INTO updated_communication;
@@ -470,6 +472,33 @@ BEGIN
     RETURN updated_communication;
 END;
 $$;
+
+DROP POLICY IF EXISTS communications_live_demo_insert ON public.communications;
+
+CREATE POLICY communications_live_demo_insert
+    ON public.communications FOR INSERT
+    WITH CHECK (
+        public.live_demo_can_write_session_surface(session_id, ARRAY['facilitator', 'scribe']::TEXT[])
+        AND type = 'PROPOSAL_RESPONSE'
+        AND LOWER(BTRIM(to_role)) = 'white_cell'
+        AND LOWER(BTRIM(from_role)) = public.live_demo_participant_role(session_id)
+        AND NULLIF(BTRIM(content), '') IS NOT NULL
+        AND EXISTS (
+            SELECT 1
+            FROM public.communications forwarded
+            WHERE forwarded.id::TEXT = NULLIF(BTRIM(communications.metadata ->> 'source_communication_id'), '')
+              AND forwarded.session_id = communications.session_id
+              AND forwarded.type = 'PROPOSAL_FORWARDED'
+              AND COALESCE(
+                  NULLIF(BTRIM(forwarded.metadata ->> 'recipient_team'), ''),
+                  CASE
+                      WHEN forwarded.to_role IN ('blue', 'red', 'green') THEN forwarded.to_role
+                      WHEN forwarded.to_role ~ '^(blue|red|green)_' THEN split_part(forwarded.to_role, '_', 1)
+                      ELSE NULL
+                  END
+              ) = public.live_demo_participant_team(communications.session_id)
+        )
+    );
 
 REVOKE ALL ON FUNCTION public.operator_remove_session_participant(UUID, UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.operator_send_communication(UUID, TEXT, TEXT, TEXT, TEXT, UUID, JSONB) FROM PUBLIC;

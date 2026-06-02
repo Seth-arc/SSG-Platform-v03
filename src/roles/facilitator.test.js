@@ -459,6 +459,66 @@ describe('Facilitator and scribe access', () => {
         expect(proposalsBadge.hidden).toBe(false);
     });
 
+    it('shows recipient decline updates on the Green facilitator proposal card', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        global.document = createFakeDocument();
+
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([{
+            id: 'comm-forwarded-declined-1',
+            type: 'PROPOSAL_FORWARDED',
+            created_at: '2026-04-09T10:06:00.000Z',
+            metadata: {
+                source_proposal_id: 'proposal-green-1',
+                recipient_team: 'blue',
+                proposal_recipient_state: {
+                    status: 'declined',
+                    actioned_at: '2026-04-09T10:20:00.000Z'
+                }
+            }
+        }]);
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'green';
+        controller.teamLabel = 'Green Team';
+
+        const markup = controller.renderActionCard({
+            id: 'proposal-green-1',
+            team: 'green',
+            status: 'adjudicated',
+            goal: 'Joint Port Proposal',
+            mechanism: 'Proposal',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce room for arbitrage.',
+            move: 2,
+            phase: 1
+        });
+
+        expect(markup).toContain('Recipient Team:</strong> Blue Team');
+        expect(markup).toContain('Recipient Status:</strong> Declined');
+    });
+
+    it('rerenders facilitator proposal cards when communications change', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+
+        const controller = new FacilitatorController();
+        const renderActionsList = vi.spyOn(controller, 'renderActionsList').mockImplementation(() => {});
+        vi.spyOn(controller, 'syncResponsesFromStores').mockImplementation(() => {});
+        vi.spyOn(controller, 'syncReceivedProposalsFromStore').mockImplementation(() => {});
+        vi.spyOn(controller, 'syncWhiteCellUpdateSectionsFromStore').mockImplementation(() => {});
+
+        controller.subscribeToLiveData();
+        communicationsStore.notify('updated', {
+            id: 'comm-forwarded-declined-2',
+            type: 'PROPOSAL_FORWARDED'
+        });
+
+        expect(renderActionsList).toHaveBeenCalled();
+
+        controller.destroy();
+    });
+
     it('builds Red move responses with a concrete persisted mechanism label', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();

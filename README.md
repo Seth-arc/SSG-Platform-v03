@@ -114,6 +114,7 @@ Suggested rehearsal order:
 3. Forwarding creates the White Cell communication for the addressed team immediately. The reviewed proposal remains visible in the White Cell `Proposals` queue, and it appears for the recipient facilitator/scribe in both `Received Proposals` and the general White Cell responses feed.
 4. `Request Changes` and `Reject Proposal` record the White Cell review without forwarding the current proposal. If Green Team wants to continue that line, they must submit a new proposal revision.
 5. Sidebar badges are queue-specific: `Actions` counts Blue Team actions, `Proposals` counts Green Team proposals, `Move Responses` counts Red Team move responses, and `RFI` counts pending requests only.
+6. Once White Cell forwards a Green proposal, the originating Green facilitator proposal card continues to reflect the recipient team's latest status, including `Acknowledged`, `Declined`, `Ignored`, and `Responded`.
 
 ### Export Limitations
 
@@ -155,6 +156,7 @@ Validate these manually against the real backend because the automated suite doe
 - If Game Master or White Cell operator authorization fails with `function digest(text, unknown) does not exist`, the live backend is resolving `pgcrypto.digest()` outside the `extensions` schema search path. Apply `data/2026-04-08_operator_auth_digest_fix.sql`, then retry operator login.
 - If White Cell operator authorization still expects a team-scoped role such as `blue_whitecell_lead`, apply `data/2026-04-09_global_white_cell_role_contract.sql`, then retry operator login.
 - If public facilitator, scribe, or notetaker joins started failing with `claim_session_role_seat` 403 / `Session access is required.` after the White Cell role contract update, reapply the current `data/2026-04-09_global_white_cell_role_contract.sql`; the corrected version preserves the internal stale-seat cleanup helper inside `claim_session_role_seat`.
+- If forwarded proposal recipient actions fail with `column "updated_at" of relation "communications" does not exist` when acknowledging/declining/ignoring, or `new row violates row-level security policy for table "communications"` when responding, reapply the current `data/2026-04-17_white_cell_backend_alignment.sql`; the updated patch removes the stale `updated_at` write and adds the hardened facilitator/scribe insert policy for `PROPOSAL_RESPONSE`.
 - Server-side RPC and RLS enforcement for:
   - operator authorization
   - join-by-code lookup

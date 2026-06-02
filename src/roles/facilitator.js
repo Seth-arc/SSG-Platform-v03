@@ -55,6 +55,7 @@ import {
 import {
     PROPOSAL_RECIPIENT_STATUSES,
     countUnreadProposals,
+    getProposalRecipientEntry,
     formatProposalRecipientStatus,
     getProposalRecipientStatus
 } from '../features/actions/proposalRecipientState.js';
@@ -473,6 +474,7 @@ export class FacilitatorController {
 
         this.storeUnsubscribers.push(
             communicationsStore.subscribe(() => {
+                this.renderActionsList();
                 this.syncResponsesFromStores();
                 this.syncReceivedProposalsFromStore();
                 this.syncWhiteCellUpdateSectionsFromStore();
@@ -579,6 +581,64 @@ export class FacilitatorController {
 
         this.renderTribeStreetJournalList();
         this.renderVerbaAiList();
+    }
+
+    getForwardedProposalCommunication(action = null) {
+        if (!action?.id) {
+            return null;
+        }
+
+        return communicationsStore.getAll()
+            .filter((communication) => (
+                communication?.type === 'PROPOSAL_FORWARDED'
+                && communication?.metadata?.source_proposal_id === action.id
+            ))
+            .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))[0] || null;
+    }
+
+    formatProposalRecipientTeamLabel(team = '') {
+        const normalizedTeam = typeof team === 'string' ? team.trim().toLowerCase() : '';
+        switch (normalizedTeam) {
+            case 'blue':
+                return 'Blue Team';
+            case 'red':
+                return 'Red Team';
+            case 'green':
+                return 'Green Team';
+            default:
+                return team || 'Recipient team';
+        }
+    }
+
+    renderProposalRecipientState(action = null) {
+        const forwardedCommunication = this.getForwardedProposalCommunication(action);
+        if (!forwardedCommunication) {
+            return '';
+        }
+
+        const proposalViewModel = getProposalViewModel(action);
+        const recipientEntry = getProposalRecipientEntry(forwardedCommunication);
+        const recipientTeam = forwardedCommunication?.metadata?.recipient_team
+            || proposalViewModel.recipientTeam
+            || '';
+        const recipientLabel = this.formatProposalRecipientTeamLabel(recipientTeam);
+        const statusLabel = formatProposalRecipientStatus(getProposalRecipientStatus(forwardedCommunication));
+        const actionedAt = recipientEntry?.actioned_at || null;
+        const timestampLabel = actionedAt ? ` ${formatRelativeTime(actionedAt)}` : '';
+
+        return `
+            <div
+                class="card card-bordered"
+                style="margin-top: var(--space-3); padding: var(--space-3); background: var(--color-surface-alt);"
+            >
+                <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
+                    <strong>Recipient Team:</strong> ${this.escapeHtml(recipientLabel)}
+                </p>
+                <p class="text-xs text-gray-500" style="margin: 0;">
+                    <strong>Recipient Status:</strong> ${this.escapeHtml(statusLabel)}${this.escapeHtml(timestampLabel)}
+                </p>
+            </div>
+        `;
     }
 
     renderReceivedProposals() {
@@ -1064,6 +1124,7 @@ export class FacilitatorController {
                 <div class="card-body">
                     <p class="text-sm mb-3">${this.escapeHtml(expectedOutcomes)}</p>
                     ${detailsMarkup}
+                    ${isGreenProposalFlow ? this.renderProposalRecipientState(action) : ''}
                     ${action.adjudication_notes ? `
                         <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                             <strong>Adjudication Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}

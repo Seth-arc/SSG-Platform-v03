@@ -666,6 +666,95 @@ describe('database live-demo seat contract', () => {
         });
     });
 
+    it('lets the addressed facilitator send a proposal response back to White Cell before marking the proposal responded', async () => {
+        const { sessionStore, database } = await loadModules();
+        setClientIdentity(sessionStore, 'client-response-gm');
+        await database.authorizeOperatorAccess({
+            surface: 'gamemaster',
+            accessCode: 'admin2025',
+            operatorName: 'GM Proposal Response'
+        });
+
+        const session = await database.createSession({
+            name: 'Proposal Response Session',
+            session_code: 'RESP2026'
+        });
+
+        setClientIdentity(sessionStore, 'client-response-whitecell');
+        await database.authorizeOperatorAccess({
+            surface: 'whitecell',
+            accessCode: 'admin2025',
+            sessionId: session.id,
+            role: 'whitecell_lead',
+            operatorName: 'White Cell Lead'
+        });
+        await database.claimParticipantSeat(session.id, 'whitecell_lead', 'White Cell Lead');
+
+        const forwardedProposal = await database.createCommunication({
+            session_id: session.id,
+            from_role: 'white_cell',
+            to_role: 'blue',
+            type: 'PROPOSAL_FORWARDED',
+            content: 'Forwarded proposal content',
+            metadata: {
+                source_proposal_id: 'proposal-2',
+                recipient_team: 'blue',
+                proposal: {
+                    title: 'Counter Port Proposal'
+                }
+            }
+        });
+
+        setClientIdentity(sessionStore, 'client-response-blue');
+        await database.claimParticipantSeat(session.id, 'blue_facilitator', 'Blue Facilitator');
+
+        const responseCommunication = await database.createCommunication({
+            session_id: session.id,
+            from_role: 'blue_facilitator',
+            to_role: 'white_cell',
+            type: 'PROPOSAL_RESPONSE',
+            content: 'Blue Team can support this proposal with customs coordination.',
+            metadata: {
+                source_proposal_id: 'proposal-2',
+                source_communication_id: forwardedProposal.id,
+                source_team: 'green',
+                responder_team: 'blue'
+            }
+        });
+
+        expect(responseCommunication).toMatchObject({
+            session_id: session.id,
+            from_role: 'blue_facilitator',
+            to_role: 'white_cell',
+            type: 'PROPOSAL_RESPONSE',
+            content: 'Blue Team can support this proposal with customs coordination.',
+            metadata: expect.objectContaining({
+                source_communication_id: forwardedProposal.id,
+                responder_team: 'blue'
+            })
+        });
+
+        const updatedCommunication = await database.updateProposalRecipientStatus(
+            forwardedProposal.id,
+            'responded',
+            {
+                response_communication_id: responseCommunication.id
+            }
+        );
+
+        expect(updatedCommunication).toMatchObject({
+            id: forwardedProposal.id,
+            metadata: expect.objectContaining({
+                proposal_recipient_state: expect.objectContaining({
+                    status: 'responded',
+                    participant_team: 'blue',
+                    participant_role: 'blue_facilitator',
+                    response_communication_id: responseCommunication.id
+                })
+            })
+        });
+    });
+
     it('applies stale-seat heartbeat recovery to every shipped live-demo role across all teams', async () => {
         const { sessionStore, database } = await loadModules();
 

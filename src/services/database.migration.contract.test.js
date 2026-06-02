@@ -17,6 +17,10 @@ const OPERATOR_CODE_RUNTIME_CONFIG_PATH = new URL(
     '../../data/2026-06-02_operator_code_runtime_config_table.sql',
     import.meta.url
 );
+const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
+    '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
+    import.meta.url
+);
 
 function extractFunctionBody(sql, functionName) {
     const functionPattern = new RegExp(
@@ -64,6 +68,16 @@ describe('database migration contracts', () => {
     it('allows proposal communication types in the current communications contract', () => {
         const sql = readFileSync(WHITE_CELL_BACKEND_ALIGNMENT_PATH, 'utf8');
 
+        expect(sql).toContain('DROP CONSTRAINT IF EXISTS communications_type_check');
+        expect(sql).toContain("'PROPOSAL_FORWARDED'");
+        expect(sql).toContain("'PROPOSAL_RESPONSE'");
+        expect(sql).toContain('ADD CONSTRAINT communications_type_check');
+    });
+
+    it('keeps the current build communications patch idempotent when the type constraint already exists', () => {
+        const sql = readFileSync(CURRENT_BUILD_SUPABASE_PATCH_PATH, 'utf8');
+
+        expect(sql).toContain('DROP CONSTRAINT IF EXISTS communications_type_check');
         expect(sql).toContain("'PROPOSAL_FORWARDED'");
         expect(sql).toContain("'PROPOSAL_RESPONSE'");
         expect(sql).toContain('ADD CONSTRAINT communications_type_check');
@@ -79,6 +93,7 @@ describe('database migration contracts', () => {
         expect(proposalStatusBody).toContain("'declined'");
         expect(proposalStatusBody).toContain("'ignored'");
         expect(proposalStatusBody).toContain("participant_surface NOT IN ('facilitator', 'scribe')");
+        expect(proposalStatusBody).not.toContain('updated_at = NOW()');
     });
 
     it('extends participant removal to White Cell while still revoking linked White Cell grants', () => {
@@ -90,6 +105,17 @@ describe('database migration contracts', () => {
         expect(removeParticipantBody).toContain('DELETE FROM public.session_participants');
         expect(removeParticipantBody).toContain('DELETE FROM public.operator_grants');
         expect(removeParticipantBody).toContain("og.surface = 'whitecell'");
+    });
+
+    it('allows facilitator and scribe proposal responses through the hardened communications insert policy', () => {
+        const sql = readFileSync(WHITE_CELL_BACKEND_ALIGNMENT_PATH, 'utf8');
+
+        expect(sql).toContain('CREATE POLICY communications_live_demo_insert');
+        expect(sql).toContain("live_demo_can_write_session_surface(session_id, ARRAY['facilitator', 'scribe']::TEXT[])");
+        expect(sql).toContain("type = 'PROPOSAL_RESPONSE'");
+        expect(sql).toContain("LOWER(BTRIM(to_role)) = 'white_cell'");
+        expect(sql).toContain("LOWER(BTRIM(from_role)) = public.live_demo_participant_role(session_id)");
+        expect(sql).toContain("forwarded.type = 'PROPOSAL_FORWARDED'");
     });
 
     it('normalizes seat-claim role input before seat-limit evaluation', () => {

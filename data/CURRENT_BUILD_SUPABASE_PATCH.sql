@@ -183,6 +183,9 @@ UPDATE public.communications
 SET move = 1
 WHERE move IS NULL;
 
+ALTER TABLE public.communications
+    DROP CONSTRAINT IF EXISTS communications_type_check;
+
 DO $$
 DECLARE
     constraint_row RECORD;
