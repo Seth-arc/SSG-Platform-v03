@@ -18,9 +18,26 @@ const logger = createLogger('Supabase');
 const RUNTIME_NOTICE_ID = 'runtimeConfigNotice';
 const RUNTIME_NOTICE_STYLE_ID = 'runtime-config-notice-style';
 const SUPABASE_AUTH_STORAGE_KEY = 'esg-simulation-auth';
+const UNREACHABLE_BACKEND_PATTERNS = [
+    /ERR_NAME_NOT_RESOLVED/i,
+    /ERR_INTERNET_DISCONNECTED/i,
+    /ERR_CONNECTION_(?:REFUSED|RESET|TIMED_OUT|CLOSED)/i,
+    /ERR_ADDRESS_UNREACHABLE/i,
+    /ENOTFOUND/i,
+    /ECONNREFUSED/i,
+    /Failed to fetch/i,
+    /NetworkError/i
+];
+const ANONYMOUS_AUTH_DISABLED_PATTERNS = [
+    /anonymous sign-?ins? (?:are )?disabled/i,
+    /anonymous provider disabled/i,
+    /Unsupported provider:\s*anonymous/i,
+    /Unsupported provider:\s*anon/i
+];
 
 let validation = validateConfig();
 let initializationError = null;
+let runtimeAvailabilityFailure = null;
 const e2eMockEnabled = isE2EMockEnabled();
 
 function readStorageHandle(candidate) {
@@ -68,7 +85,11 @@ function buildRuntimeStatus() {
             ready: true,
             runtimeMode: 'e2e-mock',
             issues: [],
-            message: 'E2E mock backend enabled.'
+            message: 'E2E mock backend enabled.',
+            title: 'E2E mock backend enabled.',
+            eyebrow: 'Test Mode',
+            note: 'The mock backend is active for automated browser tests.',
+            code: null
         };
     }
 
@@ -76,21 +97,142 @@ function buildRuntimeStatus() {
     if (initializationError) {
         issues.push('Supabase client initialization failed.');
     }
+    if (runtimeAvailabilityFailure?.issue) {
+        issues.push(runtimeAvailabilityFailure.issue);
+    }
 
     return {
         ready: !issues.length,
         runtimeMode: CONFIG.RUNTIME_MODE,
         issues,
-        message: buildMissingConfigMessage({
+        message: runtimeAvailabilityFailure?.message || buildMissingConfigMessage({
             ...validation,
             issues
-        })
+        }),
+        title: runtimeAvailabilityFailure?.title || 'Supabase backend configuration is missing',
+        eyebrow: runtimeAvailabilityFailure?.eyebrow || 'Configuration Required',
+        note: runtimeAvailabilityFailure?.note
+            || 'Update the local environment from .env.example, restart the dev server, and reload this page.',
+        code: runtimeAvailabilityFailure?.code || 'BACKEND_CONFIG_REQUIRED'
     };
 }
 
 function createConfigurationError() {
     const status = buildRuntimeStatus();
-    return new ConfigurationError(status.message, status.issues, 'BACKEND_CONFIG_REQUIRED');
+    return new ConfigurationError(status.message, status.issues, status.code);
+}
+
+function collectErrorText(error) {
+    if (!error) {
+        return '';
+    }
+
+    const segments = [];
+    const queue = [error];
+    const visited = new Set();
+
+    while (queue.length) {
+        const candidate = queue.shift();
+        if (!candidate || visited.has(candidate)) {
+            continue;
+        }
+
+        visited.add(candidate);
+
+        if (typeof candidate === 'string') {
+            segments.push(candidate);
+            continue;
+        }
+
+        if (typeof candidate.message === 'string') {
+            segments.push(candidate.message);
+        }
+
+        if (typeof candidate.details === 'string') {
+            segments.push(candidate.details);
+        }
+
+        if (typeof candidate.hint === 'string') {
+            segments.push(candidate.hint);
+        }
+
+        if (candidate.cause) {
+            queue.push(candidate.cause);
+        }
+    }
+
+    return segments.join(' ');
+}
+
+export function classifySupabaseAuthFailure(
+    error,
+    { online = typeof navigator === 'undefined' ? true : navigator.onLine } = {}
+) {
+    if (online === false) {
+        return {
+            issue: 'The browser is offline. Reconnect before joining or authorizing a session.',
+            message: 'The browser is offline. Reconnect to the internet and reload this page.',
+            title: 'Browser Offline',
+            eyebrow: 'Connection Required',
+            note: 'Reconnect the device to the network, then reload this page before retrying.'
+        };
+    }
+
+    const errorText = collectErrorText(error);
+
+    if (UNREACHABLE_BACKEND_PATTERNS.some((pattern) => pattern.test(errorText))) {
+        return {
+            issue: 'The configured Supabase auth endpoint could not be reached.',
+            message: 'The configured Supabase backend could not be reached. Verify the project URL, DNS, and network access, then reload this page.',
+            title: 'Supabase Backend Unavailable',
+            eyebrow: 'Backend Unavailable',
+            note: 'If the project ref changed or the Supabase project was deleted, update VITE_SUPABASE_URL, rebuild, and reload.'
+        };
+    }
+
+    if (ANONYMOUS_AUTH_DISABLED_PATTERNS.some((pattern) => pattern.test(errorText))) {
+        return {
+            issue: 'Supabase anonymous sign-ins are disabled for this project.',
+            message: 'Supabase anonymous sign-ins are disabled for this project. Enable them before participants or operators join from the landing page.',
+            title: 'Supabase Auth Configuration Required',
+            eyebrow: 'Configuration Required',
+            note: 'Enable anonymous sign-ins in the Supabase Auth settings, then reload this page.'
+        };
+    }
+
+    return null;
+}
+
+function hideRuntimeNotice() {
+    if (typeof document === 'undefined') {
+        return;
+    }
+
+    const container = document.getElementById(RUNTIME_NOTICE_ID);
+    if (container) {
+        container.hidden = true;
+        container.className = '';
+        container.innerHTML = '';
+    }
+
+    const body = document.body;
+    if (body?.dataset) {
+        delete body.dataset.runtimeConfigBlocked;
+    }
+}
+
+function recordRuntimeAvailabilityFailure(failure) {
+    runtimeAvailabilityFailure = failure;
+    renderMissingBackendNotice();
+}
+
+function clearRuntimeAvailabilityFailure() {
+    if (!runtimeAvailabilityFailure) {
+        return;
+    }
+
+    runtimeAvailabilityFailure = null;
+    hideRuntimeNotice();
 }
 
 export function createUnavailableSupabaseClient() {
@@ -206,7 +348,12 @@ export function isSupabaseConfigured() {
 
 export function renderMissingBackendNotice() {
     const status = buildRuntimeStatus();
-    if (status.ready || typeof document === 'undefined') {
+    if (typeof document === 'undefined') {
+        return;
+    }
+
+    if (status.ready) {
+        hideRuntimeNotice();
         return;
     }
 
@@ -219,13 +366,13 @@ export function renderMissingBackendNotice() {
     container.className = 'runtime-config-notice';
     container.innerHTML = `
         <div class="runtime-config-panel" role="alertdialog" aria-modal="true" aria-labelledby="runtime-config-title">
-            <p class="runtime-config-eyebrow">Configuration Required</p>
-            <h1 class="runtime-config-title" id="runtime-config-title">Supabase backend configuration is missing</h1>
+            <p class="runtime-config-eyebrow">${status.eyebrow}</p>
+            <h1 class="runtime-config-title" id="runtime-config-title">${status.title}</h1>
             <p class="runtime-config-copy">${status.message}</p>
             <ul class="runtime-config-list">
                 ${status.issues.map((issue) => `<li>${issue}</li>`).join('')}
             </ul>
-            <p class="runtime-config-note">Update the local environment from <code>.env.example</code>, restart the dev server, and reload this page.</p>
+            <p class="runtime-config-note">${status.note}</p>
         </div>
     `;
     document.body.dataset.runtimeConfigBlocked = 'true';
@@ -283,13 +430,20 @@ export async function getBrowserSession() {
 
     const { data: sessionData, error: sessionError } = await rawSupabaseClient.auth.getSession();
     if (sessionError) {
+        const runtimeFailure = classifySupabaseAuthFailure(sessionError);
         logger.error('Failed to read browser auth session:', sessionError);
+        if (runtimeFailure) {
+            recordRuntimeAvailabilityFailure(runtimeFailure);
+            throw createConfigurationError();
+        }
+
         throw new AuthError(
             'Unable to verify browser identity. Please reload and try again.',
             'BROWSER_IDENTITY_UNAVAILABLE'
         );
     }
 
+    clearRuntimeAvailabilityFailure();
     return sessionData?.session ?? null;
 }
 
@@ -312,13 +466,20 @@ export async function ensureBrowserIdentity({ clientId = null } = {}) {
     });
 
     if (error || !data?.session?.access_token) {
+        const runtimeFailure = classifySupabaseAuthFailure(error);
         logger.error('Failed to establish anonymous browser identity:', error);
+        if (runtimeFailure) {
+            recordRuntimeAvailabilityFailure(runtimeFailure);
+            throw createConfigurationError();
+        }
+
         throw new AuthError(
             'Unable to establish browser identity. Enable Supabase anonymous sign-ins and try again.',
             'BROWSER_IDENTITY_REQUIRED'
         );
     }
 
+    clearRuntimeAvailabilityFailure();
     logger.info('Established anonymous browser identity', {
         userId: data.user?.id ? `${data.user.id.substring(0, 8)}...` : null
     });

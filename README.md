@@ -11,6 +11,8 @@ Required environment variables:
 
 If either value is missing or left as a placeholder, the app blocks startup with a configuration notice on the landing page and control panel. Set the values from `.env.example`, restart the dev server, and reload the page.
 
+If the landing page shows `Supabase Backend Unavailable`, the configured URL passed validation but the auth host could not be reached at runtime. Treat that as a fail-closed backend issue, not a participant join problem. Verify `VITE_SUPABASE_URL` points at a live Supabase project, confirm DNS/network access, rebuild if the environment changed, and reload the page.
+
 ## Role and Backend Alignment Spec
 
 For the current role-by-role frontend contract and the backend behaviors that must align with it, see [LIVE_DEMO_BACKEND_ALIGNMENT.md](LIVE_DEMO_BACKEND_ALIGNMENT.md).

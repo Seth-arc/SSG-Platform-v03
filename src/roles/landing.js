@@ -72,6 +72,17 @@ export class LandingController {
             joinForm.addEventListener('submit', (e) => this.handleJoinSession(e));
         }
 
+        const displayNameInput = document.getElementById('displayName');
+        const operatorUsernameInput = document.getElementById('operatorAccessUsername');
+        if (displayNameInput && operatorUsernameInput) {
+            const syncOperatorUsername = () => {
+                operatorUsernameInput.value = displayNameInput.value.trim();
+            };
+
+            displayNameInput.addEventListener('input', syncOperatorUsername);
+            syncOperatorUsername();
+        }
+
         // Role selection buttons
         const teamButtons = document.querySelectorAll('.chip[data-team]');
         teamButtons.forEach((button) => {

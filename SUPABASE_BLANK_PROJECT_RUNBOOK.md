@@ -162,3 +162,13 @@ Pass looks like:
 ## Failure Rule
 
 If any file in the chain errors, stop there. Do not continue with later files until that failure is resolved, because the later migrations assume the earlier contract is already present.
+
+## Landing Page Reachability Symptom
+
+If the landing page blocks with `Supabase Backend Unavailable`, the frontend is configured with a syntactically valid Supabase URL, but the auth host could not be reached. Typical causes are:
+
+- the Pages build still points at an old or deleted project ref
+- DNS cannot resolve the configured `*.supabase.co` host
+- the operator machine is offline or behind a network policy blocking Supabase
+
+Fix the reachability issue first. Do not treat it as a session-code or seat-claim defect.

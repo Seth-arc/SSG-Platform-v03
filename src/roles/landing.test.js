@@ -36,6 +36,8 @@ describe('landing public role visibility', () => {
         const html = readFileSync(LANDING_HTML_PATH, 'utf8');
 
         expect(html).toContain('id="operatorAccessForm"');
+        expect(html).toContain('id="operatorAccessUsername"');
+        expect(html).toContain('autocomplete="username"');
         expect(html).toContain('id="operatorAccessCode"');
     });
 });

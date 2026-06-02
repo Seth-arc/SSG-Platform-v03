@@ -209,6 +209,46 @@ describe('landing secure join flow', () => {
         expect(mockHideLoader).toHaveBeenCalledTimes(1);
     });
 
+    it('surfaces browser identity bootstrap failures without attempting session lookup', async () => {
+        const elements = {
+            sessionCode: createElement('alpha2026'),
+            displayName: createElement('Morgan')
+        };
+
+        global.document = {
+            getElementById(id) {
+                return elements[id] || null;
+            }
+        };
+
+        mockEnsureBrowserIdentity.mockRejectedValue(
+            new Error('The configured Supabase backend could not be reached. Verify the project URL, DNS, and network access, then reload this page.')
+        );
+
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'blue';
+        controller.selectedRoleSurface = 'facilitator';
+        controller.selectedRole = 'blue_facilitator';
+        controller.redirectToRole = vi.fn();
+
+        await controller.handleJoinSession({
+            preventDefault() {}
+        });
+
+        expect(mockEnsureBrowserIdentity).toHaveBeenCalledWith({
+            clientId: 'client-landing-test'
+        });
+        expect(mockDatabase.lookupJoinableSessionByCode).not.toHaveBeenCalled();
+        expect(mockDatabase.claimParticipantSeat).not.toHaveBeenCalled();
+        expect(mockShowToast).toHaveBeenCalledWith({
+            message: 'The configured Supabase backend could not be reached. Verify the project URL, DNS, and network access, then reload this page.',
+            type: 'error'
+        });
+        expect(controller.redirectToRole).not.toHaveBeenCalled();
+        expect(mockHideLoader).toHaveBeenCalledTimes(1);
+    });
+
     it('canonicalizes a bare scribe surface into a team-scoped seat before claiming', async () => {
         const elements = {
             sessionCode: createElement('alpha2026'),
