@@ -117,6 +117,8 @@ export const WHITE_CELL_DOM_IDS = [
     'timerStatusLabel',
     'timerStatus',
     'actionsBadge',
+    'proposalsBadge',
+    'responsesBadge',
     'participantsSummary',
     'participantsTeamFilter',
     'participantsRoleFilter',
@@ -1209,14 +1211,21 @@ export class WhiteCellController {
         this.renderProposals();
         this.renderAdjudicationQueue();
 
-        const badge = document.getElementById('actionsBadge');
-        if (badge) {
-            badge.textContent = this.getPendingActions().length;
-        }
+        this.updateSidebarBadge('actionsBadge', this.blueTeamActions.length);
+        this.updateSidebarBadge('proposalsBadge', this.greenTeamProposals.length);
+        this.updateSidebarBadge('responsesBadge', this.redTeamResponses.length);
     }
 
     getPendingActions() {
         return this.actions.filter((action) => canAdjudicateAction(action));
+    }
+
+    updateSidebarBadge(badgeId, count) {
+        const badge = document.getElementById(badgeId);
+        if (!badge) return;
+
+        badge.textContent = String(count);
+        badge.hidden = count <= 0;
     }
 
     isProposalAction(action = {}) {
@@ -2007,10 +2016,7 @@ export class WhiteCellController {
 
         this.renderRfiQueue();
 
-        const badge = document.getElementById('rfiBadge');
-        if (badge) {
-            badge.textContent = this.rfis.length;
-        }
+        this.updateSidebarBadge('rfiBadge', this.rfis.length);
     }
 
     renderRfiQueue() {

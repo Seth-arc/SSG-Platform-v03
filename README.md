@@ -112,6 +112,7 @@ Suggested rehearsal order:
    - `Reject Proposal`
 3. Forwarding creates the White Cell communication for the addressed team immediately.
 4. `Request Changes` and `Reject Proposal` record the White Cell review without forwarding the current proposal. If Green Team wants to continue that line, they must submit a new proposal revision.
+5. Sidebar badges are queue-specific: `Actions` counts Blue Team actions, `Proposals` counts Green Team proposals, `Move Responses` counts Red Team move responses, and `RFI` counts pending requests only.
 
 ### Export Limitations
 

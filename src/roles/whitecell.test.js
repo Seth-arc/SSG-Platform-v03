@@ -78,6 +78,7 @@ function createFakeElement(id = null, tagName = 'div') {
         id,
         tagName: tagName.toUpperCase(),
         value: '',
+        hidden: false,
         listeners: {},
         classList: {
             add() {},
@@ -409,6 +410,75 @@ describe('White Cell DOM contract', () => {
             { value: 'notetaker', label: 'Notetakers' },
             { value: 'whitecell', label: 'White Cell' }
         ]));
+    });
+
+    it('positions White Cell sidebar badges on the matching review queues', async () => {
+        const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
+        global.document = fakeDocument;
+
+        const pendingItems = [
+            {
+                id: 'action-101',
+                team: 'blue',
+                move: 2,
+                phase: 1,
+                goal: 'Stabilize port access',
+                mechanism: 'Diplomatic pressure',
+                status: 'submitted',
+                created_at: '2026-04-08T09:00:00.000Z',
+                submitted_at: '2026-04-08T09:05:00.000Z'
+            },
+            {
+                id: 'action-102',
+                team: 'green',
+                move: 2,
+                phase: 1,
+                goal: 'Coordinate biotech export alignment',
+                mechanism: 'Proposal',
+                status: 'submitted',
+                created_at: '2026-04-08T09:10:00.000Z',
+                submitted_at: '2026-04-08T09:15:00.000Z',
+                ally_contingencies: serializeProposalDetails({
+                    originators: ['EU', 'Japan'],
+                    objective: 'Align licensing posture before the next move.',
+                    category: 'Alignment',
+                    intendedPartners: 'Blue Team',
+                    delivery: 'Joint Statement',
+                    timingAndConditions: 'Immediately after White Cell review.',
+                    recipientTeam: 'blue'
+                })
+            },
+            {
+                id: 'action-103',
+                team: 'red',
+                move: 2,
+                phase: 1,
+                goal: 'Shape narrative response',
+                mechanism: 'Public messaging',
+                status: 'submitted',
+                created_at: '2026-04-08T09:20:00.000Z',
+                submitted_at: '2026-04-08T09:25:00.000Z'
+            }
+        ];
+
+        vi.spyOn(actionsStore, 'getPending').mockReturnValue(pendingItems);
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue(pendingItems);
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+
+        controller.syncActionsFromStore();
+
+        expect(fakeDocument.elements.actionsBadge.textContent).toBe('1');
+        expect(fakeDocument.elements.proposalsBadge.textContent).toBe('1');
+        expect(fakeDocument.elements.responsesBadge.textContent).toBe('1');
+        expect(fakeDocument.elements.actionsBadge.hidden).toBe(false);
+        expect(fakeDocument.elements.proposalsBadge.hidden).toBe(false);
+        expect(fakeDocument.elements.responsesBadge.hidden).toBe(false);
+        expect(fakeDocument.elements.actionsBadge.textContent).not.toBe('3');
     });
 
     it('renders facilitator action details needed for White Cell adjudication', async () => {
