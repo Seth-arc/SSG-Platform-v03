@@ -8,6 +8,7 @@ const E2E_MOCK_ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'
 const MOCK_TABLES = [
     'sessions',
     'game_state',
+    'live_demo_runtime_config',
     'operator_grants',
     'participants',
     'session_participants',
@@ -15,7 +16,23 @@ const MOCK_TABLES = [
     'requests',
     'communications',
     'timeline',
-    'notetaker_data'
+    'notetaker_data',
+    'research_audit_event_log',
+    'research_participant',
+    'research_note',
+    'research_note_revision',
+    'research_draft_revision',
+    'research_state_transition',
+    'research_action_content',
+    'research_proposal_content',
+    'research_adjudication_content',
+    'research_move_response_content',
+    'research_rfi_content',
+    'research_interaction_edge',
+    'research_data_quality_event',
+    'research_derived_participant_metrics',
+    'research_derived_session_metrics',
+    'research_export_codebook'
 ];
 
 function cloneValue(value) {
@@ -103,10 +120,25 @@ function readMockBootstrapConfig({
 }
 
 function buildInitialMockState() {
-    return {
+    const baseState = {
         counters: Object.fromEntries(MOCK_TABLES.map((tableName) => [tableName, 0])),
         tables: Object.fromEntries(MOCK_TABLES.map((tableName) => [tableName, []]))
     };
+
+    baseState.tables.live_demo_runtime_config = [
+        {
+            config_key: 'research_capture_mode',
+            config_value: 'standard',
+            updated_at: getTimestamp()
+        },
+        {
+            config_key: 'software_build_hash',
+            config_value: 'mock-build-hash',
+            updated_at: getTimestamp()
+        }
+    ];
+
+    return baseState;
 }
 
 function readMockState() {
@@ -736,6 +768,14 @@ function canReadTableRow(state, tableName, row, authUserId) {
     if (tableName === 'session_participants' || tableName === 'game_state' || tableName === 'actions'
         || tableName === 'requests' || tableName === 'communications' || tableName === 'timeline'
         || tableName === 'notetaker_data') {
+        return liveDemoCanReadSession(state, authUserId, row.session_id);
+    }
+
+    if (tableName.startsWith('research_') && tableName !== 'research_export_codebook') {
+        if (!row?.session_id) {
+            return true;
+        }
+
         return liveDemoCanReadSession(state, authUserId, row.session_id);
     }
 
@@ -1971,6 +2011,30 @@ export function createE2EMockSupabaseClient() {
                 const result = operatorSendCommunication(state, params);
                 writeMockState(state);
                 return result;
+            }
+
+            if (functionName === 'live_demo_research_capture_mode') {
+                const state = readMockState();
+                const captureMode = state.tables.live_demo_runtime_config.find((entry) => (
+                    entry.config_key === 'research_capture_mode'
+                ))?.config_value || 'standard';
+
+                return {
+                    data: captureMode,
+                    error: null
+                };
+            }
+
+            if (functionName === 'live_demo_software_build_hash') {
+                const state = readMockState();
+                const buildHash = state.tables.live_demo_runtime_config.find((entry) => (
+                    entry.config_key === 'software_build_hash'
+                ))?.config_value || null;
+
+                return {
+                    data: buildHash,
+                    error: null
+                };
             }
 
             if (functionName === 'update_proposal_recipient_status') {

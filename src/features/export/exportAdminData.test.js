@@ -59,17 +59,23 @@ describe('admin export helpers', () => {
         expect(participantsCsv).toContain('Alex');
     });
 
-    it('exports only JSON and CSV helpers from the feature barrel', () => {
+    it('exports JSON, CSV, and research archive helpers from the feature barrel', () => {
         expect(Object.keys(exportFeature)).toEqual(expect.arrayContaining([
             'arrayToCsv',
             'buildJsonExportPayload',
+            'buildResearchExportBundle',
+            'buildResearchReportHtml',
             'createExportPanel',
+            'createResearchExportArchiveBlob',
             'downloadCsv',
             'downloadJson',
             'downloadJsonData',
+            'downloadResearchExportArchive',
             'exportActionsCsv',
             'exportAllCsv',
             'exportParticipantsCsv',
+            'RESEARCH_EXPORT_FORMAT_REVISION',
+            'RESEARCH_EXPORT_SCHEMA_VERSION',
             'exportRequestsCsv',
             'exportSessionActionsCsv',
             'exportSessionParticipantsCsv',
@@ -78,19 +84,19 @@ describe('admin export helpers', () => {
             'exportSubset',
             'exportTimelineCsv',
             'exportToJson',
+            'openResearchPrintWindow',
             'showExportModal'
         ]));
-        expect(exportFeature).not.toHaveProperty('generatePrintableReport');
-        expect(exportFeature).not.toHaveProperty('openPrintableReport');
-        expect(exportFeature).not.toHaveProperty('printReport');
     });
 
-    it('removes PDF, XLSX, and ZIP controls from the live operator markup', () => {
+    it('renders research archive and print controls without adding XLSX or bundled PDF actions', () => {
         const masterHtml = readFileSync(new URL('../../../master.html', import.meta.url), 'utf8');
 
-        expect(masterHtml).not.toContain('exportPdfBtn');
-        expect(masterHtml).not.toContain('Print / PDF');
+        expect(masterHtml).toContain('exportResearchArchiveBtn');
+        expect(masterHtml).toContain('printResearchReportBtn');
+        expect(masterHtml).toContain('Download Research ZIP');
+        expect(masterHtml).toContain('Print Report');
         expect(masterHtml).not.toContain('XLSX');
-        expect(masterHtml).not.toContain('ZIP');
+        expect(masterHtml).not.toContain('Download PDF');
     });
 });

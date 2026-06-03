@@ -27,6 +27,7 @@ Run these files in Supabase SQL Editor in this exact order. Do not skip ahead. D
 8. `data/2026-04-17_seat_claim_role_input_normalization.sql`
 9. `data/2026-06-02_operator_code_runtime_config_table.sql`
 10. `data/2026-06-03_proposal_response_finalization_lock.sql`
+11. `data/2026-06-04_research_export_capture.sql`
 
 Why the order matters:
 
@@ -36,6 +37,7 @@ Why the order matters:
 - `2026-04-17_seat_claim_role_input_normalization.sql` must run before step 9 so the active seat-claim RPC strips hidden whitespace and zero-width characters before the final operator-code migration is applied
 - `2026-06-02_operator_code_runtime_config_table.sql` must run after the hardening chain so the final operator-code helper reads from `public.live_demo_runtime_config` instead of the unsupported `app.settings...` database setting path
 - `2026-06-03_proposal_response_finalization_lock.sql` must run after `2026-04-17_white_cell_backend_alignment.sql` because it reapplies the same proposal-recipient RPC and insert policy with the final-state lock for already-provisioned projects
+- `2026-06-04_research_export_capture.sql` must run last because it assumes the protected `public.live_demo_runtime_config` table already exists and extends the session-access contract onto the research export tables
 
 ## Do Not Run For A Fresh Bootstrap
 
@@ -46,11 +48,11 @@ These files are older point fixes and should not be run separately when you are 
 
 Their behavior is already covered by `COMPLETE_SCHEMA.sql` plus the later migration chain above.
 
-## Required Operator Code Row
+## Required Runtime Config Rows
 
-The hardened operator RPCs require a SHA-256 hash row in `public.live_demo_runtime_config`. Without this, Game Master and White Cell authorization will fail even if the schema and RPCs exist.
+The hardened operator RPCs require a SHA-256 hash row in `public.live_demo_runtime_config`. The research export path also reads `research_capture_mode` and can optionally surface `software_build_hash` in the exported manifest.
 
-Choose the operator code you want to use, then upsert its SHA-256 hash into the protected runtime-config table.
+Choose the operator code you want to use, then upsert its SHA-256 hash into the protected runtime-config table. Set `research_capture_mode` to `research` only when the session is operating under that consent posture.
 
 Example SQL:
 
@@ -63,16 +65,35 @@ values (
 on conflict (config_key) do update
 set config_value = excluded.config_value,
     updated_at = now();
+
+insert into public.live_demo_runtime_config (config_key, config_value)
+values (
+    'research_capture_mode',
+    'standard'
+)
+on conflict (config_key) do update
+set config_value = excluded.config_value,
+    updated_at = now();
+
+insert into public.live_demo_runtime_config (config_key, config_value)
+values (
+    'software_build_hash',
+    'replace-with-build-or-commit-hash'
+)
+on conflict (config_key) do update
+set config_value = excluded.config_value,
+    updated_at = now();
 ```
 
 Notes:
 
 - do not ship `admin2025` outside local testing
 - `2026-06-02_operator_code_runtime_config_table.sql` already creates the table and migrates any legacy `app.settings.live_demo_operator_code_sha256` value forward when one exists
+- `2026-06-04_research_export_capture.sql` seeds `research_capture_mode = 'standard'` and `software_build_hash = ''` when they are missing
 
 ## Smoke Checks
 
-Run these after all nine files and the operator-code row are in place.
+Run these after all eleven files and the runtime-config rows are in place.
 
 ### 1. Verify the operator hash row exists
 
@@ -97,7 +118,21 @@ Pass looks like:
 - one row
 - `matches = true`
 
-### 3. Verify the key live-demo RPCs exist
+### 3. Verify the research export runtime helpers exist
+
+```sql
+select
+    public.live_demo_research_capture_mode() as research_capture_mode,
+    public.live_demo_software_build_hash() as software_build_hash;
+```
+
+Pass looks like:
+
+- one row
+- `research_capture_mode` is either `standard` or `research`
+- `software_build_hash` is either null/empty by choice or the expected build identifier
+
+### 4. Verify the key live-demo RPCs exist
 
 ```sql
 select
@@ -129,7 +164,7 @@ Pass looks like these functions are present:
 - `operator_send_communication(uuid, text, text, text, text, uuid, jsonb)`
 - `update_proposal_recipient_status(uuid, text, jsonb)`
 
-### 4. Verify the seat-limit contract
+### 5. Verify the seat-limit contract
 
 ```sql
 select
@@ -155,7 +190,7 @@ If the UI still shows the toast `This role cannot be claimed in the live demo.` 
 - if that query returns `null`, the project is still on an outdated seat-claim contract
 - if that query returns `1` but joins still fail, the active `claim_session_role_seat` RPC likely still needs the input-normalization patch in step 8
 
-### 5. Verify communications metadata support exists
+### 6. Verify communications metadata support exists
 
 ```sql
 select

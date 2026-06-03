@@ -258,6 +258,31 @@ async function invokeKeepaliveRpc(functionName, payload = {}) {
     }
 }
 
+const RESEARCH_TABLE_QUERY_CONFIG = Object.freeze({
+    research_audit_event_log: { orderField: 'event_id', ascending: true },
+    research_participant: { orderField: 'first_seen_utc', ascending: true },
+    research_note: { orderField: 'created_utc', ascending: true },
+    research_note_revision: { orderField: 'edited_utc', ascending: true },
+    research_draft_revision: { orderField: 'created_utc', ascending: true },
+    research_state_transition: { orderField: 'transition_utc', ascending: true },
+    research_action_content: { orderField: 'submitted_utc', ascending: true },
+    research_proposal_content: { orderField: 'submitted_utc', ascending: true },
+    research_adjudication_content: { orderField: 'adjudicated_utc', ascending: true },
+    research_move_response_content: { orderField: 'submitted_utc', ascending: true },
+    research_rfi_content: { orderField: 'raised_utc', ascending: true },
+    research_interaction_edge: { orderField: 'occurred_utc', ascending: true },
+    research_data_quality_event: { orderField: 'occurred_utc', ascending: true },
+    research_derived_participant_metrics: { orderField: 'participant_pseudonym', ascending: true },
+    research_derived_session_metrics: { orderField: 'session_id', ascending: true },
+    research_export_codebook: { orderField: 'table_name', ascending: true }
+});
+
+function normalizeResearchCaptureMode(value) {
+    return String(value || '').trim().toLowerCase() === 'research'
+        ? 'research'
+        : 'standard';
+}
+
 /**
  * Database service with CRUD operations for all tables
  */
@@ -1259,6 +1284,54 @@ export const database = {
         return data || [];
     },
 
+    async getResearchCaptureMode() {
+        const { data, error } = await supabase.rpc('live_demo_research_capture_mode');
+        if (error) {
+            logger.warn('Research capture mode RPC unavailable; defaulting to standard.', error);
+            return 'standard';
+        }
+
+        return normalizeResearchCaptureMode(data);
+    },
+
+    async getResearchBuildHash() {
+        const { data, error } = await supabase.rpc('live_demo_software_build_hash');
+        if (error) {
+            logger.warn('Research build hash RPC unavailable; omitting runtime build hash.', error);
+            return null;
+        }
+
+        const normalizedValue = typeof data === 'string' ? data.trim() : '';
+        return normalizedValue || null;
+    },
+
+    async fetchResearchTable(tableName, sessionId) {
+        const queryConfig = RESEARCH_TABLE_QUERY_CONFIG[tableName];
+        if (!queryConfig) {
+            throw new DatabaseError(`Unsupported research table: ${tableName}`, 'fetchResearchTable');
+        }
+
+        let query = supabase
+            .from(tableName)
+            .select('*');
+
+        if (sessionId) {
+            query = query.eq('session_id', sessionId);
+        }
+
+        if (queryConfig.orderField) {
+            query = query.order(queryConfig.orderField, { ascending: queryConfig.ascending !== false });
+        }
+
+        const { data, error } = await query;
+        if (error) {
+            logger.warn(`Research table ${tableName} is unavailable; continuing with derived export data.`, error);
+            return [];
+        }
+
+        return data || [];
+    },
+
     // ==================== TIMELINE ====================
 
     /**
@@ -1368,6 +1441,85 @@ export const database = {
             actions,
             requests,
             timeline
+        };
+    },
+
+    async fetchResearchExportBundle(sessionId) {
+        const [
+            sessionBundle,
+            communications,
+            notetakerData,
+            captureMode,
+            softwareBuildHash,
+            researchAuditEventLog,
+            researchParticipants,
+            researchNotes,
+            researchNoteRevisions,
+            researchDraftRevisions,
+            researchStateTransitions,
+            researchActionContent,
+            researchProposalContent,
+            researchAdjudicationContent,
+            researchMoveResponseContent,
+            researchRfiContent,
+            researchInteractionEdges,
+            researchDataQualityEvents,
+            researchDerivedParticipantMetrics,
+            researchDerivedSessionMetrics,
+            researchCodebook
+        ] = await Promise.all([
+            this.fetchSessionBundle(sessionId),
+            this.fetchCommunications(sessionId).catch(() => []),
+            this.fetchNotetakerData(sessionId).catch(() => []),
+            this.getResearchCaptureMode(),
+            this.getResearchBuildHash(),
+            this.fetchResearchTable('research_audit_event_log', sessionId),
+            this.fetchResearchTable('research_participant', sessionId),
+            this.fetchResearchTable('research_note', sessionId),
+            this.fetchResearchTable('research_note_revision', null),
+            this.fetchResearchTable('research_draft_revision', sessionId),
+            this.fetchResearchTable('research_state_transition', sessionId),
+            this.fetchResearchTable('research_action_content', sessionId),
+            this.fetchResearchTable('research_proposal_content', sessionId),
+            this.fetchResearchTable('research_adjudication_content', sessionId),
+            this.fetchResearchTable('research_move_response_content', sessionId),
+            this.fetchResearchTable('research_rfi_content', sessionId),
+            this.fetchResearchTable('research_interaction_edge', sessionId),
+            this.fetchResearchTable('research_data_quality_event', sessionId),
+            this.fetchResearchTable('research_derived_participant_metrics', sessionId),
+            this.fetchResearchTable('research_derived_session_metrics', sessionId),
+            this.fetchResearchTable('research_export_codebook', null)
+        ]);
+        const researchNoteIds = new Set(
+            researchNotes
+                .map((note) => note?.note_id)
+                .filter(Boolean)
+        );
+
+        return {
+            ...sessionBundle,
+            communications,
+            notetakerData,
+            captureMode,
+            softwareBuildHash,
+            researchAuditEventLog,
+            researchParticipants,
+            researchNotes,
+            researchNoteRevisions: researchNoteIds.size
+                ? researchNoteRevisions.filter((revision) => researchNoteIds.has(revision?.note_id))
+                : researchNoteRevisions,
+            researchDraftRevisions,
+            researchStateTransitions,
+            researchActionContent,
+            researchProposalContent,
+            researchAdjudicationContent,
+            researchMoveResponseContent,
+            researchRfiContent,
+            researchInteractionEdges,
+            researchDataQualityEvents,
+            researchDerivedParticipantMetrics,
+            researchDerivedSessionMetrics,
+            researchCodebook
         };
     },
 

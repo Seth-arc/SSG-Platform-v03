@@ -84,6 +84,8 @@ Suggested rehearsal order:
 9. Adjudicate the submitted action from White Cell Lead.
 10. Use Game Master `Participant Roster` to remove one occupied seat, then rejoin it from a second browser.
 11. Export the session bundle from Game Master and confirm the expected files download.
+    - In standard mode, confirm the legacy JSON and per-table CSV downloads still work.
+    - When `public.live_demo_runtime_config.research_capture_mode = 'research'`, confirm `Download Research ZIP` and `Print Report` are also available and produce the research archive plus `report.html`.
 
 ## Operator Runbook
 
@@ -132,23 +134,24 @@ Suggested rehearsal order:
 - The White Cell `Session Timeline` now supports combined `Team`, `Role`, `Move`, and `Activity Type` filters.
 - Use the filters together to isolate a specific team or operator surface within a single move instead of scanning the full event stream.
 
-### Export Limitations
+### Export Modes
 
 - Exports are available only from the Game Master surface.
-- Current export formats are JSON and CSV only.
-- The exported session bundle includes:
-  - session metadata
-  - game state
-  - actions
-  - RFIs
-  - timeline
-  - participants
-- The exported bundle does not currently include:
-  - `notetaker_data`
-  - operator grants
-  - Supabase auth records
-  - audit trails
-  - PDF or print-ready exports
+- Standard mode always keeps the legacy downloads available:
+  - session JSON
+  - actions CSV
+  - RFIs CSV
+  - timeline CSV
+  - participants CSV
+- When `public.live_demo_runtime_config.research_capture_mode = 'research'`, Game Master also exposes the research export path:
+  - `Download Research ZIP` creates a single archive containing `manifest.json`, `codebook.json`, `report.html`, the event log, the research table projections, and a `legacy/` directory that preserves the current bundle layout unchanged.
+  - `Print Report` opens the generated `report.html` and uses the browser's native print dialog for print-to-PDF. The PDF is not stored in the archive; the reproducible source artifact is the archived `report.html`.
+- The research archive adds the process-rich artifacts that were missing from the legacy bundle:
+  - notetaker-derived notes
+  - audit/event log output
+  - draft, transition, adjudication, interaction, and data-quality projections
+- Operator grants, Supabase auth records, and the consent-gated `research_identity_map` remain outside the default de-identified archive.
+- No XLSX export path or binary PDF artifact is added in this revision.
 
 ### Recovery Steps If a Seat Gets Stuck
 

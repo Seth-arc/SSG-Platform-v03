@@ -52,7 +52,9 @@ const {
             session_id: 'session-gm-1',
             role: 'blue_facilitator',
             is_active: false
-        }))
+        })),
+        getResearchCaptureMode: vi.fn(() => Promise.resolve('standard')),
+        getResearchBuildHash: vi.fn(() => Promise.resolve('mock-build-hash'))
     },
     mockSessionStore: {
         getRole: vi.fn(() => 'white'),
@@ -172,6 +174,7 @@ function createElement() {
         value: '',
         style: {},
         disabled: false,
+        checked: false,
         dataset: {},
         classList: {
             add: vi.fn(),
@@ -214,6 +217,9 @@ describe('GameMaster live session monitoring', () => {
             'exportRequestsCsvBtn',
             'exportTimelineCsvBtn',
             'exportParticipantsCsvBtn',
+            'exportResearchArchiveBtn',
+            'printResearchReportBtn',
+            'exportResearchIncludeNotes',
             'sessionsList',
             'statsGrid',
             'recentActivity',
@@ -266,7 +272,7 @@ describe('GameMaster live session monitoring', () => {
         expect(mockSyncService.initialize).toHaveBeenCalledWith('session-gm-1');
     });
 
-    it('wires each live export button to the matching JSON or CSV action', async () => {
+    it('wires each live export button to the matching legacy or research action', async () => {
         const { GameMasterController } = await loadGameMasterModule();
         const controller = new GameMasterController();
         const exportSpy = vi.fn();
@@ -279,13 +285,17 @@ describe('GameMaster live session monitoring', () => {
         elements.exportRequestsCsvBtn.click();
         elements.exportTimelineCsvBtn.click();
         elements.exportParticipantsCsvBtn.click();
+        elements.exportResearchArchiveBtn.click();
+        elements.printResearchReportBtn.click();
 
         expect(exportSpy.mock.calls).toEqual([
             ['json'],
             ['csv-actions'],
             ['csv-requests'],
             ['csv-timeline'],
-            ['csv-participants']
+            ['csv-participants'],
+            ['research-archive'],
+            ['research-print']
         ]);
     });
 
@@ -335,18 +345,42 @@ describe('GameMaster live session monitoring', () => {
         expect(mockHideLoader).toHaveBeenCalled();
     });
 
-    it('disables JSON and CSV exports until a session is selected', async () => {
+    it('disables all exports until a session is selected and keeps research controls locked in standard mode', async () => {
         const { GameMasterController } = await loadGameMasterModule();
         const controller = new GameMasterController();
 
         controller.updateExportAvailability(null);
 
-        expect(elements.exportSelectionState.textContent).toBe('Select a session before exporting JSON or CSV data.');
+        expect(elements.exportSelectionState.textContent).toBe('Select a session before exporting JSON, CSV, or research archive data.');
         expect(elements.exportJsonBtn.disabled).toBe(true);
         expect(elements.exportActionsCsvBtn.disabled).toBe(true);
         expect(elements.exportRequestsCsvBtn.disabled).toBe(true);
         expect(elements.exportTimelineCsvBtn.disabled).toBe(true);
         expect(elements.exportParticipantsCsvBtn.disabled).toBe(true);
+        expect(elements.exportResearchArchiveBtn.disabled).toBe(true);
+        expect(elements.printResearchReportBtn.disabled).toBe(true);
+    });
+
+    it('enables legacy exports and unlocks research controls only when research capture mode is active', async () => {
+        const { GameMasterController } = await loadGameMasterModule();
+        const controller = new GameMasterController();
+
+        controller.updateExportAvailability({
+            session: { id: 'session-gm-1', name: 'Alpha Session' }
+        });
+
+        expect(elements.exportJsonBtn.disabled).toBe(false);
+        expect(elements.exportParticipantsCsvBtn.disabled).toBe(false);
+        expect(elements.exportResearchArchiveBtn.disabled).toBe(true);
+        expect(elements.printResearchReportBtn.disabled).toBe(true);
+
+        controller.researchCaptureMode = 'research';
+        controller.updateExportAvailability({
+            session: { id: 'session-gm-1', name: 'Alpha Session' }
+        });
+
+        expect(elements.exportResearchArchiveBtn.disabled).toBe(false);
+        expect(elements.printResearchReportBtn.disabled).toBe(false);
     });
 
     it('preserves fetched participants when the live participants store is still empty', async () => {

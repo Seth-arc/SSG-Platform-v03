@@ -21,6 +21,10 @@ const PROPOSAL_RESPONSE_FINALIZATION_LOCK_PATH = new URL(
     '../../data/2026-06-03_proposal_response_finalization_lock.sql',
     import.meta.url
 );
+const RESEARCH_EXPORT_CAPTURE_PATH = new URL(
+    '../../data/2026-06-04_research_export_capture.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -160,5 +164,47 @@ describe('database migration contracts', () => {
         expect(operatorCodeHashBody).toContain('FROM public.live_demo_runtime_config');
         expect(operatorCodeHashBody).toContain("WHERE config_key = 'operator_code_sha256'");
         expect(operatorCodeHashBody).not.toContain('current_setting(');
+    });
+
+    it('ships the research capture runtime config and protected lookup helpers', () => {
+        const sql = readFileSync(RESEARCH_EXPORT_CAPTURE_PATH, 'utf8');
+        const captureModeBody = extractFunctionBody(sql, 'live_demo_research_capture_mode');
+        const softwareBuildHashBody = extractFunctionBody(sql, 'live_demo_software_build_hash');
+
+        expect(sql).toContain("VALUES ('research_capture_mode', 'standard')");
+        expect(sql).toContain("VALUES ('software_build_hash', '')");
+        expect(captureModeBody).toContain("WHERE config_key = 'research_capture_mode'");
+        expect(captureModeBody).toContain("THEN 'research'");
+        expect(softwareBuildHashBody).toContain("WHERE config_key = 'software_build_hash'");
+    });
+
+    it('adds the research export schema and append-only audit spine', () => {
+        const sql = readFileSync(RESEARCH_EXPORT_CAPTURE_PATH, 'utf8');
+        const recordResearchEventBody = extractFunctionBody(sql, 'record_research_event');
+
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.research_audit_event_log');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.research_note');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.research_draft_revision');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.research_action_content');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.research_proposal_content');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.research_move_response_content');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.research_rfi_content');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.research_export_codebook');
+        expect(sql).toContain('research_audit_event_log is append-only');
+        expect(recordResearchEventBody).toContain('extensions.digest');
+        expect(recordResearchEventBody).toContain('previous_row.event_hash');
+        expect(recordResearchEventBody).toContain('INSERT INTO public.research_audit_event_log');
+    });
+
+    it('gates research-table reads through session access and keeps the identity map out of normal reads', () => {
+        const sql = readFileSync(RESEARCH_EXPORT_CAPTURE_PATH, 'utf8');
+
+        expect(sql).toContain('CREATE POLICY research_audit_event_log_select');
+        expect(sql).toContain('USING (public.live_demo_can_read_session(session_id));');
+        expect(sql).toContain('CREATE POLICY research_note_revision_select');
+        expect(sql).toContain('EXISTS (');
+        expect(sql).toContain('REVOKE ALL ON public.research_identity_map FROM authenticated;');
+        expect(sql).toContain('CREATE POLICY research_export_codebook_select');
+        expect(sql).toContain('USING (true);');
     });
 });

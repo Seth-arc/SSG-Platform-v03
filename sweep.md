@@ -1,6 +1,5 @@
 # Pre-Demo Issue Closure Backlog
-VITE_SUPABASE_URL=https://gsromgrxgrwwfywaoyme.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_pxSUKBORcLVUbQK6kP6tdg_6bysHKM7
+
 ## Recommended Order
 
 `1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7`

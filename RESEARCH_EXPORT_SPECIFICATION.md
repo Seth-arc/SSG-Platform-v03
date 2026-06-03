@@ -1,8 +1,8 @@
 # Research Export Specification
 
-Schema version: 1.1.0
+Schema version: 1.2.0
 
-Revision note: 1.1.0 adds the print-ready research report and its bundle file, generated from the same canonical data as the machine-readable tables.
+Revision note: 1.2.0 adds the artifact content tables, so the export retains the submitted substance of each action, proposal, adjudication, move response, and RFI, not only their timing and state. 1.1.0 added the print-ready research report and its bundle file, generated from the same canonical data as the machine-readable tables.
 
 ## Purpose
 
@@ -29,9 +29,10 @@ It does not change any demo behavior. Research capture is additive and gated beh
 1. Event-sourced spine. An append-only audit event log is the canonical record. Every other research table is a projection derived from it at export time. This resolves the current exclusion of the audit trail by making it the foundation rather than an afterthought.
 2. Process over terminal state. Lifecycle transitions are recorded as discrete, timestamped rows. A proposal that was ignored for eight minutes and then responded to is a different behavioral datum from one answered instantly, and the export must preserve that difference.
 3. Authored artifacts. Notes, drafts, and revisions are retained with author, role, seat, team, and timestamps, because they are the most interpretable qualitative evidence of reasoning.
-4. Analysis-ready outputs. JSON for fidelity, plus tidy long-format CSV and newline-delimited JSON that load directly into R, pandas, or Stata. Fields every analyst would otherwise re-derive are precomputed.
-5. De-identified by default. The exported bundle carries pseudonyms only. Any link to real identity lives in a separate, access-controlled table and is never included without explicit consent and access control.
-6. Reproducible and tamper-evident. Every bundle declares its schema version, software build, session configuration snapshot, and timezone, and the event log is hash-chained so the record can be trusted as faithful.
+4. Decision content, not only decision events. Alongside the timing and state of each action, proposal, adjudication, move response, and RFI, the export retains the submitted substance: titles, intent, selected targets and instruments, proposal and response text, adjudication rulings and reasoning, and question and answer pairs. The record must answer not only what happened and when, but what was actually decided.
+5. Analysis-ready outputs. JSON for fidelity, plus tidy long-format CSV and newline-delimited JSON that load directly into R, pandas, or Stata. Fields every analyst would otherwise re-derive are precomputed.
+6. De-identified by default. The exported bundle carries pseudonyms only. Any link to real identity lives in a separate, access-controlled table and is never included without explicit consent and access control.
+7. Reproducible and tamper-evident. Every bundle declares its schema version, software build, session configuration snapshot, and timezone, and the event log is hash-chained so the record can be trusted as faithful.
 
 ## Capture Mode
 
@@ -252,6 +253,119 @@ State vocabularies, aligned to the existing platform contract:
 - RFI: `pending`, `answered`.
 - Move response: `submitted`, `reviewed`.
 
+### Artifact content tables
+
+The tables above record when things happened and how their state changed. These tables record what was actually submitted. Each is a projection of the operational tables and the event-log payloads, carrying both typed columns for analysis and a `full_content` jsonb for complete fidelity. They are the substance behind the transitions, and they are what makes the export a decision record rather than a process trace.
+
+`research_action_content`, the full submitted content of each Blue action:
+
+```sql
+create table if not exists public.research_action_content (
+    action_id           uuid primary key,
+    session_id          uuid not null references public.sessions (id),
+    author_pseudonym    text not null,
+    author_role         text not null,
+    author_team         text not null,
+    move_number         integer,
+    action_sequence     integer,
+    title               text,
+    action_type         text,           -- category selected in the Take Action wizard
+    intent_text         text,           -- narrative statement of intent
+    targets             jsonb,           -- selected targets, from the wizard checkbox groups
+    instruments         jsonb,           -- selected instruments or measures
+    resources_committed jsonb,           -- assets or resources pledged
+    full_content        jsonb not null,  -- complete submitted payload, authoritative
+    submitted_utc       timestamptz,
+    final_status        text             -- submitted|adjudicated
+);
+```
+
+`research_proposal_content`, the full content of each Green proposal together with its White Cell review and final recipient state:
+
+```sql
+create table if not exists public.research_proposal_content (
+    proposal_id             uuid primary key,
+    session_id              uuid not null references public.sessions (id),
+    author_pseudonym        text not null,
+    author_role             text not null,
+    author_team             text not null,
+    move_number             integer,
+    title                   text,
+    intended_recipient_team text,        -- blue|red
+    proposal_text           text,         -- the proposal body
+    requested_action        text,         -- what the recipient is asked to do
+    rationale               text,
+    full_content            jsonb not null,
+    submitted_utc           timestamptz,
+    review_decision         text,         -- forwarded|changes_requested|rejected
+    review_reason           text,         -- reviewer's recorded note
+    reviewer_pseudonym      text,
+    reviewed_utc            timestamptz,
+    forwarded_to_team       text,         -- set when review_decision = forwarded
+    final_recipient_state   text          -- acknowledged|declined|ignored|responded, null if never forwarded
+);
+```
+
+`research_adjudication_content`, White Cell rulings on actions and other adjudicated items:
+
+```sql
+create table if not exists public.research_adjudication_content (
+    adjudication_id     uuid primary key,
+    session_id          uuid not null references public.sessions (id),
+    target_entity_type  text not null,   -- action|move_response
+    target_entity_id    uuid not null,
+    adjudicator_pseudonym text not null,
+    adjudicator_role    text not null,
+    move_number         integer,
+    ruling              text,            -- the verdict, e.g. permitted, permitted_with_constraint, denied
+    reasoning           text,            -- narrative justification
+    effects             jsonb,            -- changes applied to game state
+    adjudicated_utc     timestamptz not null
+);
+```
+
+`research_move_response_content`, Red Team move responses:
+
+```sql
+create table if not exists public.research_move_response_content (
+    move_response_id        uuid primary key,
+    session_id              uuid not null references public.sessions (id),
+    author_pseudonym        text not null,
+    author_role             text not null,
+    author_team             text not null,
+    move_number             integer,
+    responding_to_entity_type text,      -- proposal|action|move|communication
+    responding_to_entity_id uuid,
+    posture                 text,         -- chosen stance, e.g. hold, conditional_de_escalation
+    response_text           text,
+    rationale               text,
+    full_content            jsonb not null,
+    submitted_utc           timestamptz,
+    review_state            text          -- submitted|reviewed
+);
+```
+
+`research_rfi_content`, requests for information and their answers:
+
+```sql
+create table if not exists public.research_rfi_content (
+    rfi_id                  uuid primary key,
+    session_id              uuid not null references public.sessions (id),
+    requester_pseudonym     text not null,
+    requester_role          text not null,
+    requester_team          text not null,
+    move_number             integer,
+    question_text           text not null,
+    raised_utc              timestamptz not null,
+    answer_text             text,
+    answered_by_pseudonym   text,
+    answered_utc            timestamptz,
+    status                  text not null  -- pending|answered
+);
+```
+
+Free-text content in these tables is participant-authored and may carry identifying detail. It is classed `pseudonymous` in the codebook and is subject to the same consent posture as the notes appendix; a study that withholds notes should consider whether to redact or withhold free-text content fields as well.
+
 ### research_interaction_edge
 
 The session as an interaction network. One row per directed communicative act. Captured in `research` mode; in `standard` mode it can be reconstructed from communications at export time at coarser granularity.
@@ -406,6 +520,16 @@ research_export_<session_id>_<YYYYMMDDTHHMMSSZ>/
     drafts_revisions.json
     state_transitions.csv
     state_transitions.json
+    action_content.csv
+    action_content.json
+    proposal_content.csv
+    proposal_content.json
+    adjudication_content.csv
+    adjudication_content.json
+    move_response_content.csv
+    move_response_content.json
+    rfi_content.csv
+    rfi_content.json
     interaction_edges.csv
     interaction_edges.json
     data_quality_events.csv
@@ -430,8 +554,8 @@ research_export_<session_id>_<YYYYMMDDTHHMMSSZ>/
 
 ```json
 {
-  "schema_version": "1.1.0",
-  "export_format_revision": 2,
+  "schema_version": "1.2.0",
+  "export_format_revision": 3,
   "export_version": "<incrementing integer per generation of this session>",
   "software_build_hash": "<git commit or build hash of the platform>",
   "generated_at_utc": "<ISO 8601 UTC>",
@@ -447,6 +571,11 @@ research_export_<session_id>_<YYYYMMDDTHHMMSSZ>/
     "note_revisions": 0,
     "drafts_revisions": 0,
     "state_transitions": 0,
+    "action_content": 0,
+    "proposal_content": 0,
+    "adjudication_content": 0,
+    "move_response_content": 0,
+    "rfi_content": 0,
     "interaction_edges": 0,
     "data_quality_events": 0
   },
@@ -482,11 +611,13 @@ The PDF is therefore deliberately not stored as a binary in the bundle. The arch
 2. Session overview. Duration, number of moves, active participants, and the headline counts from `research_derived_session_metrics`: actions submitted and adjudicated, proposals submitted and forwarded, RFIs raised, communications sent, and mean proposal response latency.
 3. Participant activity. One table row per pseudonym, role, and seat, drawn from `research_derived_participant_metrics`: event count, notes, drafts, submissions, mean time to submit, mean response latency, active duration, disconnect count, and first and last event offsets. Pseudonyms only; no display names.
 4. Decision process timeline. A chronological list of the consequential events (submissions, forwards, adjudications, recipient state changes, RFIs) with move number and elapsed time since session start, so the deliberative sequence is legible at a glance.
-5. Proposal lifecycles. For each proposal, its path through `research_state_transition` from creation to its final recipient state, with timestamps and the dwell time spent in each state. This makes visible the difference between a proposal answered at once and one left pending before a response.
-6. Action deliberation. For each action, the draft and revision trail from `research_draft_revision` alongside its submission and adjudication transitions, including revision count, wizard page reached, and time to submit.
-7. Interaction summary. Counts from `research_interaction_edge` by channel and direction, presented as a compact matrix of who communicated with whom, so the session reads as an interaction network rather than a prose log.
-8. Data quality. Disconnects, reconnects, stale-seat releases, and heartbeat gaps from `research_data_quality_event`, so a reader sees where the record has gaps rather than inferring them.
-9. Notes appendix (gated). Seat-scoped and shared notes with author pseudonym, role, seat, and timestamps. Included only when capture mode is `research` and the report is generated with the notes flag enabled, because notes are the most interpretively sensitive content. When omitted, the appendix states that notes were withheld and points to `notes.csv` in the bundle.
+5. Proposals: content and review. For each proposal, its submitted content (title, intended recipient, body, requested action, rationale) from `research_proposal_content`, the White Cell review decision and reason, the recipient state, and the lifecycle timing from `research_state_transition`. This shows both what Green asked for and how White Cell handled it.
+6. Actions and adjudications. For each action, the submitted content (title, type, intent, targets, instruments, resources) from `research_action_content`, the deliberation trail from `research_draft_revision` (revisions, wizard page, time to submit), and the White Cell ruling, reasoning, and effects from `research_adjudication_content`.
+7. Move responses. Red Team responses from `research_move_response_content`: chosen posture, response text, rationale, and what each responded to.
+8. Requests for information. Each RFI from `research_rfi_content` with its question and answer, pending requests shown unanswered.
+9. Interaction summary. Counts from `research_interaction_edge` by channel and direction, presented as a compact matrix of who communicated with whom, so the session reads as an interaction network rather than a prose log.
+10. Data quality. Disconnects, reconnects, stale-seat releases, and heartbeat gaps from `research_data_quality_event`, so a reader sees where the record has gaps rather than inferring them.
+11. Notes appendix (gated). Seat-scoped and shared notes with author pseudonym, role, seat, and timestamps. Included only when capture mode is `research` and the report is generated with the notes flag enabled, because notes are the most interpretively sensitive content. When omitted, the appendix states that notes were withheld and points to `notes.csv` in the bundle.
 
 ### Print and Page CSS Contract
 
@@ -611,7 +742,7 @@ Each existing state-changing RPC (`claim_session_role_seat`, `operator_send_comm
 
 ### Projection and export generation
 
-The projection tables (`research_participant`, `research_state_transition`, `research_interaction_edge`, both derived-metric tables) are computed at export time from the event log and the existing operational tables, then serialized. Generating them at export rather than maintaining them live keeps the write path lean during a session and guarantees the projections are consistent with the canonical log.
+The projection tables (`research_participant`, `research_state_transition`, `research_interaction_edge`, the artifact content tables, and both derived-metric tables) are computed at export time from the event log and the existing operational tables, then serialized. The artifact content tables draw their typed columns and `full_content` from the operational action, proposal, communication, and RFI records together with the event-log payloads, so the substance of each decision is preserved exactly as submitted. Generating these at export rather than maintaining them live keeps the write path lean during a session and guarantees the projections are consistent with the canonical log.
 
 ### Game Master surface
 
@@ -629,7 +760,7 @@ Compute `participant_pseudonym` once at first seat claim using `extensions.diges
 
 ## Out of Scope for This Revision
 
-The following are deliberately excluded from version 1.1.0 and noted so they are not mistaken for omissions:
+The following are deliberately excluded from version 1.2.0 and noted so they are not mistaken for omissions:
 
 - Unattended server-side PDF rendering without a browser. The print-ready report is produced as `report.html` and converted to PDF through the browser's native print-to-PDF. A fully automated, browser-free PDF binary in the bundle would require a headless rendering step or a PDF library, which this revision declines in order to add no new dependency. It can be layered on later as a build-time step without changing the report's content or structure.
 - Real-time streaming of events to an external research store during a live session.

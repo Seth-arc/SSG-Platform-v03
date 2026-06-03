@@ -18,10 +18,13 @@ import {
     buildJsonExportPayload,
     downloadJsonData,
     downloadCsv,
+    buildResearchExportBundle,
+    downloadResearchExportArchive,
     exportSessionActionsCsv,
     exportSessionRequestsCsv,
     exportSessionTimelineCsv,
-    exportSessionParticipantsCsv
+    exportSessionParticipantsCsv,
+    openResearchPrintWindow
 } from '../features/export/index.js';
 import { navigateToApp } from '../core/navigation.js';
 import { OPERATOR_SURFACES } from '../core/teamContext.js';
@@ -156,25 +159,42 @@ export function buildConnectedParticipantsModel(sessionBundles = [], limit = 10)
 
 export function getAdminExportButtonConfig() {
     return [
-        { id: 'exportJsonBtn', action: 'json', successLabel: 'JSON' },
-        { id: 'exportActionsCsvBtn', action: 'csv-actions', successLabel: 'Actions CSV' },
-        { id: 'exportRequestsCsvBtn', action: 'csv-requests', successLabel: 'RFIs CSV' },
-        { id: 'exportTimelineCsvBtn', action: 'csv-timeline', successLabel: 'Timeline CSV' },
-        { id: 'exportParticipantsCsvBtn', action: 'csv-participants', successLabel: 'Participants CSV' }
+        { id: 'exportJsonBtn', action: 'json', successLabel: 'JSON', availability: 'legacy' },
+        { id: 'exportActionsCsvBtn', action: 'csv-actions', successLabel: 'Actions CSV', availability: 'legacy' },
+        { id: 'exportRequestsCsvBtn', action: 'csv-requests', successLabel: 'RFIs CSV', availability: 'legacy' },
+        { id: 'exportTimelineCsvBtn', action: 'csv-timeline', successLabel: 'Timeline CSV', availability: 'legacy' },
+        { id: 'exportParticipantsCsvBtn', action: 'csv-participants', successLabel: 'Participants CSV', availability: 'legacy' },
+        { id: 'exportResearchArchiveBtn', action: 'research-archive', successLabel: 'Research archive', availability: 'research' },
+        { id: 'printResearchReportBtn', action: 'research-print', successLabel: 'Research report', availability: 'research' }
     ];
 }
 
-export function buildExportSelectionState(sessionBundle = null) {
+export function buildExportSelectionState(sessionBundle = null, {
+    captureMode = 'standard'
+} = {}) {
     if (!sessionBundle?.session) {
         return {
             disabled: true,
-            message: 'Select a session before exporting JSON or CSV data.'
+            researchDisabled: true,
+            captureMode,
+            message: 'Select a session before exporting JSON, CSV, or research archive data.'
+        };
+    }
+
+    if (String(captureMode || '').trim().toLowerCase() !== 'research') {
+        return {
+            disabled: false,
+            researchDisabled: true,
+            captureMode: 'standard',
+            message: `JSON and CSV exports are ready for ${sessionBundle.session.name}. Research archive controls stay locked until research capture mode is enabled.`
         };
     }
 
     return {
         disabled: false,
-        message: `JSON and CSV exports are ready for ${sessionBundle.session.name}.`
+        researchDisabled: false,
+        captureMode: 'research',
+        message: `JSON, CSV, and research exports are ready for ${sessionBundle.session.name}.`
     };
 }
 
@@ -184,6 +204,8 @@ export class GameMasterController {
         this.currentSessionId = null;
         this.sessionBundles = new Map();
         this.storeUnsubscribers = [];
+        this.researchCaptureMode = 'standard';
+        this.researchBuildHash = null;
     }
 
     async init() {
@@ -215,6 +237,7 @@ export class GameMasterController {
         }
         this.bindEventListeners();
         this.subscribeToLiveStores();
+        await this.loadResearchExportRuntime();
         await this.loadSessions();
         logger.info('Game Master interface initialized');
     }
@@ -261,6 +284,7 @@ export class GameMasterController {
             : null;
 
         try {
+            await this.loadResearchExportRuntime();
             this.sessions = await database.getActiveSessions() || [];
 
             if (loader) loader.hide();
@@ -282,6 +306,28 @@ export class GameMasterController {
             logger.error('Failed to load sessions:', err);
             showToast('Failed to load sessions', { type: 'error' });
             if (loader) loader.hide();
+        }
+    }
+
+    async loadResearchExportRuntime() {
+        try {
+            const captureModePromise = typeof database.getResearchCaptureMode === 'function'
+                ? database.getResearchCaptureMode().catch(() => 'standard')
+                : Promise.resolve('standard');
+            const buildHashPromise = typeof database.getResearchBuildHash === 'function'
+                ? database.getResearchBuildHash().catch(() => null)
+                : Promise.resolve(null);
+            const [captureMode, softwareBuildHash] = await Promise.all([
+                captureModePromise,
+                buildHashPromise
+            ]);
+
+            this.researchCaptureMode = captureMode === 'research' ? 'research' : 'standard';
+            this.researchBuildHash = softwareBuildHash || null;
+        } catch (error) {
+            logger.warn('Failed to load research export runtime config; using standard mode.', error);
+            this.researchCaptureMode = 'standard';
+            this.researchBuildHash = null;
         }
     }
 
@@ -935,18 +981,57 @@ export class GameMasterController {
     }
 
     updateExportAvailability(sessionBundle) {
-        const selectionState = buildExportSelectionState(sessionBundle);
+        const selectionState = buildExportSelectionState(sessionBundle, {
+            captureMode: this.researchCaptureMode
+        });
         const exportSelectionState = document.getElementById('exportSelectionState');
         if (exportSelectionState) {
             exportSelectionState.textContent = selectionState.message;
         }
 
-        getAdminExportButtonConfig().forEach(({ id }) => {
+        getAdminExportButtonConfig().forEach(({ id, availability }) => {
             const button = document.getElementById(id);
             if (button) {
-                button.disabled = selectionState.disabled;
+                button.disabled = availability === 'research'
+                    ? selectionState.researchDisabled
+                    : selectionState.disabled;
             }
         });
+    }
+
+    getResearchNotesAppendixEnabled() {
+        const notesToggle = document.getElementById('exportResearchIncludeNotes');
+        return notesToggle?.checked === true;
+    }
+
+    getResearchExportVersion(sessionId) {
+        if (!sessionId || typeof window === 'undefined') {
+            return 1;
+        }
+
+        try {
+            const rawValue = window.localStorage?.getItem('esg_research_export_versions');
+            const versionMap = rawValue ? JSON.parse(rawValue) : {};
+            const nextVersion = Number(versionMap?.[sessionId] || 0) + 1;
+
+            window.localStorage?.setItem('esg_research_export_versions', JSON.stringify({
+                ...versionMap,
+                [sessionId]: nextVersion
+            }));
+
+            return nextVersion;
+        } catch (_error) {
+            return 1;
+        }
+    }
+
+    resolveResearchExporterPseudonym() {
+        const operatorAuth = sessionStore.getOperatorAuth?.();
+        if (operatorAuth?.grantId) {
+            return `gm-${String(operatorAuth.grantId).slice(0, 8)}`;
+        }
+
+        return 'game_master_operator';
     }
 
     async confirmDeleteSession(sessionId) {
@@ -1058,32 +1143,60 @@ export class GameMasterController {
             return;
         }
 
+        if (
+            exportConfig.availability === 'research'
+            && this.researchCaptureMode !== 'research'
+        ) {
+            showToast('Research archive export requires research capture mode on the backend.', { type: 'warning' });
+            return;
+        }
+
         showLoader({ message: 'Preparing export...' });
 
         try {
-            const bundle = this.buildSelectedLiveBundle() || await database.fetchSessionBundle(this.currentSessionId);
-            this.sessionBundles.set(this.currentSessionId, bundle);
+            const liveBundle = this.buildSelectedLiveBundle() || await database.fetchSessionBundle(this.currentSessionId);
+            this.sessionBundles.set(this.currentSessionId, liveBundle);
 
-            const sessionName = sanitizeFilenamePart(bundle.session?.name || this.currentSessionId);
-            const sessionCode = sanitizeFilenamePart(bundle.session?.metadata?.session_code || bundle.session?.id || 'session');
+            const sessionName = sanitizeFilenamePart(liveBundle.session?.name || this.currentSessionId);
+            const sessionCode = sanitizeFilenamePart(liveBundle.session?.metadata?.session_code || liveBundle.session?.id || 'session');
             const baseFilename = `esg-${sessionName}-${sessionCode}`;
 
             switch (action) {
                 case 'json':
-                    downloadJsonData(buildJsonExportPayload(bundle), `${baseFilename}.json`);
+                    downloadJsonData(buildJsonExportPayload(liveBundle), `${baseFilename}.json`);
                     break;
                 case 'csv-actions':
-                    downloadCsv(exportSessionActionsCsv(bundle.actions), `${baseFilename}-actions.csv`);
+                    downloadCsv(exportSessionActionsCsv(liveBundle.actions), `${baseFilename}-actions.csv`);
                     break;
                 case 'csv-requests':
-                    downloadCsv(exportSessionRequestsCsv(bundle.requests), `${baseFilename}-rfis.csv`);
+                    downloadCsv(exportSessionRequestsCsv(liveBundle.requests), `${baseFilename}-rfis.csv`);
                     break;
                 case 'csv-timeline':
-                    downloadCsv(exportSessionTimelineCsv(bundle.timeline), `${baseFilename}-timeline.csv`);
+                    downloadCsv(exportSessionTimelineCsv(liveBundle.timeline), `${baseFilename}-timeline.csv`);
                     break;
                 case 'csv-participants':
-                    downloadCsv(exportSessionParticipantsCsv(bundle.participants), `${baseFilename}-participants.csv`);
+                    downloadCsv(exportSessionParticipantsCsv(liveBundle.participants), `${baseFilename}-participants.csv`);
                     break;
+                case 'research-archive':
+                case 'research-print': {
+                    const researchBundle = await database.fetchResearchExportBundle(this.currentSessionId);
+                    const researchExport = await buildResearchExportBundle(researchBundle, {
+                        captureMode: this.researchCaptureMode,
+                        generatedByPseudonym: this.resolveResearchExporterPseudonym(),
+                        exportVersion: this.getResearchExportVersion(this.currentSessionId),
+                        includeNotesAppendix: this.getResearchNotesAppendixEnabled(),
+                        softwareBuildHash: this.researchBuildHash || researchBundle.softwareBuildHash || null
+                    });
+
+                    if (action === 'research-archive') {
+                        await downloadResearchExportArchive(researchExport, `${researchExport.rootFolderName}.zip`);
+                    } else {
+                        await openResearchPrintWindow(researchExport.reportHtml, {
+                            title: `${researchBundle.session?.name || 'Research report'}`
+                        });
+                    }
+                    break;
+                }
                 default:
                     throw new Error(`Unhandled export action: ${action}`);
             }

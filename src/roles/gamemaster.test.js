@@ -57,27 +57,44 @@ describe('GameMaster dashboard mapping', () => {
 });
 
 describe('GameMaster export wiring', () => {
-    it('matches the rendered export button set for the live JSON/CSV-only surface', () => {
+    it('matches the rendered export button set for the live legacy and research export surface', () => {
         expect(getAdminExportButtonConfig().map((config) => config.id)).toEqual([
             'exportJsonBtn',
             'exportActionsCsvBtn',
             'exportRequestsCsvBtn',
             'exportTimelineCsvBtn',
-            'exportParticipantsCsvBtn'
+            'exportParticipantsCsvBtn',
+            'exportResearchArchiveBtn',
+            'printResearchReportBtn'
         ]);
     });
 
-    it('disables export controls until a session is selected', () => {
+    it('disables all export controls until a session is selected and keeps research controls gated in standard mode', () => {
         expect(buildExportSelectionState()).toEqual({
             disabled: true,
-            message: 'Select a session before exporting JSON or CSV data.'
+            researchDisabled: true,
+            captureMode: 'standard',
+            message: 'Select a session before exporting JSON, CSV, or research archive data.'
         });
 
         expect(buildExportSelectionState({
             session: { id: 'session-1', name: 'Alpha' }
         })).toEqual({
             disabled: false,
-            message: 'JSON and CSV exports are ready for Alpha.'
+            researchDisabled: true,
+            captureMode: 'standard',
+            message: 'JSON and CSV exports are ready for Alpha. Research archive controls stay locked until research capture mode is enabled.'
+        });
+
+        expect(buildExportSelectionState({
+            session: { id: 'session-1', name: 'Alpha' }
+        }, {
+            captureMode: 'research'
+        })).toEqual({
+            disabled: false,
+            researchDisabled: false,
+            captureMode: 'research',
+            message: 'JSON, CSV, and research exports are ready for Alpha.'
         });
     });
 });
