@@ -278,9 +278,9 @@ const RESEARCH_TABLE_QUERY_CONFIG = Object.freeze({
 });
 
 function normalizeResearchCaptureMode(value) {
-    return String(value || '').trim().toLowerCase() === 'research'
-        ? 'research'
-        : 'standard';
+    return String(value || '').trim().toLowerCase() === 'standard'
+        ? 'standard'
+        : 'research';
 }
 
 /**
@@ -1287,8 +1287,8 @@ export const database = {
     async getResearchCaptureMode() {
         const { data, error } = await supabase.rpc('live_demo_research_capture_mode');
         if (error) {
-            logger.warn('Research capture mode RPC unavailable; defaulting to standard.', error);
-            return 'standard';
+            logger.warn('Research capture mode RPC unavailable; defaulting to research.', error);
+            return 'research';
         }
 
         return normalizeResearchCaptureMode(data);

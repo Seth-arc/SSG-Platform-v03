@@ -171,10 +171,11 @@ describe('database migration contracts', () => {
         const captureModeBody = extractFunctionBody(sql, 'live_demo_research_capture_mode');
         const softwareBuildHashBody = extractFunctionBody(sql, 'live_demo_software_build_hash');
 
-        expect(sql).toContain("VALUES ('research_capture_mode', 'standard')");
+        expect(sql).toContain("VALUES ('research_capture_mode', 'research')");
         expect(sql).toContain("VALUES ('software_build_hash', '')");
         expect(captureModeBody).toContain("WHERE config_key = 'research_capture_mode'");
-        expect(captureModeBody).toContain("THEN 'research'");
+        expect(captureModeBody).toContain("THEN 'standard'");
+        expect(captureModeBody).toContain("ELSE 'research'");
         expect(softwareBuildHashBody).toContain("WHERE config_key = 'software_build_hash'");
     });
 

@@ -9,7 +9,7 @@
 BEGIN;
 
 INSERT INTO public.live_demo_runtime_config (config_key, config_value)
-VALUES ('research_capture_mode', 'standard')
+VALUES ('research_capture_mode', 'research')
 ON CONFLICT (config_key) DO NOTHING;
 
 INSERT INTO public.live_demo_runtime_config (config_key, config_value)
@@ -23,13 +23,18 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-    SELECT CASE
-        WHEN LOWER(NULLIF(BTRIM(config_value), '')) = 'research' THEN 'research'
-        ELSE 'standard'
-    END
-    FROM public.live_demo_runtime_config
-    WHERE config_key = 'research_capture_mode'
-    LIMIT 1
+    SELECT COALESCE(
+        (
+            SELECT CASE
+                WHEN LOWER(NULLIF(BTRIM(config_value), '')) = 'standard' THEN 'standard'
+                ELSE 'research'
+            END
+            FROM public.live_demo_runtime_config
+            WHERE config_key = 'research_capture_mode'
+            LIMIT 1
+        ),
+        'research'
+    )
 $$;
 
 CREATE OR REPLACE FUNCTION public.live_demo_software_build_hash()

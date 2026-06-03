@@ -83,9 +83,9 @@ Suggested rehearsal order:
 8. Have at least two notetakers save different seat-scoped notes and shared captures at the same time.
 9. Adjudicate the submitted action from White Cell Lead.
 10. Use Game Master `Participant Roster` to remove one occupied seat, then rejoin it from a second browser.
-11. Export the session bundle from Game Master, then confirm the active White Cell seat exposes the same research path when enabled.
-    - In standard mode, confirm the legacy JSON and per-table CSV downloads still work.
-    - When `public.live_demo_runtime_config.research_capture_mode = 'research'`, confirm `Download Research ZIP` and `Print Report` are available in both Game Master and White Cell and produce the research archive plus `report.html`.
+11. Export the session bundle from Game Master, then confirm the active White Cell seat exposes the same research path by default.
+    - By default, confirm `Download Research ZIP` and `Print Report` are available in both Game Master and White Cell and produce the research archive plus `report.html`.
+    - When `public.live_demo_runtime_config.research_capture_mode = 'standard'`, confirm the legacy JSON and per-table CSV downloads still work while the research archive controls stay locked.
 
 ## Operator Runbook
 
@@ -137,16 +137,17 @@ Suggested rehearsal order:
 
 ### Export Modes
 
-- Standard exports are available from both Game Master and White Cell for the active session.
-- Standard mode always keeps the legacy downloads available:
+- Research capture mode is the default for new frontend sessions and blank-project bootstrap installs.
+- Legacy downloads remain available from both Game Master and White Cell in every mode:
   - session JSON
   - actions CSV
   - RFIs CSV
   - timeline CSV
   - participants CSV
-- When `public.live_demo_runtime_config.research_capture_mode = 'research'`, both Game Master and White Cell expose the research export path:
+- Unless `public.live_demo_runtime_config.research_capture_mode = 'standard'`, both Game Master and White Cell expose the research export path:
   - `Download Research ZIP` creates a single archive containing `manifest.json`, `codebook.json`, `report.html`, the event log, the research table projections, and a `legacy/` directory that preserves the current bundle layout unchanged.
   - `Print Report` opens the generated `report.html` and uses the browser's native print dialog for print-to-PDF. The PDF is not stored in the archive; the reproducible source artifact is the archived `report.html`.
+- Set `public.live_demo_runtime_config.research_capture_mode = 'standard'` only when you need the legacy-only consent posture for a session. That keeps the legacy downloads available and explicitly disables the research archive buttons.
 - The research archive adds the process-rich artifacts that were missing from the legacy bundle:
   - notetaker-derived notes
   - audit/event log output

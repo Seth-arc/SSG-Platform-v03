@@ -1448,7 +1448,7 @@ describe('White Cell DOM contract', () => {
         expect(showToast).toHaveBeenCalledWith({ message: 'Export downloaded.', type: 'success' });
     });
 
-    it('renders White Cell research export controls and locks them outside research mode', async () => {
+    it('renders White Cell research export controls by default and still locks them in standard mode', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { sessionStore } = await import('../stores/session.js');
         const fakeDocument = createFakeDocument(['exportDataList']);
@@ -1462,12 +1462,18 @@ describe('White Cell DOM contract', () => {
         });
 
         const controller = new WhiteCellController();
-        controller.researchCaptureMode = 'standard';
         controller.renderExportDataAdmin();
 
         expect(fakeDocument.elements.exportDataList.innerHTML).toContain('Download Research ZIP');
         expect(fakeDocument.elements.exportDataList.innerHTML).toContain('Print Report');
         expect(fakeDocument.elements.exportDataList.innerHTML).toContain('whiteCellExportResearchIncludeNotes');
+        expect(fakeDocument.elements.exportDataList.innerHTML).toContain(
+            'JSON, CSV, and research exports are ready for Alpha Session.'
+        );
+
+        controller.researchCaptureMode = 'standard';
+        controller.renderExportDataAdmin();
+
         expect(fakeDocument.elements.exportDataList.innerHTML).toContain(
             'Research archive controls stay locked until research capture mode is enabled.'
         );

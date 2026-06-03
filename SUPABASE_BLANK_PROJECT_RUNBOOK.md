@@ -52,7 +52,7 @@ Their behavior is already covered by `COMPLETE_SCHEMA.sql` plus the later migrat
 
 The hardened operator RPCs require a SHA-256 hash row in `public.live_demo_runtime_config`. The research export path also reads `research_capture_mode` and can optionally surface `software_build_hash` in the exported manifest.
 
-Choose the operator code you want to use, then upsert its SHA-256 hash into the protected runtime-config table. Set `research_capture_mode` to `research` only when the session is operating under that consent posture.
+Choose the operator code you want to use, then upsert its SHA-256 hash into the protected runtime-config table. Research capture now defaults to `research`; set `research_capture_mode` to `standard` only when you need the legacy-only consent posture.
 
 Example SQL:
 
@@ -69,7 +69,7 @@ set config_value = excluded.config_value,
 insert into public.live_demo_runtime_config (config_key, config_value)
 values (
     'research_capture_mode',
-    'standard'
+    'research'
 )
 on conflict (config_key) do update
 set config_value = excluded.config_value,
@@ -89,7 +89,7 @@ Notes:
 
 - do not ship `admin2025` outside local testing
 - `2026-06-02_operator_code_runtime_config_table.sql` already creates the table and migrates any legacy `app.settings.live_demo_operator_code_sha256` value forward when one exists
-- `2026-06-04_research_export_capture.sql` seeds `research_capture_mode = 'standard'` and `software_build_hash = ''` when they are missing
+- `2026-06-04_research_export_capture.sql` seeds `research_capture_mode = 'research'` and `software_build_hash = ''` when they are missing
 
 ## Smoke Checks
 
@@ -129,7 +129,7 @@ select
 Pass looks like:
 
 - one row
-- `research_capture_mode` is either `standard` or `research`
+- `research_capture_mode` is `research` by default, or `standard` only when you explicitly override it
 - `software_build_hash` is either null/empty by choice or the expected build identifier
 
 ### 4. Verify the key live-demo RPCs exist

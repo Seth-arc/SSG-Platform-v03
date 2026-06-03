@@ -128,7 +128,7 @@ function buildInitialMockState() {
     baseState.tables.live_demo_runtime_config = [
         {
             config_key: 'research_capture_mode',
-            config_value: 'standard',
+            config_value: 'research',
             updated_at: getTimestamp()
         },
         {
@@ -2017,10 +2017,12 @@ export function createE2EMockSupabaseClient() {
                 const state = readMockState();
                 const captureMode = state.tables.live_demo_runtime_config.find((entry) => (
                     entry.config_key === 'research_capture_mode'
-                ))?.config_value || 'standard';
+                ))?.config_value;
 
                 return {
-                    data: captureMode,
+                    data: String(captureMode || '').trim().toLowerCase() === 'standard'
+                        ? 'standard'
+                        : 'research',
                     error: null
                 };
             }

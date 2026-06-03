@@ -53,7 +53,7 @@ const {
             role: 'blue_facilitator',
             is_active: false
         })),
-        getResearchCaptureMode: vi.fn(() => Promise.resolve('standard')),
+        getResearchCaptureMode: vi.fn(() => Promise.resolve('research')),
         getResearchBuildHash: vi.fn(() => Promise.resolve('mock-build-hash'))
     },
     mockSessionStore: {
@@ -345,7 +345,7 @@ describe('GameMaster live session monitoring', () => {
         expect(mockHideLoader).toHaveBeenCalled();
     });
 
-    it('disables all exports until a session is selected and keeps research controls locked in standard mode', async () => {
+    it('disables all exports until a session is selected regardless of the default research mode', async () => {
         const { GameMasterController } = await loadGameMasterModule();
         const controller = new GameMasterController();
 
@@ -361,7 +361,7 @@ describe('GameMaster live session monitoring', () => {
         expect(elements.printResearchReportBtn.disabled).toBe(true);
     });
 
-    it('enables legacy exports and unlocks research controls only when research capture mode is active', async () => {
+    it('enables research exports by default and still locks them when standard mode is explicit', async () => {
         const { GameMasterController } = await loadGameMasterModule();
         const controller = new GameMasterController();
 
@@ -371,16 +371,16 @@ describe('GameMaster live session monitoring', () => {
 
         expect(elements.exportJsonBtn.disabled).toBe(false);
         expect(elements.exportParticipantsCsvBtn.disabled).toBe(false);
-        expect(elements.exportResearchArchiveBtn.disabled).toBe(true);
-        expect(elements.printResearchReportBtn.disabled).toBe(true);
+        expect(elements.exportResearchArchiveBtn.disabled).toBe(false);
+        expect(elements.printResearchReportBtn.disabled).toBe(false);
 
-        controller.researchCaptureMode = 'research';
+        controller.researchCaptureMode = 'standard';
         controller.updateExportAvailability({
             session: { id: 'session-gm-1', name: 'Alpha Session' }
         });
 
-        expect(elements.exportResearchArchiveBtn.disabled).toBe(false);
-        expect(elements.printResearchReportBtn.disabled).toBe(false);
+        expect(elements.exportResearchArchiveBtn.disabled).toBe(true);
+        expect(elements.printResearchReportBtn.disabled).toBe(true);
     });
 
     it('preserves fetched participants when the live participants store is still empty', async () => {

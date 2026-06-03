@@ -69,11 +69,11 @@ describe('GameMaster export wiring', () => {
         ]);
     });
 
-    it('disables all export controls until a session is selected and keeps research controls gated in standard mode', () => {
+    it('defaults the export selection state to research mode and still supports an explicit standard override', () => {
         expect(buildExportSelectionState()).toEqual({
             disabled: true,
             researchDisabled: true,
-            captureMode: 'standard',
+            captureMode: 'research',
             message: 'Select a session before exporting JSON, CSV, or research archive data.'
         });
 
@@ -81,20 +81,20 @@ describe('GameMaster export wiring', () => {
             session: { id: 'session-1', name: 'Alpha' }
         })).toEqual({
             disabled: false,
-            researchDisabled: true,
-            captureMode: 'standard',
-            message: 'JSON and CSV exports are ready for Alpha. Research archive controls stay locked until research capture mode is enabled.'
+            researchDisabled: false,
+            captureMode: 'research',
+            message: 'JSON, CSV, and research exports are ready for Alpha.'
         });
 
         expect(buildExportSelectionState({
             session: { id: 'session-1', name: 'Alpha' }
         }, {
-            captureMode: 'research'
+            captureMode: 'standard'
         })).toEqual({
             disabled: false,
-            researchDisabled: false,
-            captureMode: 'research',
-            message: 'JSON, CSV, and research exports are ready for Alpha.'
+            researchDisabled: true,
+            captureMode: 'standard',
+            message: 'JSON and CSV exports are ready for Alpha. Research archive controls stay locked until research capture mode is enabled.'
         });
     });
 });

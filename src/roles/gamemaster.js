@@ -170,7 +170,7 @@ export function getAdminExportButtonConfig() {
 }
 
 export function buildExportSelectionState(sessionBundle = null, {
-    captureMode = 'standard'
+    captureMode = 'research'
 } = {}) {
     if (!sessionBundle?.session) {
         return {
@@ -181,7 +181,7 @@ export function buildExportSelectionState(sessionBundle = null, {
         };
     }
 
-    if (String(captureMode || '').trim().toLowerCase() !== 'research') {
+    if (String(captureMode || '').trim().toLowerCase() === 'standard') {
         return {
             disabled: false,
             researchDisabled: true,
@@ -204,7 +204,7 @@ export class GameMasterController {
         this.currentSessionId = null;
         this.sessionBundles = new Map();
         this.storeUnsubscribers = [];
-        this.researchCaptureMode = 'standard';
+        this.researchCaptureMode = 'research';
         this.researchBuildHash = null;
     }
 
@@ -312,8 +312,8 @@ export class GameMasterController {
     async loadResearchExportRuntime() {
         try {
             const captureModePromise = typeof database.getResearchCaptureMode === 'function'
-                ? database.getResearchCaptureMode().catch(() => 'standard')
-                : Promise.resolve('standard');
+                ? database.getResearchCaptureMode().catch(() => 'research')
+                : Promise.resolve('research');
             const buildHashPromise = typeof database.getResearchBuildHash === 'function'
                 ? database.getResearchBuildHash().catch(() => null)
                 : Promise.resolve(null);
@@ -322,11 +322,11 @@ export class GameMasterController {
                 buildHashPromise
             ]);
 
-            this.researchCaptureMode = captureMode === 'research' ? 'research' : 'standard';
+            this.researchCaptureMode = captureMode === 'standard' ? 'standard' : 'research';
             this.researchBuildHash = softwareBuildHash || null;
         } catch (error) {
-            logger.warn('Failed to load research export runtime config; using standard mode.', error);
-            this.researchCaptureMode = 'standard';
+            logger.warn('Failed to load research export runtime config; using research mode.', error);
+            this.researchCaptureMode = 'research';
             this.researchBuildHash = null;
         }
     }

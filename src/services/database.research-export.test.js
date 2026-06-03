@@ -34,7 +34,7 @@ describe('database research export helpers', () => {
         });
     });
 
-    it('defaults the research capture mode to standard when the RPC is unavailable', async () => {
+    it('defaults the research capture mode to research when the RPC is unavailable', async () => {
         const { database } = await import('./database.js');
         mockSupabase.rpc.mockResolvedValueOnce({
             data: null,
@@ -43,7 +43,7 @@ describe('database research export helpers', () => {
             }
         });
 
-        await expect(database.getResearchCaptureMode()).resolves.toBe('standard');
+        await expect(database.getResearchCaptureMode()).resolves.toBe('research');
         expect(mockSupabase.rpc).toHaveBeenCalledWith('live_demo_research_capture_mode');
     });
 
