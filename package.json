@@ -1,7 +1,7 @@
 {
   "name": "esg-simulation-platform",
   "version": "2.0.0",
-  "description": "ESG Economic Statecraft Simulation Platform",
+  "description": "Statecraft Sim seminar simulation platform",
   "type": "module",
   "scripts": {
     "dev": "vite",

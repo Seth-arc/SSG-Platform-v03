@@ -1,4 +1,8 @@
-# ESG Simulation Platform
+# Statecraft Sim
+
+Public product name: `Statecraft Sim`.
+
+Legacy `SSG` and `esg` identifiers still appear in repository slugs, package names, deployment URLs, and browser storage keys. Those values are internal or operational identifiers only and are not the public-facing product name.
 
 ## Runtime Configuration
 
@@ -86,7 +90,8 @@ Suggested rehearsal order:
 ### Pages URL
 
 - Project Pages format: `https://<owner>.github.io/<repo-slug>/`
-- For this repository, the expected slug is usually `SSG_Simulation-Platform`, so the URL shape is `https://<owner>.github.io/SSG_Simulation-Platform/`
+- For this repository, the current repo slug is usually `SSG_Simulation-Platform`, so the URL shape is `https://<owner>.github.io/SSG_Simulation-Platform/`
+- That slug is a legacy operational identifier. The public product name remains `Statecraft Sim`.
 
 ### Session Creation
 
@@ -187,7 +192,7 @@ Validate these manually against the real backend because the automated suite doe
 
 This build targets a GitHub Pages project site URL shaped like `https://<owner>.github.io/<repo-slug>/`.
 
-The Pages deployment workflow sets `VITE_PUBLIC_BASE_PATH=/<repo-slug>/` from the repository name so multi-page routes resolve under the repo slug. It also requires repository secrets named `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` so the deployed Pages build uses the intended live Supabase project. Local `.env` files and generated `dist/` output are not deployment inputs for Pages. If you deploy this build anywhere else, override `VITE_PUBLIC_BASE_PATH` to the correct base path, such as `/` for a root site or custom domain.
+The Pages deployment workflow sets `VITE_PUBLIC_BASE_PATH=/<repo-slug>/` from the repository name so multi-page routes resolve under the repo slug. The repo slug can still contain legacy `SSG` naming even though the public product name is `Statecraft Sim`. It also requires repository secrets named `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` so the deployed Pages build uses the intended live Supabase project. Local `.env` files and generated `dist/` output are not deployment inputs for Pages. If you deploy this build anywhere else, override `VITE_PUBLIC_BASE_PATH` to the correct base path, such as `/` for a root site or custom domain.
 
 ## GitHub Pages Bootstrap
 

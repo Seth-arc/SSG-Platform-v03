@@ -1,6 +1,8 @@
 # Research Export Specification
 
-Schema version: 1.0.0
+Schema version: 1.1.0
+
+Revision note: 1.1.0 adds the print-ready research report and its bundle file, generated from the same canonical data as the machine-readable tables.
 
 ## Purpose
 
@@ -18,6 +20,7 @@ The specification covers:
 4. The bundle file layout, including backward-compatible legacy files.
 5. Integrity, versioning, and reproducibility requirements.
 6. Implementation notes mapping the schema onto the existing Supabase backend and Game Master export surface.
+7. A print-ready research report suitable for review, circulation, and archival, generated from the same canonical data.
 
 It does not change any demo behavior. Research capture is additive and gated behind an explicit mode.
 
@@ -390,6 +393,7 @@ The export produces a single archive. JSON preserves fidelity, CSV provides tidy
 research_export_<session_id>_<YYYYMMDDTHHMMSSZ>/
     manifest.json                         # see Manifest
     codebook.json                         # research_export_codebook as JSON
+    report.html                           # self-contained print-ready research report, see Print-Ready Research Report
     event_log.jsonl                       # canonical spine, one JSON object per line, ordered by event_id
     event_log.csv                         # same rows, tidy long format
     participants.csv
@@ -426,8 +430,8 @@ research_export_<session_id>_<YYYYMMDDTHHMMSSZ>/
 
 ```json
 {
-  "schema_version": "1.0.0",
-  "export_format_revision": 1,
+  "schema_version": "1.1.0",
+  "export_format_revision": 2,
   "export_version": "<incrementing integer per generation of this session>",
   "software_build_hash": "<git commit or build hash of the platform>",
   "generated_at_utc": "<ISO 8601 UTC>",
@@ -451,11 +455,125 @@ research_export_<session_id>_<YYYYMMDDTHHMMSSZ>/
     "last_event_hash": "<hash>",
     "session_checksum": "<sha256 over the ordered event_hash sequence>"
   },
-  "codebook_ref": "codebook.json"
+  "codebook_ref": "codebook.json",
+  "report_ref": "report.html"
 }
 ```
 
 All timestamps in every file are ISO 8601 in UTC with explicit offset, and the manifest declares the timezone so there is no ambiguity when sessions are run in different locations.
+
+## Print-Ready Research Report
+
+The bundle includes `report.html`, a self-contained, print-ready rendering of the session derived from the same canonical data as the machine-readable tables. The CSV and JSON files are the dataset; the report is the human-readable companion that a reviewer, supervisor, ethics committee, or co-investigator can read, circulate, or file without loading the data into an analysis environment. The report never introduces facts the tables do not contain; it is a formatted projection of `research_derived_session_metrics`, `research_derived_participant_metrics`, `research_state_transition`, `research_interaction_edge`, `research_data_quality_event`, and, where authorized, the notes.
+
+### Generation Approach
+
+The report is produced with no new dependency and no new format family. It is a single HTML file with embedded CSS, generated client-side at export time by the same Game Master export path that writes the rest of the bundle, using a template filled from the projection data. There is no server-side rendering step, no headless browser, and no PDF library.
+
+A print-ready PDF is obtained through the browser's native print-to-PDF: the Game Master surface offers a `Print Report` action that opens `report.html` and calls `window.print()`, and the same file produces an identical PDF when opened later and printed from any browser. This keeps the platform within HTML, CSS, and vanilla JavaScript, and it means the printed artifact is reproducible from the archived `report.html` alone.
+
+The PDF is therefore deliberately not stored as a binary in the bundle. The archived, reproducible source is `report.html`, and the PDF is rendered on demand from it. Unattended server-side PDF rendering without a browser remains optional and is described under Out of Scope.
+
+### Report Structure
+
+`report.html` presents the session in the following ordered sections, each beginning on a new printed page where length warrants it:
+
+1. Cover and provenance. Session name and id, capture mode, generation timestamp in UTC, schema version, software build hash, and the session checksum. This repeats the manifest essentials so a printed copy is self-documenting and verifiable against the bundle.
+2. Session overview. Duration, number of moves, active participants, and the headline counts from `research_derived_session_metrics`: actions submitted and adjudicated, proposals submitted and forwarded, RFIs raised, communications sent, and mean proposal response latency.
+3. Participant activity. One table row per pseudonym, role, and seat, drawn from `research_derived_participant_metrics`: event count, notes, drafts, submissions, mean time to submit, mean response latency, active duration, disconnect count, and first and last event offsets. Pseudonyms only; no display names.
+4. Decision process timeline. A chronological list of the consequential events (submissions, forwards, adjudications, recipient state changes, RFIs) with move number and elapsed time since session start, so the deliberative sequence is legible at a glance.
+5. Proposal lifecycles. For each proposal, its path through `research_state_transition` from creation to its final recipient state, with timestamps and the dwell time spent in each state. This makes visible the difference between a proposal answered at once and one left pending before a response.
+6. Action deliberation. For each action, the draft and revision trail from `research_draft_revision` alongside its submission and adjudication transitions, including revision count, wizard page reached, and time to submit.
+7. Interaction summary. Counts from `research_interaction_edge` by channel and direction, presented as a compact matrix of who communicated with whom, so the session reads as an interaction network rather than a prose log.
+8. Data quality. Disconnects, reconnects, stale-seat releases, and heartbeat gaps from `research_data_quality_event`, so a reader sees where the record has gaps rather than inferring them.
+9. Notes appendix (gated). Seat-scoped and shared notes with author pseudonym, role, seat, and timestamps. Included only when capture mode is `research` and the report is generated with the notes flag enabled, because notes are the most interpretively sensitive content. When omitted, the appendix states that notes were withheld and points to `notes.csv` in the bundle.
+
+### Print and Page CSS Contract
+
+The report's print fidelity comes entirely from CSS. The contract below is dependency-free and relies only on properties the browser print engine supports reliably.
+
+```html
+<style>
+  /* Page geometry. A4 by default; switch size to "letter" for US distribution. */
+  @page {
+    size: A4;
+    margin: 18mm 16mm 20mm 16mm;
+  }
+
+  /* Screen and print share a single high-contrast, print-safe base. */
+  :root {
+    --report-ink: #111111;
+    --report-rule: #333333;
+    --report-muted: #555555;
+  }
+
+  body {
+    color: var(--report-ink);
+    background: #ffffff;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 11pt;
+    line-height: 1.4;
+  }
+
+  /* Major sections start on a fresh page when printed. */
+  .report-section {
+    break-before: page;
+  }
+  .report-section:first-of-type {
+    break-before: auto;
+  }
+
+  /* Keep headings with their content and never split a table row or card. */
+  h1, h2, h3 {
+    break-after: avoid;
+  }
+  tr, .lifecycle-card, .participant-row {
+    break-inside: avoid;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    border: 1px solid var(--report-rule);
+    padding: 4pt 6pt;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  /* Status chips use borders and text, not background fills, so they survive
+     printers and print settings that drop background graphics. If a colored
+     fill is wanted, opt in explicitly and accept the print-setting dependency. */
+  .status-chip {
+    border: 1px solid var(--report-rule);
+    padding: 1pt 4pt;
+    font-size: 9pt;
+  }
+  .status-chip.color-fill {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide interactive controls when printing the report. */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+  }
+</style>
+```
+
+Notes on the contract:
+
+- Page numbering is left to the browser's own print header and footer rather than CSS margin boxes, because counter-based page numbers in `@page` margin boxes are not reliably supported by the common print-to-PDF engines. Session identity is therefore repeated in the cover and provenance sections of the document body so a printed copy remains identifiable regardless of the print dialog settings.
+- The report uses borders and text for status rather than background color, so it remains legible when a printer or a print setting discards background graphics. A colored fill is available only through an explicit opt-in class that sets `print-color-adjust: exact`, with the dependency on print settings stated rather than assumed.
+- All section breaks use the standard `break-before` and `break-inside` properties so pagination is clean without scripting.
+- The report contains no emoji and no icon fonts; status and structure are conveyed through type, rules, and layout.
+
+### Derivation and Reproducibility
+
+The report is generated from the projection tables and the event log, never from a separate computation, so the report and the dataset cannot disagree. Every figure shown in `report.html` is present in a CSV or JSON file in the same bundle, and the cover repeats the schema version, build hash, and session checksum, so a printed report can be tied back to the exact dataset and software build that produced it.
 
 ## Integrity and Reproducibility
 
@@ -499,15 +617,21 @@ The projection tables (`research_participant`, `research_state_transition`, `res
 
 Extend the existing Game Master export action with a research bundle option, available only when `research_capture_mode` is `research`. Keep the current export available unchanged. The research action produces the archive described in Bundle File Layout, including the `legacy/` directory so the present bundle remains a subset of the new one. Output formats stay within JSON and CSV as the repo currently specifies; `event_log.jsonl` is newline-delimited JSON and introduces no new dependency or format family.
 
+### Report generation and printing
+
+Generate `report.html` in the same client-side export path that writes the bundle, after the projection tables are computed. Build it as a single HTML string with the embedded print CSS from the Print and Page CSS Contract and the section structure above, filled from the projection data already in hand. No templating library or PDF dependency is added; the report is assembled with vanilla JavaScript string composition and written into the archive alongside the other files.
+
+Add a `Print Report` control to the Game Master surface that opens `report.html` and calls `window.print()`, marking the control itself with the `no-print` class so it does not appear in the printed output. Because the printed PDF is rendered by the browser from the archived HTML, the same `report.html` reproduces the same report later without the platform or the backend, which keeps the printable artifact reproducible from the bundle alone. Honor the notes appendix flag at generation time so a report can be produced with or without the qualitative notes depending on the consent posture of the study.
+
 ### Pseudonym derivation
 
 Compute `participant_pseudonym` once at first seat claim using `extensions.digest(auth_uid || session_salt, 'sha256')`, store the per-session salt on the session row, and reuse the pseudonym for all subsequent events from that auth identity in that session. Store the reverse link in `research_identity_map` only, and only when an identity export is authorized.
 
 ## Out of Scope for This Revision
 
-The following are deliberately excluded from version 1.0.0 and noted so they are not mistaken for omissions:
+The following are deliberately excluded from version 1.1.0 and noted so they are not mistaken for omissions:
 
-- PDF or print-ready research exports.
+- Unattended server-side PDF rendering without a browser. The print-ready report is produced as `report.html` and converted to PDF through the browser's native print-to-PDF. A fully automated, browser-free PDF binary in the bundle would require a headless rendering step or a PDF library, which this revision declines in order to add no new dependency. It can be layered on later as a build-time step without changing the report's content or structure.
 - Real-time streaming of events to an external research store during a live session.
 - Cross-session participant linkage across devices without a manually recorded identity link.
 - Video, audio, or screen capture of participants.
