@@ -9,20 +9,29 @@ const showLoader = vi.fn(() => ({ hide: vi.fn() }));
 const hideLoader = vi.fn();
 const {
     mockBuildJsonExportPayload,
+    mockBuildResearchExportBundle,
     mockDownloadJsonData,
     mockDownloadCsv,
+    mockDownloadResearchExportArchive,
     mockExportSessionActionsCsv,
     mockExportSessionRequestsCsv,
     mockExportSessionTimelineCsv,
-    mockExportSessionParticipantsCsv
+    mockExportSessionParticipantsCsv,
+    mockOpenResearchPrintWindow
 } = vi.hoisted(() => ({
     mockBuildJsonExportPayload: vi.fn((bundle) => ({ exported: true, ...bundle })),
+    mockBuildResearchExportBundle: vi.fn(async () => ({
+        rootFolderName: 'research-bundle',
+        reportHtml: '<html><body>Research report</body></html>'
+    })),
     mockDownloadJsonData: vi.fn(),
     mockDownloadCsv: vi.fn(),
+    mockDownloadResearchExportArchive: vi.fn(),
     mockExportSessionActionsCsv: vi.fn(() => 'actions-csv'),
     mockExportSessionRequestsCsv: vi.fn(() => 'requests-csv'),
     mockExportSessionTimelineCsv: vi.fn(() => 'timeline-csv'),
-    mockExportSessionParticipantsCsv: vi.fn(() => 'participants-csv')
+    mockExportSessionParticipantsCsv: vi.fn(() => 'participants-csv'),
+    mockOpenResearchPrintWindow: vi.fn()
 }));
 
 vi.mock('../components/ui/Toast.js', () => ({
@@ -46,12 +55,15 @@ vi.mock('../features/export/index.js', async () => {
     return {
         ...actual,
         buildJsonExportPayload: mockBuildJsonExportPayload,
+        buildResearchExportBundle: mockBuildResearchExportBundle,
         downloadJsonData: mockDownloadJsonData,
         downloadCsv: mockDownloadCsv,
+        downloadResearchExportArchive: mockDownloadResearchExportArchive,
         exportSessionActionsCsv: mockExportSessionActionsCsv,
         exportSessionRequestsCsv: mockExportSessionRequestsCsv,
         exportSessionTimelineCsv: mockExportSessionTimelineCsv,
-        exportSessionParticipantsCsv: mockExportSessionParticipantsCsv
+        exportSessionParticipantsCsv: mockExportSessionParticipantsCsv,
+        openResearchPrintWindow: mockOpenResearchPrintWindow
     };
 });
 
@@ -78,6 +90,7 @@ function createFakeElement(id = null, tagName = 'div') {
         id,
         tagName: tagName.toUpperCase(),
         value: '',
+        checked: false,
         hidden: false,
         listeners: {},
         classList: {
@@ -1388,5 +1401,71 @@ describe('White Cell DOM contract', () => {
         expect(mockExportSessionActionsCsv).toHaveBeenCalledWith([{ id: 'action-1' }]);
         expect(mockDownloadCsv).toHaveBeenCalledWith('actions-csv', 'session-12345678-actions.csv');
         expect(showToast).toHaveBeenCalledWith({ message: 'Export downloaded.', type: 'success' });
+    });
+
+    it('renders White Cell research export controls and locks them outside research mode', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { sessionStore } = await import('../stores/session.js');
+        const fakeDocument = createFakeDocument(['exportDataList']);
+
+        global.document = fakeDocument;
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('12345678-session');
+        vi.spyOn(sessionStore, 'getSessionData').mockReturnValue({
+            id: '12345678-session',
+            name: 'Alpha Session'
+        });
+
+        const controller = new WhiteCellController();
+        controller.researchCaptureMode = 'standard';
+        controller.renderExportDataAdmin();
+
+        expect(fakeDocument.elements.exportDataList.innerHTML).toContain('Download Research ZIP');
+        expect(fakeDocument.elements.exportDataList.innerHTML).toContain('Print Report');
+        expect(fakeDocument.elements.exportDataList.innerHTML).toContain('whiteCellExportResearchIncludeNotes');
+        expect(fakeDocument.elements.exportDataList.innerHTML).toContain(
+            'Research archive controls stay locked until research capture mode is enabled.'
+        );
+    });
+
+    it('exports the research archive from the fetched research bundle for the active session', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+
+        global.document = createFakeDocument();
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('12345678-session');
+        vi.spyOn(sessionStore, 'getOperatorAuth').mockReturnValue({
+            grantId: 'grant-12345678'
+        });
+        const fetchResearchExportBundle = vi.spyOn(database, 'fetchResearchExportBundle').mockResolvedValue({
+            session: { id: '12345678-session', name: 'Alpha Session' },
+            softwareBuildHash: 'bundle-build-hash'
+        });
+
+        const controller = new WhiteCellController();
+        controller.researchCaptureMode = 'research';
+        controller.researchBuildHash = 'runtime-build-hash';
+        await controller.handleExportAdmin('research-archive');
+
+        expect(fetchResearchExportBundle).toHaveBeenCalledWith('12345678-session');
+        expect(mockBuildResearchExportBundle).toHaveBeenCalledWith(
+            expect.objectContaining({
+                session: { id: '12345678-session', name: 'Alpha Session' },
+                softwareBuildHash: 'bundle-build-hash'
+            }),
+            expect.objectContaining({
+                captureMode: 'research',
+                includeNotesAppendix: false,
+                softwareBuildHash: 'runtime-build-hash',
+                generatedByPseudonym: expect.any(String)
+            })
+        );
+        expect(mockDownloadResearchExportArchive).toHaveBeenCalledWith(
+            expect.objectContaining({ rootFolderName: 'research-bundle' }),
+            'research-bundle.zip'
+        );
+        expect(showToast).toHaveBeenCalledWith({ message: 'Research archive is ready.', type: 'success' });
     });
 });

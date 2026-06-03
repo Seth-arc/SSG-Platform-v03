@@ -30,12 +30,15 @@ import {
 } from '../features/actions/proposalDetails.js';
 import {
     buildJsonExportPayload,
+    buildResearchExportBundle,
     downloadJsonData,
     downloadCsv,
+    downloadResearchExportArchive,
     exportSessionActionsCsv,
     exportSessionRequestsCsv,
     exportSessionTimelineCsv,
-    exportSessionParticipantsCsv
+    exportSessionParticipantsCsv,
+    openResearchPrintWindow
 } from '../features/export/index.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { CONFIG } from '../core/config.js';
@@ -176,6 +179,93 @@ export function getWhiteCellDomContract(documentRef = document) {
     return {
         elements,
         missing: WHITE_CELL_DOM_IDS.filter((id) => !elements[id])
+    };
+}
+
+export function getWhiteCellAdminExportButtonConfig() {
+    return [
+        {
+            action: 'actions-csv',
+            availability: 'legacy',
+            className: 'btn btn-secondary btn-sm',
+            label: 'Export Actions (CSV)',
+            successMessage: 'Export downloaded.'
+        },
+        {
+            action: 'rfis-csv',
+            availability: 'legacy',
+            className: 'btn btn-secondary btn-sm',
+            label: 'Export RFIs (CSV)',
+            successMessage: 'Export downloaded.'
+        },
+        {
+            action: 'timeline-csv',
+            availability: 'legacy',
+            className: 'btn btn-secondary btn-sm',
+            label: 'Export Timeline (CSV)',
+            successMessage: 'Export downloaded.'
+        },
+        {
+            action: 'participants-csv',
+            availability: 'legacy',
+            className: 'btn btn-secondary btn-sm',
+            label: 'Export Participants (CSV)',
+            successMessage: 'Export downloaded.'
+        },
+        {
+            action: 'session-json',
+            availability: 'legacy',
+            className: 'btn btn-primary btn-sm',
+            label: 'Export Full Session (JSON)',
+            successMessage: 'Export downloaded.'
+        },
+        {
+            action: 'research-archive',
+            availability: 'research',
+            className: 'btn btn-primary btn-sm',
+            label: 'Download Research ZIP',
+            successMessage: 'Research archive is ready.'
+        },
+        {
+            action: 'research-print',
+            availability: 'research',
+            className: 'btn btn-secondary btn-sm',
+            label: 'Print Report',
+            successMessage: 'Research report is ready.'
+        }
+    ];
+}
+
+export function buildWhiteCellExportSelectionState({
+    sessionId = null,
+    sessionName = null,
+    captureMode = 'standard'
+} = {}) {
+    const sessionLabel = sessionName || 'the active session';
+
+    if (!sessionId) {
+        return {
+            disabled: true,
+            researchDisabled: true,
+            captureMode: 'standard',
+            message: 'Join a session before exporting JSON, CSV, or research archive data.'
+        };
+    }
+
+    if (String(captureMode || '').trim().toLowerCase() !== 'research') {
+        return {
+            disabled: false,
+            researchDisabled: true,
+            captureMode: 'standard',
+            message: `JSON and CSV exports are ready for ${sessionLabel}. Research archive controls stay locked until research capture mode is enabled.`
+        };
+    }
+
+    return {
+        disabled: false,
+        researchDisabled: false,
+        captureMode: 'research',
+        message: `JSON, CSV, and research exports are ready for ${sessionLabel}.`
     };
 }
 
@@ -715,6 +805,8 @@ export class WhiteCellController {
         this.teamContext = resolveTeamContext();
         this.teamId = null;
         this.operatorRole = WHITE_CELL_OPERATOR_ROLES.LEAD;
+        this.researchCaptureMode = 'standard';
+        this.researchBuildHash = null;
     }
 
     async init() {
@@ -759,6 +851,7 @@ export class WhiteCellController {
             participantId: sessionStore.getSessionParticipantId?.() || null
         });
         this.configureTeamLabels();
+        await this.loadResearchExportRuntime();
         this.bindEventListeners();
         this.subscribeToLiveData();
         this.syncGameStateFromStore(gameStateStore.getState() || sessionStore.getSessionData()?.gameState || null);
@@ -769,7 +862,6 @@ export class WhiteCellController {
         this.syncParticipantsFromStore();
         this.updateTimerDisplay();
         this.updateTimerStatusDisplay();
-        this.renderExportDataAdmin();
         this.loadSessionsAdmin().catch((err) => {
             logger.error('Failed to load sessions for admin panel:', err);
         });
@@ -2603,6 +2695,7 @@ export class WhiteCellController {
     }
 
     async loadSessionsAdmin() {
+        await this.loadResearchExportRuntime();
         const container = document.getElementById('sessionsList');
         const summary = document.getElementById('sessionsSummary');
         if (!container) return;
@@ -2751,20 +2844,128 @@ export class WhiteCellController {
         }
     }
 
+    async loadResearchExportRuntime() {
+        try {
+            const captureModePromise = typeof database.getResearchCaptureMode === 'function'
+                ? database.getResearchCaptureMode().catch(() => 'standard')
+                : Promise.resolve('standard');
+            const buildHashPromise = typeof database.getResearchBuildHash === 'function'
+                ? database.getResearchBuildHash().catch(() => null)
+                : Promise.resolve(null);
+            const [captureMode, softwareBuildHash] = await Promise.all([
+                captureModePromise,
+                buildHashPromise
+            ]);
+
+            this.researchCaptureMode = captureMode === 'research' ? 'research' : 'standard';
+            this.researchBuildHash = softwareBuildHash || null;
+        } catch (error) {
+            logger.warn('Failed to load research export runtime config; using standard mode.', error);
+            this.researchCaptureMode = 'standard';
+            this.researchBuildHash = null;
+        }
+
+        this.renderExportDataAdmin();
+    }
+
+    getResearchNotesAppendixEnabled() {
+        return document.getElementById('whiteCellExportResearchIncludeNotes')?.checked === true;
+    }
+
+    getResearchExportVersion(sessionId) {
+        if (!sessionId || typeof window === 'undefined') {
+            return 1;
+        }
+
+        try {
+            const rawValue = window.localStorage?.getItem('esg_research_export_versions');
+            const versionMap = rawValue ? JSON.parse(rawValue) : {};
+            const nextVersion = Number(versionMap?.[sessionId] || 0) + 1;
+
+            window.localStorage?.setItem('esg_research_export_versions', JSON.stringify({
+                ...versionMap,
+                [sessionId]: nextVersion
+            }));
+
+            return nextVersion;
+        } catch (error) {
+            logger.warn('Failed to persist research export version; defaulting to 1.', error);
+            return 1;
+        }
+    }
+
+    resolveResearchExporterPseudonym() {
+        const operatorAuth = sessionStore.getOperatorAuth?.();
+        const roleLabel = this.isLeadOperator() ? 'lead' : 'support';
+
+        if (operatorAuth?.grantId) {
+            return `white_cell_${roleLabel}-${String(operatorAuth.grantId).slice(0, 8)}`;
+        }
+
+        return `white_cell_${roleLabel}_operator`;
+    }
+
     renderExportDataAdmin() {
         const container = document.getElementById('exportDataList');
         if (!container) return;
 
+        const includeNotesAppendix = this.getResearchNotesAppendixEnabled();
+        const sessionData = sessionStore.getSessionData?.() || null;
+        const selectionState = buildWhiteCellExportSelectionState({
+            sessionId: sessionStore.getSessionId(),
+            sessionName: sessionData?.name || null,
+            captureMode: this.researchCaptureMode
+        });
+        const legacyButtons = getWhiteCellAdminExportButtonConfig()
+            .filter(({ availability }) => availability === 'legacy')
+            .map(({ action, className, label }) => (
+                `<button type="button" class="${className}" data-export-type="${action}" ${selectionState.disabled ? 'disabled' : ''}>${label}</button>`
+            ))
+            .join('');
+        const researchButtons = getWhiteCellAdminExportButtonConfig()
+            .filter(({ availability }) => availability === 'research')
+            .map(({ action, className, label }) => (
+                `<button type="button" class="${className}" data-export-type="${action}" ${selectionState.researchDisabled ? 'disabled' : ''}>${label}</button>`
+            ))
+            .join('');
+
         container.innerHTML = `
-            <div style="display: grid; gap: var(--space-2);">
-                <button type="button" class="btn btn-secondary btn-sm" data-export-type="actions-csv">Export Actions (CSV)</button>
-                <button type="button" class="btn btn-secondary btn-sm" data-export-type="rfis-csv">Export RFIs (CSV)</button>
-                <button type="button" class="btn btn-secondary btn-sm" data-export-type="timeline-csv">Export Timeline (CSV)</button>
-                <button type="button" class="btn btn-secondary btn-sm" data-export-type="participants-csv">Export Participants (CSV)</button>
-                <button type="button" class="btn btn-primary btn-sm" data-export-type="session-json">Export Full Session (JSON)</button>
+            <div style="display: grid; gap: var(--space-3);">
+                <p class="text-xs text-gray-500" id="whiteCellExportSelectionState">${this.escapeHtml(selectionState.message)}</p>
+                <div class="card card-bordered" style="padding: var(--space-3);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3);">
+                        <div>
+                            <h4 class="text-sm font-semibold" style="margin: 0 0 var(--space-1);">Legacy Session Bundle</h4>
+                            <p class="text-xs text-gray-500" style="margin: 0;">Exports are scoped to the currently active session.</p>
+                        </div>
+                    </div>
+                    <div style="display: grid; gap: var(--space-2);">
+                        ${legacyButtons}
+                    </div>
+                </div>
+                <div class="card card-bordered" style="padding: var(--space-3);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3);">
+                        <div>
+                            <h4 class="text-sm font-semibold" style="margin: 0 0 var(--space-1);">Research Bundle</h4>
+                            <p class="text-xs text-gray-500" style="margin: 0;">White Cell can export the same research ZIP and printable report as Game Master when backend research capture mode is enabled.</p>
+                        </div>
+                        <span class="text-xs text-gray-500" aria-live="polite">${selectionState.captureMode === 'research' ? 'Research mode' : 'Standard mode'}</span>
+                    </div>
+                    <label for="whiteCellExportResearchIncludeNotes" class="text-sm" style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3);">
+                        <input type="checkbox" id="whiteCellExportResearchIncludeNotes" ${selectionState.researchDisabled ? 'disabled' : ''}>
+                        <span>Include notes appendix in <code>report.html</code></span>
+                    </label>
+                    <div style="display: grid; gap: var(--space-2);">
+                        ${researchButtons}
+                    </div>
+                </div>
             </div>
-            <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">Exports are scoped to the currently active session.</p>
         `;
+
+        const notesToggle = document.getElementById('whiteCellExportResearchIncludeNotes');
+        if (notesToggle && includeNotesAppendix && !selectionState.researchDisabled) {
+            notesToggle.checked = true;
+        }
     }
 
     async handleExportAdmin(exportType) {
@@ -2774,37 +2975,68 @@ export class WhiteCellController {
             return;
         }
 
+        const exportConfig = getWhiteCellAdminExportButtonConfig().find((config) => config.action === exportType);
+        if (!exportConfig) {
+            showToast({ message: `Unknown export type: ${exportType}`, type: 'error' });
+            return;
+        }
+
+        if (exportConfig.availability === 'research' && this.researchCaptureMode !== 'research') {
+            showToast({
+                message: 'Research archive export requires research capture mode on the backend.',
+                type: 'warning'
+            });
+            return;
+        }
+
         const loader = showLoader({ message: 'Preparing export...' });
         try {
-            const bundle = await database.fetchSessionBundle(sessionId);
+            if (exportConfig.availability === 'research') {
+                const researchBundle = await database.fetchResearchExportBundle(sessionId);
+                const researchExport = await buildResearchExportBundle(researchBundle, {
+                    captureMode: this.researchCaptureMode,
+                    generatedByPseudonym: this.resolveResearchExporterPseudonym(),
+                    exportVersion: this.getResearchExportVersion(sessionId),
+                    includeNotesAppendix: this.getResearchNotesAppendixEnabled(),
+                    softwareBuildHash: this.researchBuildHash || researchBundle.softwareBuildHash || null
+                });
 
-            if (exportType === 'actions-csv') {
-                downloadCsv(
-                    exportSessionActionsCsv(bundle.actions),
-                    `session-${sessionId.slice(0, 8)}-actions.csv`
-                );
-            } else if (exportType === 'rfis-csv') {
-                downloadCsv(
-                    exportSessionRequestsCsv(bundle.requests),
-                    `session-${sessionId.slice(0, 8)}-rfis.csv`
-                );
-            } else if (exportType === 'timeline-csv') {
-                downloadCsv(
-                    exportSessionTimelineCsv(bundle.timeline),
-                    `session-${sessionId.slice(0, 8)}-timeline.csv`
-                );
-            } else if (exportType === 'participants-csv') {
-                downloadCsv(
-                    exportSessionParticipantsCsv(bundle.participants),
-                    `session-${sessionId.slice(0, 8)}-participants.csv`
-                );
-            } else if (exportType === 'session-json') {
-                const payload = buildJsonExportPayload(bundle);
-                downloadJsonData(payload, `session-${sessionId.slice(0, 8)}.json`);
+                if (exportType === 'research-archive') {
+                    await downloadResearchExportArchive(researchExport, `${researchExport.rootFolderName}.zip`);
+                } else {
+                    await openResearchPrintWindow(researchExport.reportHtml, {
+                        title: `${researchBundle.session?.name || 'Research report'}`
+                    });
+                }
             } else {
-                throw new Error(`Unknown export type: ${exportType}`);
+                const bundle = await database.fetchSessionBundle(sessionId);
+
+                if (exportType === 'actions-csv') {
+                    downloadCsv(
+                        exportSessionActionsCsv(bundle.actions),
+                        `session-${sessionId.slice(0, 8)}-actions.csv`
+                    );
+                } else if (exportType === 'rfis-csv') {
+                    downloadCsv(
+                        exportSessionRequestsCsv(bundle.requests),
+                        `session-${sessionId.slice(0, 8)}-rfis.csv`
+                    );
+                } else if (exportType === 'timeline-csv') {
+                    downloadCsv(
+                        exportSessionTimelineCsv(bundle.timeline),
+                        `session-${sessionId.slice(0, 8)}-timeline.csv`
+                    );
+                } else if (exportType === 'participants-csv') {
+                    downloadCsv(
+                        exportSessionParticipantsCsv(bundle.participants),
+                        `session-${sessionId.slice(0, 8)}-participants.csv`
+                    );
+                } else if (exportType === 'session-json') {
+                    const payload = buildJsonExportPayload(bundle);
+                    downloadJsonData(payload, `session-${sessionId.slice(0, 8)}.json`);
+                }
             }
-            showToast({ message: 'Export downloaded.', type: 'success' });
+            showToast({ message: exportConfig.successMessage, type: 'success' });
         } catch (err) {
             logger.error('Failed to export data:', err);
             showToast({ message: err.message || 'Failed to export data', type: 'error' });

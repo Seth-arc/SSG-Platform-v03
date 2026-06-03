@@ -83,9 +83,9 @@ Suggested rehearsal order:
 8. Have at least two notetakers save different seat-scoped notes and shared captures at the same time.
 9. Adjudicate the submitted action from White Cell Lead.
 10. Use Game Master `Participant Roster` to remove one occupied seat, then rejoin it from a second browser.
-11. Export the session bundle from Game Master and confirm the expected files download.
+11. Export the session bundle from Game Master, then confirm the active White Cell seat exposes the same research path when enabled.
     - In standard mode, confirm the legacy JSON and per-table CSV downloads still work.
-    - When `public.live_demo_runtime_config.research_capture_mode = 'research'`, confirm `Download Research ZIP` and `Print Report` are also available and produce the research archive plus `report.html`.
+    - When `public.live_demo_runtime_config.research_capture_mode = 'research'`, confirm `Download Research ZIP` and `Print Report` are available in both Game Master and White Cell and produce the research archive plus `report.html`.
 
 ## Operator Runbook
 
@@ -136,14 +136,14 @@ Suggested rehearsal order:
 
 ### Export Modes
 
-- Exports are available only from the Game Master surface.
+- Standard exports are available from both Game Master and White Cell for the active session.
 - Standard mode always keeps the legacy downloads available:
   - session JSON
   - actions CSV
   - RFIs CSV
   - timeline CSV
   - participants CSV
-- When `public.live_demo_runtime_config.research_capture_mode = 'research'`, Game Master also exposes the research export path:
+- When `public.live_demo_runtime_config.research_capture_mode = 'research'`, both Game Master and White Cell expose the research export path:
   - `Download Research ZIP` creates a single archive containing `manifest.json`, `codebook.json`, `report.html`, the event log, the research table projections, and a `legacy/` directory that preserves the current bundle layout unchanged.
   - `Print Report` opens the generated `report.html` and uses the browser's native print dialog for print-to-PDF. The PDF is not stored in the archive; the reproducible source artifact is the archived `report.html`.
 - The research archive adds the process-rich artifacts that were missing from the legacy bundle:
