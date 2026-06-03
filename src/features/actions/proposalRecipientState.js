@@ -21,6 +21,12 @@ const ACTIONED_STATUSES = new Set([
     PROPOSAL_RECIPIENT_STATUSES.IGNORED
 ]);
 
+const FINAL_STATUSES = new Set([
+    PROPOSAL_RECIPIENT_STATUSES.RESPONDED,
+    PROPOSAL_RECIPIENT_STATUSES.DECLINED,
+    PROPOSAL_RECIPIENT_STATUSES.IGNORED
+]);
+
 function getCommunicationMetadata(communication = null) {
     return communication?.metadata && typeof communication.metadata === 'object'
         ? communication.metadata
@@ -65,6 +71,36 @@ export function countUnreadProposals(communications = []) {
 export function isProposalActioned(communication = null) {
     const status = getProposalRecipientStatus(communication);
     return ACTIONED_STATUSES.has(status);
+}
+
+export function isProposalRecipientFinal(communication = null) {
+    const status = getProposalRecipientStatus(communication);
+    return FINAL_STATUSES.has(status);
+}
+
+export function getProposalResponseEntry(communication = null) {
+    const entry = getProposalRecipientEntry(communication);
+    if (!entry || entry.status !== PROPOSAL_RECIPIENT_STATUSES.RESPONDED) {
+        return null;
+    }
+
+    const responseContent = typeof entry.response_content === 'string'
+        ? entry.response_content.trim()
+        : '';
+    const responseFromRole = typeof entry.response_from_role === 'string'
+        ? entry.response_from_role.trim()
+        : '';
+    const responseFromTeam = typeof entry.response_from_team === 'string'
+        ? entry.response_from_team.trim().toLowerCase()
+        : '';
+    const responseSentAt = entry.response_sent_at || entry.responded_at || entry.actioned_at || null;
+
+    return {
+        responseContent: responseContent || null,
+        responseFromRole: responseFromRole || null,
+        responseFromTeam: responseFromTeam || null,
+        responseSentAt
+    };
 }
 
 export function formatProposalRecipientStatus(status) {

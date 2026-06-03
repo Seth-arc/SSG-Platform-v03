@@ -738,7 +738,12 @@ describe('database live-demo seat contract', () => {
             forwardedProposal.id,
             'responded',
             {
-                response_communication_id: responseCommunication.id
+                response_communication_id: responseCommunication.id,
+                responded_at: '2026-04-09T10:20:00.000Z',
+                response_sent_at: '2026-04-09T10:20:00.000Z',
+                response_content: 'Blue Team can support this proposal with customs coordination.',
+                response_from_role: 'blue_facilitator',
+                response_from_team: 'blue'
             }
         );
 
@@ -752,6 +757,38 @@ describe('database live-demo seat contract', () => {
                     response_communication_id: responseCommunication.id
                 })
             })
+        });
+
+        const refreshedForwardedProposal = await database.fetchCommunications(session.id);
+        const storedForwardedProposal = refreshedForwardedProposal.find((entry) => entry.id === forwardedProposal.id);
+
+        expect(storedForwardedProposal).toMatchObject({
+            metadata: expect.objectContaining({
+                proposal_recipient_state: expect.objectContaining({
+                    response_communication_id: responseCommunication.id,
+                    response_content: 'Blue Team can support this proposal with customs coordination.',
+                    response_from_team: 'blue'
+                })
+            })
+        });
+
+        await expect(
+            database.createCommunication({
+                session_id: session.id,
+                from_role: 'blue_facilitator',
+                to_role: 'white_cell',
+                type: 'PROPOSAL_RESPONSE',
+                content: 'Blue Team wants to replace its earlier response.',
+                metadata: {
+                    source_proposal_id: 'proposal-2',
+                    source_communication_id: forwardedProposal.id,
+                    source_team: 'green',
+                    responder_team: 'blue'
+                }
+            })
+        ).rejects.toMatchObject({
+            name: 'DatabaseError',
+            message: 'new row violates row-level security policy for table "communications"'
         });
     });
 

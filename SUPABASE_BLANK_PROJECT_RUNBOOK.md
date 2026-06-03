@@ -26,6 +26,7 @@ Run these files in Supabase SQL Editor in this exact order. Do not skip ahead. D
 7. `data/2026-04-17_white_cell_backend_alignment.sql`
 8. `data/2026-04-17_seat_claim_role_input_normalization.sql`
 9. `data/2026-06-02_operator_code_runtime_config_table.sql`
+10. `data/2026-06-03_proposal_response_finalization_lock.sql`
 
 Why the order matters:
 
@@ -34,6 +35,7 @@ Why the order matters:
 - the current `2026-04-17_white_cell_backend_alignment.sql` file explicitly drops any existing `communications_type_check` before re-adding it, so it is safe to reapply on projects that already carry an older communications type constraint
 - `2026-04-17_seat_claim_role_input_normalization.sql` must run before step 9 so the active seat-claim RPC strips hidden whitespace and zero-width characters before the final operator-code migration is applied
 - `2026-06-02_operator_code_runtime_config_table.sql` must run after the hardening chain so the final operator-code helper reads from `public.live_demo_runtime_config` instead of the unsupported `app.settings...` database setting path
+- `2026-06-03_proposal_response_finalization_lock.sql` must run after `2026-04-17_white_cell_backend_alignment.sql` because it reapplies the same proposal-recipient RPC and insert policy with the final-state lock for already-provisioned projects
 
 ## Do Not Run For A Fresh Bootstrap
 
@@ -184,6 +186,8 @@ If a forwarded proposal recipient action fails on a hardened live-demo project:
 - `new row violates row-level security policy for table "communications"` when responding
 
 Reapply the current `data/2026-04-17_white_cell_backend_alignment.sql`. The current file removes the stale `updated_at` write from `update_proposal_recipient_status` and adds the facilitator/scribe `communications_live_demo_insert` policy required for `PROPOSAL_RESPONSE` writes back to White Cell.
+
+If teams can still submit a second `PROPOSAL_RESPONSE` after the forwarded proposal already shows `responded`, `declined`, or `ignored`, apply `data/2026-06-03_proposal_response_finalization_lock.sql`. That follow-up patch reapplies the final-state guard in both `update_proposal_recipient_status` and `communications_live_demo_insert` without depending on re-running the older April file.
 
 ## Landing Page Reachability Symptom
 

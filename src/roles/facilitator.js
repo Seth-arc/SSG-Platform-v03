@@ -56,8 +56,10 @@ import {
     PROPOSAL_RECIPIENT_STATUSES,
     countUnreadProposals,
     getProposalRecipientEntry,
+    getProposalResponseEntry,
     formatProposalRecipientStatus,
-    getProposalRecipientStatus
+    getProposalRecipientStatus,
+    isProposalRecipientFinal
 } from '../features/actions/proposalRecipientState.js';
 import {
     WHITE_CELL_UPDATE_KINDS,
@@ -610,6 +612,12 @@ export class FacilitatorController {
         }
     }
 
+    getProposalResponseAudienceLabel(responseEntry = null, fallbackTeam = '') {
+        return this.formatProposalRecipientTeamLabel(
+            responseEntry?.responseFromTeam || fallbackTeam || ''
+        );
+    }
+
     renderProposalRecipientState(action = null) {
         const forwardedCommunication = this.getForwardedProposalCommunication(action);
         if (!forwardedCommunication) {
@@ -622,21 +630,53 @@ export class FacilitatorController {
             || proposalViewModel.recipientTeam
             || '';
         const recipientLabel = this.formatProposalRecipientTeamLabel(recipientTeam);
-        const statusLabel = formatProposalRecipientStatus(getProposalRecipientStatus(forwardedCommunication));
+        const status = getProposalRecipientStatus(forwardedCommunication);
+        const statusLabel = formatProposalRecipientStatus(status);
         const actionedAt = recipientEntry?.actioned_at || null;
-        const timestampLabel = actionedAt ? ` ${formatRelativeTime(actionedAt)}` : '';
+        const responseEntry = getProposalResponseEntry(forwardedCommunication);
+        const responseAudienceLabel = this.getProposalResponseAudienceLabel(responseEntry, recipientTeam);
+        const responseSentAt = responseEntry?.responseSentAt || actionedAt || null;
+        const timestampLabel = responseSentAt ? formatRelativeTime(responseSentAt) : '';
+        const statusMessage = {
+            [PROPOSAL_RECIPIENT_STATUSES.UNREAD]: `Awaiting response from ${recipientLabel}`,
+            [PROPOSAL_RECIPIENT_STATUSES.ACKNOWLEDGED]: `${recipientLabel} opened this proposal and is reviewing it.`,
+            [PROPOSAL_RECIPIENT_STATUSES.RESPONDED]: `Response received from ${responseAudienceLabel}`,
+            [PROPOSAL_RECIPIENT_STATUSES.DECLINED]: `${recipientLabel} declined this proposal.`,
+            [PROPOSAL_RECIPIENT_STATUSES.IGNORED]: `${recipientLabel} marked this proposal as ignored.`
+        }[status] || `Awaiting response from ${recipientLabel}`;
+        const accentColor = {
+            [PROPOSAL_RECIPIENT_STATUSES.UNREAD]: 'var(--color-info-600)',
+            [PROPOSAL_RECIPIENT_STATUSES.ACKNOWLEDGED]: 'var(--color-warning)',
+            [PROPOSAL_RECIPIENT_STATUSES.RESPONDED]: 'var(--color-success)',
+            [PROPOSAL_RECIPIENT_STATUSES.DECLINED]: 'var(--color-error)',
+            [PROPOSAL_RECIPIENT_STATUSES.IGNORED]: 'var(--color-text-muted)'
+        }[status] || 'var(--color-info-600)';
+        const responseContentMarkup = responseEntry?.responseContent ? `
+            <div
+                style="margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);"
+            >
+                <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
+                    <strong>${this.escapeHtml(responseAudienceLabel)} Response</strong>
+                </p>
+                <p class="text-sm" style="margin: 0;">${this.escapeHtml(responseEntry.responseContent)}</p>
+            </div>
+        ` : '';
 
         return `
             <div
                 class="card card-bordered"
-                style="margin-top: var(--space-3); padding: var(--space-3); background: var(--color-surface-alt);"
+                style="margin-top: var(--space-3); padding: var(--space-3); background: var(--color-surface-alt); border-left: 4px solid ${accentColor};"
             >
                 <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
                     <strong>Recipient Team:</strong> ${this.escapeHtml(recipientLabel)}
                 </p>
-                <p class="text-xs text-gray-500" style="margin: 0;">
-                    <strong>Recipient Status:</strong> ${this.escapeHtml(statusLabel)}${this.escapeHtml(timestampLabel)}
+                <p class="text-sm font-semibold" style="margin: 0 0 var(--space-1);">
+                    ${this.escapeHtml(statusMessage)}
                 </p>
+                <p class="text-xs text-gray-500" style="margin: 0;">
+                    <strong>Recipient Status:</strong> ${this.escapeHtml(statusLabel)}${timestampLabel ? ` | ${this.escapeHtml(timestampLabel)}` : ''}
+                </p>
+                ${responseContentMarkup}
             </div>
         `;
     }
@@ -692,12 +732,44 @@ export class FacilitatorController {
             const statusLabel = formatProposalRecipientStatus(status);
             const isUnread = status === PROPOSAL_RECIPIENT_STATUSES.UNREAD;
             const cardId = escape(communication.id);
+            const responseEntry = getProposalResponseEntry(communication);
+            const showAcknowledge = status === PROPOSAL_RECIPIENT_STATUSES.UNREAD;
+            const showRespond = !isProposalRecipientFinal(communication);
+            const showDecline = !isProposalRecipientFinal(communication);
+            const showIgnore = !isProposalRecipientFinal(communication);
+            const actionSummaryMarkup = responseEntry?.responseContent ? `
+                <div style="margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface-alt);">
+                    <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
+                        <strong>Response sent to White Cell</strong>${responseEntry.responseSentAt ? ` | ${escape(formatRelativeTime(responseEntry.responseSentAt))}` : ''}
+                    </p>
+                    <p class="text-sm" style="margin: 0;">${escape(responseEntry.responseContent)}</p>
+                </div>
+            ` : '';
+            const readOnlyStateMarkup = status === PROPOSAL_RECIPIENT_STATUSES.RESPONDED
+                ? `
+                    <p class="text-xs text-gray-500" style="margin: 0;">
+                        This proposal response is locked and is now being shown back to ${escape(sourceLabel)}.
+                    </p>
+                `
+                : status === PROPOSAL_RECIPIENT_STATUSES.DECLINED
+                ? `
+                    <p class="text-xs text-gray-500" style="margin: 0;">
+                        This proposal has been declined and is now locked.
+                    </p>
+                `
+                : status === PROPOSAL_RECIPIENT_STATUSES.IGNORED
+                ? `
+                    <p class="text-xs text-gray-500" style="margin: 0;">
+                        This proposal has been marked ignored and is now locked.
+                    </p>
+                `
+                : '';
 
             return `
                 <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3); ${isUnread ? 'border-left: 3px solid var(--color-info-600);' : ''}">
                     <div style="display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; margin-bottom: var(--space-2);">
                         <div>
-                            <p class="text-xs text-gray-500" style="margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.05em;">Forwarded from ${escape(sourceLabel)} · ${escape(outcome)}</p>
+                            <p class="text-xs text-gray-500" style="margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.05em;">Forwarded from ${escape(sourceLabel)} | ${escape(outcome)}</p>
                             <h3 class="font-semibold" style="margin: 0;">${escape(title)}</h3>
                         </div>
                         <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0;">
@@ -726,11 +798,13 @@ export class FacilitatorController {
                     ${snapshot.expectedOutcomes ? `
                         <p class="text-sm" style="margin: 0 0 var(--space-3);"><strong>Expected Outcomes:</strong> ${escape(snapshot.expectedOutcomes)}</p>
                     ` : ''}
+                    ${actionSummaryMarkup}
                     <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; padding-top: var(--space-3); border-top: 1px solid var(--color-border-light);">
-                        <button type="button" class="btn btn-secondary btn-sm" data-proposal-action="acknowledge" data-proposal-comm-id="${cardId}">Acknowledge</button>
-                        <button type="button" class="btn btn-primary btn-sm" data-proposal-action="respond" data-proposal-comm-id="${cardId}">Respond</button>
-                        <button type="button" class="btn btn-secondary btn-sm" data-proposal-action="decline" data-proposal-comm-id="${cardId}">Decline</button>
-                        <button type="button" class="btn btn-secondary btn-sm" data-proposal-action="ignore" data-proposal-comm-id="${cardId}">Ignore</button>
+                        ${showAcknowledge ? `<button type="button" class="btn btn-secondary btn-sm" data-proposal-action="acknowledge" data-proposal-comm-id="${cardId}">Acknowledge</button>` : ''}
+                        ${showRespond ? `<button type="button" class="btn btn-primary btn-sm" data-proposal-action="respond" data-proposal-comm-id="${cardId}">Respond</button>` : ''}
+                        ${showDecline ? `<button type="button" class="btn btn-secondary btn-sm" data-proposal-action="decline" data-proposal-comm-id="${cardId}">Decline</button>` : ''}
+                        ${showIgnore ? `<button type="button" class="btn btn-secondary btn-sm" data-proposal-action="ignore" data-proposal-comm-id="${cardId}">Ignore</button>` : ''}
+                        ${readOnlyStateMarkup}
                     </div>
                 </div>
             `;
@@ -746,6 +820,13 @@ export class FacilitatorController {
         if (!this.requireWriteAccess()) return false;
         if (!communication?.id) {
             showToast({ message: 'Proposal not found.', type: 'error' });
+            return false;
+        }
+
+        const latestCommunication = communicationsStore.getAll()
+            .find((entry) => entry.id === communication.id) || communication;
+        if (isProposalRecipientFinal(latestCommunication)) {
+            showToast({ message: 'This proposal is already locked.', type: 'error' });
             return false;
         }
 
@@ -883,15 +964,24 @@ export class FacilitatorController {
             return;
         }
 
+        const latestCommunication = communicationsStore.getAll()
+            .find((entry) => entry.id === communication.id) || communication;
+        if (isProposalRecipientFinal(latestCommunication)) {
+            showToast({ message: 'This proposal response is already locked.', type: 'error' });
+            return;
+        }
+
         const loader = showLoader({ message: 'Sending response...' });
 
         try {
             const gameState = this.getCurrentGameState();
             const proposalTitle = communication?.metadata?.proposal?.title || 'Untitled proposal';
+            const responseSentAt = new Date().toISOString();
+            const responseFromRole = this.role || this.getCurrentLeadRole();
 
             const responseComm = await database.createCommunication({
                 session_id: sessionId,
-                from_role: this.role || this.getCurrentLeadRole(),
+                from_role: responseFromRole,
                 to_role: 'white_cell',
                 type: 'PROPOSAL_RESPONSE',
                 content: text,
@@ -909,7 +999,11 @@ export class FacilitatorController {
                 PROPOSAL_RECIPIENT_STATUSES.RESPONDED,
                 {
                     response_communication_id: responseComm.id,
-                    responded_at: new Date().toISOString()
+                    responded_at: responseSentAt,
+                    response_sent_at: responseSentAt,
+                    response_content: text,
+                    response_from_role: responseFromRole,
+                    response_from_team: this.teamId
                 }
             );
             communicationsStore.updateFromServer('UPDATE', updatedProposalCommunication);
@@ -1026,6 +1120,10 @@ export class FacilitatorController {
         const canSubmitDraft = !this.isReadOnly && canSubmitAction(action);
         const canRemoveDraft = !this.isReadOnly && canDeleteAction(action);
         const isGreenProposalFlow = this.teamId === 'green';
+        const forwardedProposalCommunication = isGreenProposalFlow
+            ? this.getForwardedProposalCommunication(action)
+            : null;
+        const shouldHideWhiteCellReviewDetails = Boolean(isGreenProposalFlow && forwardedProposalCommunication);
         const outcomeBadge = action.outcome
             ? createOutcomeBadge(action.outcome).outerHTML
             : '';
@@ -1090,11 +1188,13 @@ export class FacilitatorController {
                 </p>
             `;
         } else if (isAdjudicatedAction(action)) {
-            lifecycleMessage = `
-                <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                    White Cell ${isGreenProposalFlow ? 'reviewed this proposal' : 'adjudicated this action'} ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
-                </p>
-            `;
+            lifecycleMessage = shouldHideWhiteCellReviewDetails
+                ? ''
+                : `
+                    <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
+                        White Cell ${isGreenProposalFlow ? 'reviewed this proposal' : 'adjudicated this action'} ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
+                    </p>
+                `;
         } else if (this.isReadOnly) {
             lifecycleMessage = `
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
@@ -1125,7 +1225,7 @@ export class FacilitatorController {
                     <p class="text-sm mb-3">${this.escapeHtml(expectedOutcomes)}</p>
                     ${detailsMarkup}
                     ${isGreenProposalFlow ? this.renderProposalRecipientState(action) : ''}
-                    ${action.adjudication_notes ? `
+                    ${action.adjudication_notes && !shouldHideWhiteCellReviewDetails ? `
                         <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                             <strong>Adjudication Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}
                         </p>

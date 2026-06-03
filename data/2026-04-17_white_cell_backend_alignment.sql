@@ -394,6 +394,7 @@ DECLARE
     normalized_status TEXT := LOWER(NULLIF(BTRIM(requested_status), ''));
     normalized_metadata JSONB := COALESCE(requested_metadata, '{}'::jsonb);
     recipient_team TEXT;
+    current_status TEXT;
 BEGIN
     IF requested_communication_id IS NULL THEN
         RAISE EXCEPTION 'Proposal communication ID is required.'
@@ -451,6 +452,15 @@ BEGIN
             USING ERRCODE = '42501';
     END IF;
 
+    current_status := LOWER(NULLIF(BTRIM(
+        COALESCE(communication_row.metadata -> 'proposal_recipient_state' ->> 'status', '')
+    ), ''));
+
+    IF current_status IN ('responded', 'declined', 'ignored') THEN
+        RAISE EXCEPTION 'This proposal recipient state is already final.'
+            USING ERRCODE = 'P0001';
+    END IF;
+
     UPDATE public.communications c
     SET
         metadata = COALESCE(c.metadata, '{}'::jsonb) || jsonb_build_object(
@@ -489,6 +499,10 @@ CREATE POLICY communications_live_demo_insert
             WHERE forwarded.id::TEXT = NULLIF(BTRIM(communications.metadata ->> 'source_communication_id'), '')
               AND forwarded.session_id = communications.session_id
               AND forwarded.type = 'PROPOSAL_FORWARDED'
+              AND COALESCE(
+                  NULLIF(BTRIM(forwarded.metadata -> 'proposal_recipient_state' ->> 'status'), ''),
+                  'unread'
+              ) NOT IN ('responded', 'declined', 'ignored')
               AND COALESCE(
                   NULLIF(BTRIM(forwarded.metadata ->> 'recipient_team'), ''),
                   CASE

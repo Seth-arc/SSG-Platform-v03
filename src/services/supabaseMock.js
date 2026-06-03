@@ -687,6 +687,8 @@ function canInsertTableRow(state, tableName, row, authUserId) {
                 row.team,
                 ['facilitator', 'scribe']
             );
+        case 'communications':
+            return canInsertProposalResponseCommunication(state, row, authUserId);
         case 'timeline':
             return liveDemoCanWriteSession(state, authUserId, row.session_id);
         case 'notetaker_data':
@@ -730,6 +732,58 @@ function buildRlsError(tableName) {
         code: '42501',
         message: `new row violates row-level security policy for table "${tableName}"`
     };
+}
+
+function normalizeProposalRecipientStatus(status) {
+    return String(status || '').trim().toLowerCase();
+}
+
+function canInsertProposalResponseCommunication(state, row, authUserId) {
+    const normalizedType = String(row?.type || '').trim().toUpperCase();
+    const normalizedToRole = String(row?.to_role || '').trim().toLowerCase();
+    const normalizedFromRole = normalizeSeatRole(String(row?.from_role || '').trim()).toLowerCase();
+    const participantSurface = getLiveDemoParticipantSurface(state, authUserId, row?.session_id);
+    const participantRole = String(getLiveDemoParticipantRole(state, authUserId, row?.session_id) || '')
+        .trim()
+        .toLowerCase();
+    const participantTeam = getLiveDemoParticipantTeam(state, authUserId, row?.session_id);
+    const metadata = row?.metadata && typeof row.metadata === 'object'
+        ? row.metadata
+        : {};
+    const sourceCommunicationId = String(metadata.source_communication_id || '').trim();
+    const content = String(row?.content || '').trim();
+
+    if (
+        normalizedType !== 'PROPOSAL_RESPONSE'
+        || normalizedToRole !== 'white_cell'
+        || !authUserId
+        || !['facilitator', 'scribe'].includes(participantSurface)
+        || !participantRole
+        || participantRole !== normalizedFromRole
+        || !content
+        || !sourceCommunicationId
+    ) {
+        return false;
+    }
+
+    const forwardedProposal = state.tables.communications.find((entry) => (
+        entry.id === sourceCommunicationId
+        && entry.session_id === row?.session_id
+        && entry.type === 'PROPOSAL_FORWARDED'
+    ));
+
+    if (!forwardedProposal || resolveProposalRecipientTeam(forwardedProposal) !== participantTeam) {
+        return false;
+    }
+
+    const currentRecipientStatus = normalizeProposalRecipientStatus(
+        forwardedProposal?.metadata?.proposal_recipient_state?.status
+    );
+    if (['responded', 'declined', 'ignored'].includes(currentRecipientStatus)) {
+        return false;
+    }
+
+    return true;
 }
 
 function authorizeDemoOperator(state, {
@@ -1414,6 +1468,12 @@ function updateProposalRecipientStatus(state, params) {
     const existingState = metadata.proposal_recipient_state && typeof metadata.proposal_recipient_state === 'object'
         ? metadata.proposal_recipient_state
         : {};
+    const currentStatus = normalizeProposalRecipientStatus(existingState.status);
+
+    if (['responded', 'declined', 'ignored'].includes(currentStatus)) {
+        return { data: null, error: { message: 'This proposal recipient state is already final.' } };
+    }
+
     const nextCommunication = {
         ...communication,
         metadata: {

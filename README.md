@@ -162,6 +162,7 @@ Validate these manually against the real backend because the automated suite doe
 - If White Cell operator authorization still expects a team-scoped role such as `blue_whitecell_lead`, apply `data/2026-04-09_global_white_cell_role_contract.sql`, then retry operator login.
 - If public facilitator, scribe, or notetaker joins started failing with `claim_session_role_seat` 403 / `Session access is required.` after the White Cell role contract update, reapply the current `data/2026-04-09_global_white_cell_role_contract.sql`; the corrected version preserves the internal stale-seat cleanup helper inside `claim_session_role_seat`.
 - If forwarded proposal recipient actions fail with `column "updated_at" of relation "communications" does not exist` when acknowledging/declining/ignoring, or `new row violates row-level security policy for table "communications"` when responding, reapply the current `data/2026-04-17_white_cell_backend_alignment.sql`; the updated patch removes the stale `updated_at` write and adds the hardened facilitator/scribe insert policy for `PROPOSAL_RESPONSE`.
+- If Blue or Red can still overwrite a proposal response after the forwarded proposal already shows a final recipient state, apply `data/2026-06-03_proposal_response_finalization_lock.sql`; it reapplies the final-state guard in both `update_proposal_recipient_status` and `communications_live_demo_insert` for already-provisioned databases.
 - Server-side RPC and RLS enforcement for:
   - operator authorization
   - join-by-code lookup

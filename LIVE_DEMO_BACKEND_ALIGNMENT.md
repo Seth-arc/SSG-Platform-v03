@@ -110,6 +110,7 @@ Backend alignment implications:
 - White Cell responses must route into Blue's response feed.
 - Forwarded Green proposals must be represented as communications with `type = PROPOSAL_FORWARDED` and `to_role = blue`.
 - Proposal responses back to White Cell must be accepted as communications with `type = PROPOSAL_RESPONSE`.
+- Once Blue or Red sends a proposal response, that response is treated as immutable for the recipient inbox. The same forwarded proposal cannot be answered a second time.
 
 ### Blue Scribe
 
@@ -295,6 +296,10 @@ Backend alignment implications:
 
 - Green proposals do not require a separate table in the current build; they are serialized through the existing action and communication flow.
 - White Cell remains the gatekeeper that approves and forwards Green proposals onward.
+- After a proposal is forwarded, the Green originator surface should show recipient-focused routing state:
+  - an awaiting-response state while the addressed team has not answered
+  - a response-received state with the recipient team's response summary once a response exists
+- The Green originator-facing proposal state should not foreground White Cell review activity once the proposal has been routed to the recipient team.
 
 ### Green Scribe
 

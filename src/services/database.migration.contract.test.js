@@ -17,6 +17,10 @@ const OPERATOR_CODE_RUNTIME_CONFIG_PATH = new URL(
     '../../data/2026-06-02_operator_code_runtime_config_table.sql',
     import.meta.url
 );
+const PROPOSAL_RESPONSE_FINALIZATION_LOCK_PATH = new URL(
+    '../../data/2026-06-03_proposal_response_finalization_lock.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -93,6 +97,7 @@ describe('database migration contracts', () => {
         expect(proposalStatusBody).toContain("'declined'");
         expect(proposalStatusBody).toContain("'ignored'");
         expect(proposalStatusBody).toContain("participant_surface NOT IN ('facilitator', 'scribe')");
+        expect(proposalStatusBody).toContain("current_status IN ('responded', 'declined', 'ignored')");
         expect(proposalStatusBody).not.toContain('updated_at = NOW()');
     });
 
@@ -116,6 +121,18 @@ describe('database migration contracts', () => {
         expect(sql).toContain("LOWER(BTRIM(to_role)) = 'white_cell'");
         expect(sql).toContain("LOWER(BTRIM(from_role)) = public.live_demo_participant_role(session_id)");
         expect(sql).toContain("forwarded.type = 'PROPOSAL_FORWARDED'");
+        expect(sql).toContain("NOT IN ('responded', 'declined', 'ignored')");
+    });
+
+    it('ships a follow-up patch for already-provisioned databases that preserves the final response lock', () => {
+        const sql = readFileSync(PROPOSAL_RESPONSE_FINALIZATION_LOCK_PATH, 'utf8');
+        const proposalStatusBody = extractFunctionBody(sql, 'update_proposal_recipient_status');
+
+        expect(proposalStatusBody).toContain("current_status IN ('responded', 'declined', 'ignored')");
+        expect(sql).toContain('DROP POLICY IF EXISTS communications_live_demo_insert ON public.communications;');
+        expect(sql).toContain("type = 'PROPOSAL_RESPONSE'");
+        expect(sql).toContain("forwarded.type = 'PROPOSAL_FORWARDED'");
+        expect(sql).toContain("NOT IN ('responded', 'declined', 'ignored')");
     });
 
     it('normalizes seat-claim role input before seat-limit evaluation', () => {

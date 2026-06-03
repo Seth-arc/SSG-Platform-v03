@@ -459,6 +459,56 @@ describe('Facilitator and scribe access', () => {
         expect(proposalsBadge.hidden).toBe(false);
     });
 
+    it('locks a received proposal after the team has already responded', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { buildWhiteCellRecipientMetadata } = await import('../features/communications/targeting.js');
+
+        const proposalsList = createFakeElement('receivedProposalsList');
+
+        global.document = {
+            createElement(tagName) {
+                return createFakeElement(null, tagName);
+            },
+            getElementById(id) {
+                return {
+                    receivedProposalsList: proposalsList,
+                    receivedProposalsBadge: createFakeElement('receivedProposalsBadge')
+                }[id] || null;
+            }
+        };
+
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([{
+            id: 'comm-forwarded-responded-1',
+            from_role: 'whitecell_lead',
+            to_role: 'blue',
+            type: 'PROPOSAL_FORWARDED',
+            content: 'Forwarded Green Team proposal.',
+            created_at: '2026-04-09T10:06:00.000Z',
+            metadata: buildWhiteCellRecipientMetadata('blue', {
+                source_team: 'green',
+                proposal: {
+                    title: 'Joint Port Proposal'
+                },
+                proposal_recipient_state: {
+                    status: 'responded',
+                    response_content: 'Blue Team can support this with customs coordination.',
+                    response_from_team: 'blue',
+                    response_sent_at: '2026-04-09T10:20:00.000Z'
+                }
+            })
+        }]);
+
+        const controller = new FacilitatorController();
+        controller.syncReceivedProposalsFromStore();
+
+        expect(proposalsList.innerHTML).toContain('Response sent to White Cell');
+        expect(proposalsList.innerHTML).toContain('Blue Team can support this with customs coordination.');
+        expect(proposalsList.innerHTML).toContain('locked');
+        expect(proposalsList.innerHTML).not.toContain('data-proposal-action="respond"');
+        expect(proposalsList.innerHTML).not.toContain('data-proposal-action="decline"');
+    });
+
     it('shows recipient decline updates on the Green facilitator proposal card', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { communicationsStore } = await import('../stores/communications.js');
@@ -496,6 +546,94 @@ describe('Facilitator and scribe access', () => {
 
         expect(markup).toContain('Recipient Team:</strong> Blue Team');
         expect(markup).toContain('Recipient Status:</strong> Declined');
+    });
+
+    it('renders a forwarded Green proposal as awaiting a recipient response without White Cell review copy', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        global.document = createFakeDocument();
+
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([{
+            id: 'comm-forwarded-awaiting-1',
+            type: 'PROPOSAL_FORWARDED',
+            created_at: '2026-04-09T10:06:00.000Z',
+            metadata: {
+                source_proposal_id: 'proposal-green-2',
+                recipient_team: 'blue',
+                proposal_recipient_state: {
+                    status: 'unread'
+                }
+            }
+        }]);
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'green';
+        controller.teamLabel = 'Green Team';
+
+        const markup = controller.renderActionCard({
+            id: 'proposal-green-2',
+            team: 'green',
+            status: 'adjudicated',
+            adjudicated_at: '2026-04-09T10:10:00.000Z',
+            adjudication_notes: 'White Cell note that should stay hidden here.',
+            goal: 'Joint Port Proposal',
+            mechanism: 'Proposal',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce room for arbitrage.',
+            move: 2,
+            phase: 1
+        });
+
+        expect(markup).toContain('Awaiting response from Blue Team');
+        expect(markup).not.toContain('White Cell reviewed this proposal');
+        expect(markup).not.toContain('Adjudication Notes:</strong>');
+    });
+
+    it('renders a Green proposal response summary when the recipient team has responded', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        global.document = createFakeDocument();
+
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([{
+            id: 'comm-forwarded-responded-green-1',
+            type: 'PROPOSAL_FORWARDED',
+            created_at: '2026-04-09T10:06:00.000Z',
+            metadata: {
+                source_proposal_id: 'proposal-green-3',
+                recipient_team: 'blue',
+                proposal_recipient_state: {
+                    status: 'responded',
+                    actioned_at: '2026-04-09T10:20:00.000Z',
+                    response_content: 'Blue Team can support this with customs coordination.',
+                    response_from_team: 'blue',
+                    response_sent_at: '2026-04-09T10:20:00.000Z'
+                }
+            }
+        }]);
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'green';
+        controller.teamLabel = 'Green Team';
+
+        const markup = controller.renderActionCard({
+            id: 'proposal-green-3',
+            team: 'green',
+            status: 'adjudicated',
+            adjudicated_at: '2026-04-09T10:10:00.000Z',
+            adjudication_notes: 'White Cell note that should stay hidden here.',
+            goal: 'Joint Port Proposal',
+            mechanism: 'Proposal',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce room for arbitrage.',
+            move: 2,
+            phase: 1
+        });
+
+        expect(markup).toContain('Response received from Blue Team');
+        expect(markup).toContain('Blue Team Response');
+        expect(markup).toContain('Blue Team can support this with customs coordination.');
+        expect(markup).not.toContain('White Cell reviewed this proposal');
+        expect(markup).not.toContain('Adjudication Notes:</strong>');
     });
 
     it('rerenders facilitator proposal cards when communications change', async () => {
