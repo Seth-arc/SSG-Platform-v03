@@ -133,6 +133,7 @@ Suggested rehearsal order:
 
 - The White Cell `Session Timeline` now supports combined `Team`, `Role`, `Move`, and `Activity Type` filters.
 - Use the filters together to isolate a specific team or operator surface within a single move instead of scanning the full event stream.
+- Manual `Save Dynamics` and `Save Alliance` actions now emit structured snapshots into the White Cell journal review feed and the shared timeline, so operators can inspect the full notetaker entry without opening the underlying move-scoped note record.
 
 ### Export Modes
 

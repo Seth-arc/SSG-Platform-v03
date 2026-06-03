@@ -1377,6 +1377,51 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.tribeStreetJournalList.innerHTML).toContain('Dockworkers reported new inspection slowdowns.');
     });
 
+    it('surfaces structured notetaker dynamics and alliance snapshots in White Cell review feeds', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { timelineStore } = await import('../stores/timeline.js');
+        const fakeDocument = createFakeDocument([
+            'tribeStreetJournalEmbed',
+            'tribeStreetJournalList',
+            'timelineTeamFilter',
+            'timelineRoleFilter',
+            'timelineMoveFilter',
+            'timelineActivityTypeFilter',
+            'timelineList'
+        ]);
+
+        global.document = fakeDocument;
+
+        vi.spyOn(timelineStore, 'getAll').mockReturnValue([{
+            id: 'capture-dynamics-1',
+            team: 'blue',
+            type: 'NOTE',
+            content: 'Team dynamics notes saved',
+            move: 3,
+            phase: 2,
+            created_at: '2026-04-10T14:00:00.000Z',
+            metadata: {
+                actor: 'Blue Notetaker',
+                role: 'blue_notetaker',
+                source: 'notetaker_save',
+                note_scope: 'dynamics',
+                note_details: [
+                    { label: 'Emerging Leaders', value: 'Trade minister and finance deputy' },
+                    { label: 'Friction Sources', value: 'Tariff sequencing dispute' },
+                    { label: 'Summary Notes', value: 'The room is aligned on leverage but split on timing.' }
+                ]
+            }
+        }]);
+
+        const controller = new WhiteCellController();
+        controller.syncTimelineFromStore();
+
+        expect(fakeDocument.elements.tribeStreetJournalList.innerHTML).toContain('TEAM DYNAMICS SNAPSHOT');
+        expect(fakeDocument.elements.tribeStreetJournalList.innerHTML).toContain('Tariff sequencing dispute');
+        expect(fakeDocument.elements.timelineList.innerHTML).toContain('Team Dynamics snapshot');
+        expect(fakeDocument.elements.timelineList.innerHTML).toContain('Trade minister and finance deputy');
+    });
+
     it('exports CSV data from the fetched session bundle for the active session', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { database } = await import('../services/database.js');

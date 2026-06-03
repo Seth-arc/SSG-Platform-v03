@@ -30,6 +30,13 @@ import {
     readParticipantScopedNotetakerSection
 } from '../features/notetaker/storage.js';
 import {
+    buildNotetakerTimelineDetailItems,
+    getNotetakerSaveTimelineDetailItems,
+    getNotetakerTimelineScopeLabel,
+    isNotetakerSaveTimelineEvent,
+    NOTETAKER_TIMELINE_EVENT_SOURCE
+} from '../features/notetaker/timelineDetails.js';
+import {
     WHITE_CELL_UPDATE_KINDS,
     getWhiteCellCommunicationUpdateKind,
     isNotetakerScopedWhiteCellCommunication,
@@ -52,9 +59,9 @@ export const DEFAULT_ALLIANCE_DATA = {
     externalPressures: ''
 };
 
-export const NOTETAKER_TIMELINE_EVENT_SOURCE = 'notetaker_save';
-
 const CAPTURE_EVENT_TYPES = ['NOTE', 'MOMENT', 'QUOTE'];
+
+export { NOTETAKER_TIMELINE_EVENT_SOURCE };
 
 const NOTETAKER_SAVE_TIMELINE_CONTENT = {
     dynamics: 'Team dynamics notes saved',
@@ -131,7 +138,7 @@ export function buildNotetakerSaveTimelineEvent(noteScope, {
     clientId = null,
     move = 1,
     phase = 1
-} = {}) {
+} = {}, noteData = {}) {
     const content = NOTETAKER_SAVE_TIMELINE_CONTENT[noteScope];
     if (!content) {
         throw new Error(`Unsupported notetaker timeline scope: ${noteScope}`);
@@ -139,6 +146,7 @@ export function buildNotetakerSaveTimelineEvent(noteScope, {
 
     const actor = participantLabel ||
         (teamLabel ? `${teamLabel} Notetaker` : (teamId ? `${teamId} notetaker` : 'Notetaker'));
+    const noteDetails = buildNotetakerTimelineDetailItems(noteScope, noteData);
 
     return {
         session_id: sessionId,
@@ -153,6 +161,8 @@ export function buildNotetakerSaveTimelineEvent(noteScope, {
             role: teamId ? buildTeamRole(teamId, ROLE_SURFACES.NOTETAKER) : null,
             source: NOTETAKER_TIMELINE_EVENT_SOURCE,
             note_scope: noteScope,
+            note_scope_label: getNotetakerTimelineScopeLabel(noteScope),
+            note_details: noteDetails,
             ...(participantKey ? { participant_key: participantKey } : {}),
             ...(participantId ? { participant_id: participantId } : {}),
             ...(participantLabel ? { participant_label: participantLabel } : {})
@@ -261,11 +271,11 @@ export class NotetakerController {
         }
 
         if (dynamicsDescription) {
-            dynamicsDescription.textContent = 'Your move notes are saved per notetaker seat and do not overwrite another notetaker.';
+            dynamicsDescription.textContent = 'Your move notes are saved per notetaker seat. Manual saves also publish a structured snapshot to the shared timeline for White Cell review.';
         }
 
         if (allianceDescription) {
-            allianceDescription.textContent = 'Alliance notes are stored per notetaker seat while captures remain shared and append-only.';
+            allianceDescription.textContent = 'Alliance notes are stored per notetaker seat. Manual saves also publish a structured snapshot to the shared timeline for White Cell review.';
         }
 
         if (scopeNotice) {
@@ -277,11 +287,11 @@ export class NotetakerController {
         }
 
         if (dynamicsScopeHint) {
-            dynamicsScopeHint.textContent = 'These fields save to your own move notes. Other notetakers keep separate copies.';
+            dynamicsScopeHint.textContent = 'These fields save to your own move notes. Use Save Dynamics to publish a structured snapshot without overwriting another notetaker.';
         }
 
         if (allianceScopeHint) {
-            allianceScopeHint.textContent = 'Use this space for your seat-specific alliance summary. It will not replace another notetaker\'s alliance notes.';
+            allianceScopeHint.textContent = 'Use this space for your seat-specific alliance summary. Save Alliance publishes a structured snapshot without replacing another notetaker\'s notes.';
         }
     }
 
@@ -852,6 +862,9 @@ export class NotetakerController {
 
     async createSharedNotesTimelineEvent(noteScope, payloadBase = this.buildNotetakerPayloadBase()) {
         try {
+            const noteData = noteScope === 'dynamics'
+                ? this.dynamicsData
+                : this.allianceData;
             const createdEvent = await database.createTimelineEvent(
                 buildNotetakerSaveTimelineEvent(noteScope, {
                     sessionId: payloadBase.session_id,
@@ -863,7 +876,7 @@ export class NotetakerController {
                     clientId: payloadBase.client_id,
                     move: payloadBase.move,
                     phase: payloadBase.phase
-                })
+                }, noteData)
             );
 
             timelineStore.updateFromServer('INSERT', createdEvent);
@@ -919,6 +932,24 @@ export class NotetakerController {
                             const eventType = event.type || event.event_type || 'EVENT';
                             const eventContent = event.content || event.description || '';
                             const eventActor = event.actor || event.metadata?.actor || '';
+                            const noteScope = event?.metadata?.note_scope || null;
+                            const noteScopeLabel = getNotetakerTimelineScopeLabel(noteScope);
+                            const noteDetails = getNotetakerSaveTimelineDetailItems(event);
+                            const noteDetailsMarkup = isNotetakerSaveTimelineEvent(event) && noteDetails.length > 0
+                                ? `
+                                    <div class="card card-bordered" style="margin-top: var(--space-2); padding: var(--space-3);">
+                                        <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-2);">${this.escapeHtml(noteScopeLabel)} snapshot</p>
+                                        <dl style="display: grid; gap: var(--space-2); margin: 0;">
+                                            ${noteDetails.map((detail) => `
+                                                <div>
+                                                    <dt class="text-xs text-gray-500" style="margin: 0;">${this.escapeHtml(detail.label)}</dt>
+                                                    <dd class="text-sm" style="margin: 0;">${this.escapeHtml(detail.value)}</dd>
+                                                </div>
+                                            `).join('')}
+                                        </dl>
+                                    </div>
+                                `
+                                : '';
 
                             return `
                             <div class="timeline-event" style="display: flex; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-gray-200);">
@@ -929,6 +960,7 @@ export class NotetakerController {
                                         <span class="text-xs text-gray-400">${formatDateTime(event.created_at)}</span>
                                     </div>
                                     <p class="text-sm mt-1">${this.escapeHtml(eventContent)}</p>
+                                    ${noteDetailsMarkup}
                                     ${eventActor ? `<p class="text-xs text-gray-400 mt-1">By: ${this.escapeHtml(eventActor)}</p>` : ''}
                                 </div>
                             </div>

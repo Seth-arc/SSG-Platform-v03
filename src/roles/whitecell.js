@@ -64,6 +64,11 @@ import {
     TRIBE_STREET_JOURNAL_EMBED_URL,
     createTribeStreetJournalEmbedMarkup
 } from '../features/tribeStreetJournalEmbed.js';
+import {
+    getNotetakerSaveTimelineDetailItems,
+    getNotetakerTimelineScopeLabel,
+    isNotetakerSaveTimelineEvent
+} from '../features/notetaker/timelineDetails.js';
 
 const logger = createLogger('WhiteCell');
 const WHITE_CELL_ALL_TEAMS_RECIPIENT = 'all';
@@ -3064,18 +3069,46 @@ export class WhiteCellController {
                 QUOTE: 'info'
             }[eventType] || 'default';
             const actorLabel = entry.metadata?.actor || getRoleDisplayName(entry.metadata?.role) || 'Team capture';
+            const noteScope = entry?.metadata?.note_scope || null;
+            const noteScopeLabel = getNotetakerTimelineScopeLabel(noteScope);
+            const noteDetails = getNotetakerSaveTimelineDetailItems(entry);
+            const noteDetailsMarkup = isNotetakerSaveTimelineEvent(entry) && noteDetails.length > 0
+                ? `
+                    <div class="card card-bordered" style="margin-top: var(--space-3); padding: var(--space-3);">
+                        <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-2);">${this.escapeHtml(noteScopeLabel)} snapshot</p>
+                        <dl style="display: grid; gap: var(--space-2); margin: 0;">
+                            ${noteDetails.map((detail) => `
+                                <div>
+                                    <dt class="text-xs text-gray-500" style="margin: 0;">${this.escapeHtml(detail.label)}</dt>
+                                    <dd class="text-sm" style="margin: 0;">${this.escapeHtml(detail.value)}</dd>
+                                </div>
+                            `).join('')}
+                        </dl>
+                    </div>
+                `
+                : '';
+            const scopeBadgeMarkup = isNotetakerSaveTimelineEvent(entry)
+                ? createBadge({
+                    text: `${noteScopeLabel.toUpperCase()} SNAPSHOT`,
+                    variant: 'info',
+                    size: 'sm',
+                    rounded: true
+                }).outerHTML
+                : '';
 
             return `
                 <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
                         <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
                             ${createBadge({ text: eventType, variant: badgeVariant, size: 'sm', rounded: true }).outerHTML}
+                            ${scopeBadgeMarkup}
                             ${createBadge({ text: this.formatTeamLabel(entry.team), variant: 'primary', size: 'sm', rounded: true }).outerHTML}
                             <span class="text-xs text-gray-500">${this.escapeHtml(actorLabel)}</span>
                         </div>
                         <span class="text-xs text-gray-400">${formatDateTime(entry.created_at)}</span>
                     </div>
                     <p class="text-sm">${this.escapeHtml(entry.content || entry.description || '')}</p>
+                    ${noteDetailsMarkup}
                     <div class="card-actions" style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); margin-top: var(--space-3);">
                         <span class="text-xs text-gray-500">Move ${this.escapeHtml(String(entry.move || 1))} | Phase ${this.escapeHtml(String(entry.phase || 1))}</span>
                         <button
@@ -3172,7 +3205,7 @@ export class WhiteCellController {
     syncTimelineFromStore() {
         this.timelineEvents = timelineStore.getAll();
         this.tribeStreetJournalEntries = this.timelineEvents
-            .filter((event) => isTeamCaptureTimelineEvent(event))
+            .filter((event) => isTeamCaptureTimelineEvent(event) || isNotetakerSaveTimelineEvent(event))
             .sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0));
         this.configureTimelineFilters();
         this.renderTimeline();
@@ -3249,6 +3282,24 @@ export class WhiteCellController {
             const phase = event.phase ?? 1;
             const phaseLabel = `Phase ${phase} - ${getPhaseLabel(phase)}`;
             const timestamp = formatDateTime(event.created_at);
+            const noteScope = event?.metadata?.note_scope || null;
+            const noteScopeLabel = getNotetakerTimelineScopeLabel(noteScope);
+            const noteDetails = getNotetakerSaveTimelineDetailItems(event);
+            const noteDetailsMarkup = isNotetakerSaveTimelineEvent(event) && noteDetails.length > 0
+                ? `
+                    <div class="card card-bordered" style="margin-top: var(--space-2); padding: var(--space-3);">
+                        <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-2);">${this.escapeHtml(noteScopeLabel)} snapshot</p>
+                        <dl style="display: grid; gap: var(--space-2); margin: 0;">
+                            ${noteDetails.map((detail) => `
+                                <div>
+                                    <dt class="text-xs text-gray-500" style="margin: 0;">${this.escapeHtml(detail.label)}</dt>
+                                    <dd class="text-sm" style="margin: 0;">${this.escapeHtml(detail.value)}</dd>
+                                </div>
+                            `).join('')}
+                        </dl>
+                    </div>
+                `
+                : '';
 
             return `
                 <div class="timeline-event" style="display: flex; gap: var(--space-3); padding: var(--space-3); border-bottom: 1px solid var(--color-gray-200);">
@@ -3259,6 +3310,7 @@ export class WhiteCellController {
                             <span class="text-xs text-gray-400">${this.escapeHtml(timestamp)}</span>
                         </div>
                         <p class="text-sm mt-1">${this.escapeHtml(eventContent)}</p>
+                        ${noteDetailsMarkup}
                         <p class="timeline-event-meta" style="margin-top: var(--space-2); font-size: var(--text-xs); color: var(--color-text-secondary);">${this.escapeHtml(teamLabel)} | ${this.escapeHtml(teamRoleLabel)} | Move ${this.escapeHtml(String(move))} | ${this.escapeHtml(phaseLabel)}</p>
                     </div>
                 </div>

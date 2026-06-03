@@ -248,7 +248,7 @@ describe('Notetaker move-scoped view state', () => {
         expect(secondSeatState.allianceData).toEqual(DEFAULT_ALLIANCE_DATA);
     });
 
-    it('builds shared timeline updates for manual note saves without exposing the private note body', () => {
+    it('builds structured shared timeline updates for manual note saves while keeping the top-level content generic', () => {
         const timelineEvent = buildNotetakerSaveTimelineEvent('dynamics', {
             sessionId: 'session-88',
             teamId: 'blue',
@@ -259,6 +259,13 @@ describe('Notetaker move-scoped view state', () => {
             clientId: 'client-blue-1',
             move: 2,
             phase: 3
+        }, {
+            emergingLeaders: 'Taylor',
+            decisionStyle: 'Consensus with side caucuses',
+            frictionLevel: '7',
+            frictionSources: 'Tariff sequencing dispute',
+            consensusLevel: '6',
+            dynamicsSummary: 'Lead delegates are aligned on timing but split on concessions.'
         });
 
         expect(timelineEvent).toEqual({
@@ -274,6 +281,15 @@ describe('Notetaker move-scoped view state', () => {
                 role: 'blue_notetaker',
                 source: NOTETAKER_TIMELINE_EVENT_SOURCE,
                 note_scope: 'dynamics',
+                note_scope_label: 'Team Dynamics',
+                note_details: [
+                    { key: 'emergingLeaders', label: 'Emerging Leaders', value: 'Taylor' },
+                    { key: 'decisionStyle', label: 'Decision Making Style', value: 'Consensus with side caucuses' },
+                    { key: 'frictionLevel', label: 'Friction Level', value: '7/10' },
+                    { key: 'frictionSources', label: 'Friction Sources', value: 'Tariff sequencing dispute' },
+                    { key: 'consensusLevel', label: 'Consensus Level', value: '6/10' },
+                    { key: 'dynamicsSummary', label: 'Summary Notes', value: 'Lead delegates are aligned on timing but split on concessions.' }
+                ],
                 participant_key: 'seat-blue-1',
                 participant_id: 'participant-blue-1',
                 participant_label: 'Morgan'
@@ -334,6 +350,37 @@ describe('Notetaker move-scoped view state', () => {
         expect(markup).toContain('Ally Contingencies:</strong> Use regional lenders as guarantors.');
         expect(markup).toContain('Submitted:</strong>');
         expect(markup).toContain('Adjudication Notes:</strong> White Cell requires tighter sanctions mitigation.');
+    });
+
+    it('renders structured notetaker save details in the session timeline', () => {
+        const fakeDocument = createFakeDocument(['timelineList']);
+        global.document = fakeDocument;
+
+        const controller = new NotetakerController();
+        controller.renderTimeline([{
+            id: 'timeline-88',
+            type: 'NOTE',
+            content: 'Team dynamics notes saved',
+            created_at: '2026-04-10T09:00:00.000Z',
+            move: 2,
+            metadata: {
+                actor: 'Morgan',
+                source: NOTETAKER_TIMELINE_EVENT_SOURCE,
+                note_scope: 'dynamics',
+                note_details: [
+                    { label: 'Emerging Leaders', value: 'Taylor' },
+                    { label: 'Friction Sources', value: 'Tariff sequencing dispute' },
+                    { label: 'Summary Notes', value: 'Delegation cohesion softened after the caucus break.' }
+                ]
+            }
+        }]);
+
+        const markup = fakeDocument.elements.timelineList.innerHTML;
+        expect(markup).toContain('Team dynamics notes saved');
+        expect(markup).toContain('Team Dynamics snapshot');
+        expect(markup).toContain('Emerging Leaders');
+        expect(markup).toContain('Tariff sequencing dispute');
+        expect(markup).toContain('Delegation cohesion softened after the caucus break.');
     });
 
     it('ships a dedicated White Cell inbox section on the notetaker surface', () => {
