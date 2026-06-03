@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-import { dumpE2EMockBackend, enableE2EMockBackend } from './support/mockBackend.js';
+import {
+    dumpE2EMockBackend,
+    enableE2EMockBackend,
+    E2E_MOCK_OPERATOR_ACCESS_CODE
+} from './support/mockBackend.js';
 import {
     adjudicateAction,
     authorizeGameMaster,
@@ -16,7 +20,7 @@ test('@smoke session creation, role join, action submit, and White Cell adjudica
     await enableE2EMockBackend(context);
 
     const page = await context.newPage();
-    const operatorAccessCode = 'admin2025';
+    const operatorAccessCode = E2E_MOCK_OPERATOR_ACCESS_CODE;
     const sessionName = 'Smoke Session Alpha';
     const sessionCode = 'SMOKE2026';
     const actionGoal = 'Coordinate export controls to reduce semiconductor exposure across allied partners.';

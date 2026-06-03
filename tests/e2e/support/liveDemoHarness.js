@@ -1,16 +1,17 @@
 import { expect } from '@playwright/test';
 
-import { dumpE2EMockBackend } from './mockBackend.js';
+import { dumpE2EMockBackend, E2E_MOCK_OPERATOR_ACCESS_CODE } from './mockBackend.js';
 
 const SHARED_LOCAL_STORAGE_KEYS = Object.freeze([
-    'esg_e2e_mock',
     'esg_e2e_backend_state',
     '__esg_e2e_backend_reset__'
 ]);
 
 const BACKEND_RESET_KEY = '__esg_e2e_backend_reset__';
+const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
+const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 
-export const OPERATOR_ACCESS_CODE = 'admin2025';
+export const OPERATOR_ACCESS_CODE = E2E_MOCK_OPERATOR_ACCESS_CODE;
 
 export const DEFAULT_ACTION_PAYLOAD = Object.freeze({
     instrumentOfPower: 'Economic',
@@ -54,7 +55,10 @@ export async function createIsolatedActorPage(context, actorName, { resetBackend
         actorName: isolatedActorName,
         resetBackend: shouldResetBackend,
         sharedKeys,
-        backendResetKey
+        backendResetKey,
+        mockEnablementKey,
+        mockConfigKey,
+        mockConfig
     }) => {
         const localStorageRef = globalThis.localStorage;
         const sharedKeySet = new Set(sharedKeys);
@@ -84,9 +88,10 @@ export async function createIsolatedActorPage(context, actorName, { resetBackend
             return namespacedKeys;
         };
 
-        globalThis.__ESG_E2E_MOCK__ = true;
         globalThis.__ESG_E2E_ACTOR__ = isolatedActorName;
-        originalSetItem.call(localStorageRef, 'esg_e2e_mock', 'enabled');
+        globalThis.sessionStorage.setItem(mockEnablementKey, 'enabled');
+        globalThis.sessionStorage.setItem(mockConfigKey, JSON.stringify(mockConfig));
+        originalRemoveItem.call(localStorageRef, 'esg_e2e_mock');
 
         if (shouldResetBackend && !originalGetItem.call(localStorageRef, backendResetKey)) {
             originalRemoveItem.call(localStorageRef, 'esg_e2e_backend_state');
@@ -131,7 +136,12 @@ export async function createIsolatedActorPage(context, actorName, { resetBackend
         actorName,
         resetBackend,
         sharedKeys: SHARED_LOCAL_STORAGE_KEYS,
-        backendResetKey: BACKEND_RESET_KEY
+        backendResetKey: BACKEND_RESET_KEY,
+        mockEnablementKey: E2E_MOCK_ENABLEMENT_KEY,
+        mockConfigKey: E2E_MOCK_CONFIG_KEY,
+        mockConfig: {
+            operatorAccessCode: OPERATOR_ACCESS_CODE
+        }
     });
 
     return page;
@@ -312,9 +322,12 @@ export async function adjudicateAction(page, {
     outcome = 'SUCCESS',
     notes = 'Validated through the live-demo topology suite.'
 } = {}) {
-    await openSidebarSection(page, 'adjudication');
+    await openSidebarSection(page, 'actions');
 
-    const adjudicationCard = page.locator('#adjudicationQueue > *').filter({ hasText: goal }).first();
+    const actionsCard = page.locator('#actionsList > *').filter({ hasText: goal }).first();
+    const adjudicationCard = await actionsCard.count() > 0
+        ? actionsCard
+        : page.locator('#adjudicationQueue > *').filter({ hasText: goal }).first();
     await expect(adjudicationCard).toContainText(goal);
     await adjudicationCard.locator('.adjudicate-btn').click();
 

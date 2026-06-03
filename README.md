@@ -43,6 +43,8 @@ For the current role-by-role frontend contract and the backend behaviors that mu
 
 Playwright serves the generated `dist/` output through `npm run serve:test`. If you are validating fresh UI changes, rebuild before running the suite so `dist/` matches the current source.
 
+The mock backend is enabled only by the local Playwright harness on `127.0.0.1` or `localhost`. Hosted or production builds ignore browser-side toggles such as `localStorage.esg_e2e_mock = 'enabled'`.
+
 You can point the suite at an already-hosted build by setting `PLAYWRIGHT_BASE_URL`, for example:
 
 ```powershell
@@ -50,7 +52,9 @@ $env:PLAYWRIGHT_BASE_URL = 'https://<owner>.github.io/SSG_Simulation-Platform/'
 npm run test:e2e:smoke
 ```
 
-The automated E2E suite still uses the mock backend contract. Real Supabase verification is listed below.
+When `PLAYWRIGHT_BASE_URL` targets a hosted build, the mock backend bootstrap is intentionally unavailable and the suite exercises that deployed runtime as-is.
+
+The local automated E2E suite uses the mock backend contract through the harness-only bootstrap. Real Supabase verification is listed below.
 
 ## One-Team Rehearsal Workflow
 

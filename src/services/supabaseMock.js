@@ -1,6 +1,9 @@
-const E2E_MOCK_FLAG_KEY = 'esg_e2e_mock';
+const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
+const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_AUTH_KEY = 'esg_e2e_auth_session';
+const E2E_MOCK_TEST_CONFIG_GLOBAL = '__ESG_E2E_TEST_CONFIG__';
+const E2E_MOCK_ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 
 const MOCK_TABLES = [
     'sessions',
@@ -24,6 +27,76 @@ function cloneValue(value) {
 function getStorage() {
     try {
         return globalThis.localStorage ?? null;
+    } catch (_error) {
+        return null;
+    }
+}
+
+function getSessionStorage() {
+    try {
+        return globalThis.sessionStorage ?? null;
+    } catch (_error) {
+        return null;
+    }
+}
+
+function normalizeMockBootstrapConfig(config) {
+    const operatorAccessCode = typeof config === 'string'
+        ? config
+        : config?.operatorAccessCode;
+
+    if (typeof operatorAccessCode !== 'string') {
+        return null;
+    }
+
+    const normalizedOperatorAccessCode = operatorAccessCode.trim();
+    if (!normalizedOperatorAccessCode) {
+        return null;
+    }
+
+    return {
+        operatorAccessCode: normalizedOperatorAccessCode
+    };
+}
+
+function isLocalAutomationRuntime({
+    navigatorRef = globalThis.navigator ?? null,
+    locationRef = globalThis.location ?? null
+} = {}) {
+    if (navigatorRef?.webdriver !== true) {
+        return false;
+    }
+
+    const normalizedHostname = String(locationRef?.hostname || '').trim().toLowerCase();
+    return E2E_MOCK_ALLOWED_HOSTS.has(normalizedHostname);
+}
+
+function readMockBootstrapConfig({
+    globalRef = globalThis,
+    sessionStorageRef = getSessionStorage(),
+    navigatorRef = globalThis.navigator ?? null,
+    locationRef = globalThis.location ?? null
+} = {}) {
+    const nonBrowserTestConfig = normalizeMockBootstrapConfig(globalRef?.[E2E_MOCK_TEST_CONFIG_GLOBAL]);
+    if (typeof window === 'undefined' && nonBrowserTestConfig) {
+        return nonBrowserTestConfig;
+    }
+
+    if (!isLocalAutomationRuntime({ navigatorRef, locationRef })) {
+        return null;
+    }
+
+    if (sessionStorageRef?.getItem(E2E_MOCK_ENABLEMENT_KEY) !== 'enabled') {
+        return null;
+    }
+
+    const rawConfig = sessionStorageRef?.getItem(E2E_MOCK_CONFIG_KEY);
+    if (!rawConfig) {
+        return null;
+    }
+
+    try {
+        return normalizeMockBootstrapConfig(JSON.parse(rawConfig));
     } catch (_error) {
         return null;
     }
@@ -486,7 +559,7 @@ function getSessionRoleSeatLimit(role = '') {
 }
 
 function getOperatorAccessCode() {
-    return String(globalThis.__ESG_OPERATOR_ACCESS_CODE__ || 'admin2025');
+    return readMockBootstrapConfig()?.operatorAccessCode || null;
 }
 
 function getOperatorGrant(state, authUserId, surface) {
@@ -1726,16 +1799,7 @@ class MockQueryBuilder {
 }
 
 export function isE2EMockEnabled() {
-    if (typeof globalThis === 'undefined') {
-        return false;
-    }
-
-    if (globalThis.__ESG_E2E_MOCK__ === true) {
-        return true;
-    }
-
-    const storage = getStorage();
-    return storage?.getItem(E2E_MOCK_FLAG_KEY) === 'enabled';
+    return Boolean(readMockBootstrapConfig());
 }
 
 export function resetE2EMockState() {

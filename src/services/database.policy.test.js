@@ -24,7 +24,9 @@ class MemoryStorage {
 
 async function loadModules() {
     vi.resetModules();
-    globalThis.__ESG_E2E_MOCK__ = true;
+    globalThis.__ESG_E2E_TEST_CONFIG__ = {
+        operatorAccessCode: 'admin2025'
+    };
 
     const [{ sessionStore }, { database }] = await Promise.all([
         import('../stores/session.js'),
@@ -102,7 +104,7 @@ describe('database live-demo policy enforcement', () => {
         vi.useRealTimers();
         vi.resetModules();
         delete global.localStorage;
-        delete globalThis.__ESG_E2E_MOCK__;
+        delete globalThis.__ESG_E2E_TEST_CONFIG__;
         delete globalThis.__ESG_E2E_BACKEND__;
     });
 

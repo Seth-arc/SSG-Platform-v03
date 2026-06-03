@@ -24,7 +24,9 @@ class MemoryStorage {
 
 async function loadModules() {
     vi.resetModules();
-    globalThis.__ESG_E2E_MOCK__ = true;
+    globalThis.__ESG_E2E_TEST_CONFIG__ = {
+        operatorAccessCode: 'admin2025'
+    };
 
     const [{ sessionStore }, { database }, { buildNotetakerViewState }] = await Promise.all([
         import('../stores/session.js'),
@@ -76,11 +78,11 @@ describe('database notetaker concurrency contract', () => {
         vi.useRealTimers();
         vi.resetModules();
         delete global.localStorage;
-        delete globalThis.__ESG_E2E_MOCK__;
+        delete globalThis.__ESG_E2E_TEST_CONFIG__;
         delete globalThis.__ESG_E2E_BACKEND__;
     });
 
-    it('loads each notetaker seat without overwriting the other three seats on the same move', async () => {
+    it('loads each notetaker seat without overwriting the other Blue seat on the same move', async () => {
         const { sessionStore, database, buildNotetakerViewState } = await loadModules();
 
         setClientIdentity(sessionStore, 'client-gm', 'gamemaster');
@@ -88,7 +90,7 @@ describe('database notetaker concurrency contract', () => {
 
         const blueSeatIds = [];
 
-        for (let index = 1; index <= 4; index += 1) {
+        for (let index = 1; index <= 2; index += 1) {
             setClientIdentity(sessionStore, `client-blue-${index}`, 'blue_notetaker');
             const seat = await database.claimParticipantSeat(session.id, 'blue_notetaker', `Blue Note ${index}`);
             blueSeatIds.push(seat.id);
@@ -147,34 +149,32 @@ describe('database notetaker concurrency contract', () => {
 
         const record = await database.getNotetakerData(session.id, 1);
 
-        const thirdSeatView = buildNotetakerViewState(record, {
+        const secondSeatView = buildNotetakerViewState(record, {
             teamId: 'blue',
-            participantKey: blueSeatIds[2]
+            participantKey: blueSeatIds[1]
         });
         const firstSeatView = buildNotetakerViewState(record, {
             teamId: 'blue',
             participantKey: blueSeatIds[0]
         });
 
-        expect(Object.keys(record.dynamics_analysis.team_entries.blue.participant_entries)).toHaveLength(4);
-        expect(thirdSeatView.dynamicsData).toMatchObject({
-            emergingLeaders: 'Lead 3',
-            dynamicsSummary: 'Summary 3'
+        expect(Object.keys(record.dynamics_analysis.team_entries.blue.participant_entries)).toHaveLength(2);
+        expect(secondSeatView.dynamicsData).toMatchObject({
+            emergingLeaders: 'Lead 2',
+            dynamicsSummary: 'Summary 2'
         });
-        expect(thirdSeatView.allianceData).toMatchObject({
-            allianceNotes: 'Alliance 3',
-            externalPressures: 'Pressure 3'
+        expect(secondSeatView.allianceData).toMatchObject({
+            allianceNotes: 'Alliance 2',
+            externalPressures: 'Pressure 2'
         });
         expect(firstSeatView.dynamicsData).toMatchObject({
             emergingLeaders: 'Lead 1',
             dynamicsSummary: 'Summary 1'
         });
-        expect(thirdSeatView.observationTimeline.map((entry) => entry.content)).toEqual([
+        expect(secondSeatView.observationTimeline.map((entry) => entry.content)).toEqual([
             'Blue observation 1',
-            'Blue observation 2',
-            'Blue observation 3',
-            'Blue observation 4'
+            'Blue observation 2'
         ]);
-        expect(thirdSeatView.observationTimeline.map((entry) => entry.content)).not.toContain('Red observation 1');
+        expect(secondSeatView.observationTimeline.map((entry) => entry.content)).not.toContain('Red observation 1');
     });
 });
