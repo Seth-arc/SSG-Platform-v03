@@ -182,6 +182,9 @@ describe('Facilitator and scribe access', () => {
         expect(html).toContain('Tribe Street Journal');
         expect(html).toContain('id="tribeStreetJournalEmbed"');
         expect(html).toContain('id="tribeStreetJournalList"');
+        expect(html).toContain('id="responsesBadge"');
+        expect(html).toContain('id="tribeStreetJournalBadge"');
+        expect(html).toContain('id="verbaAiBadge"');
     });
 
     it('labels the Green facilitator action trigger as New Proposal', () => {
@@ -407,6 +410,7 @@ describe('Facilitator and scribe access', () => {
         const { buildWhiteCellRecipientMetadata } = await import('../features/communications/targeting.js');
 
         const responsesList = createFakeElement('responsesList');
+        const responsesBadge = createFakeElement('responsesBadge');
         const proposalsList = createFakeElement('receivedProposalsList');
         const proposalsBadge = createFakeElement('receivedProposalsBadge');
 
@@ -417,6 +421,7 @@ describe('Facilitator and scribe access', () => {
             getElementById(id) {
                 return {
                     responsesList,
+                    responsesBadge,
                     receivedProposalsList: proposalsList,
                     receivedProposalsBadge: proposalsBadge
                 }[id] || null;
@@ -453,10 +458,86 @@ describe('Facilitator and scribe access', () => {
 
         expect(responsesList.innerHTML).toContain('Received Proposal: Joint Port Proposal');
         expect(responsesList.innerHTML).toContain('FORWARDED PROPOSAL');
+        expect(responsesBadge.textContent).toBe('1');
+        expect(responsesBadge.hidden).toBe(false);
         expect(proposalsList.innerHTML).toContain('Joint Port Proposal');
         expect(proposalsList.innerHTML).toContain('Forwarded from Green Team');
         expect(proposalsBadge.textContent).toBe('1');
         expect(proposalsBadge.hidden).toBe(false);
+    });
+
+    it('shows White Cell updates and direct communications explicitly in the responses feed and update badges', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        const {
+            WHITE_CELL_UPDATE_KINDS,
+            buildWhiteCellRecipientMetadata
+        } = await import('../features/communications/targeting.js');
+
+        const responsesList = createFakeElement('responsesList');
+        const responsesBadge = createFakeElement('responsesBadge');
+        const journalList = createFakeElement('tribeStreetJournalList');
+        const journalBadge = createFakeElement('tribeStreetJournalBadge');
+        const journalEmbed = createFakeElement('tribeStreetJournalEmbed');
+        const verbaAiList = createFakeElement('verbaAiList');
+        const verbaAiBadge = createFakeElement('verbaAiBadge');
+
+        global.document = {
+            createElement(tagName) {
+                return createFakeElement(null, tagName);
+            },
+            getElementById(id) {
+                return {
+                    responsesList,
+                    responsesBadge,
+                    tribeStreetJournalList: journalList,
+                    tribeStreetJournalBadge: journalBadge,
+                    tribeStreetJournalEmbed: journalEmbed,
+                    verbaAiList,
+                    verbaAiBadge
+                }[id] || null;
+            }
+        };
+
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([
+            {
+                id: 'comm-update-1',
+                from_role: 'whitecell_lead',
+                to_role: 'blue',
+                type: 'GUIDANCE',
+                content: 'Headline trade narrative updated for the next move.',
+                created_at: '2026-04-09T10:06:00.000Z',
+                metadata: buildWhiteCellRecipientMetadata('blue', {
+                    content_kind: WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL
+                })
+            },
+            {
+                id: 'comm-direct-1',
+                from_role: 'whitecell_support',
+                to_role: 'blue_scribe',
+                type: 'DIRECT',
+                content: 'Prepare a short briefing note before adjudication.',
+                created_at: '2026-04-09T10:10:00.000Z',
+                metadata: buildWhiteCellRecipientMetadata('blue_scribe')
+            }
+        ]);
+
+        const controller = new FacilitatorController();
+        controller.syncResponsesFromStores();
+        controller.syncWhiteCellUpdateSectionsFromStore();
+
+        expect(responsesList.innerHTML).toContain('White Cell Update: Tribe Street Journal');
+        expect(responsesList.innerHTML).toContain('WHITE CELL UPDATE');
+        expect(responsesList.innerHTML).toContain('White Cell Communication');
+        expect(responsesList.innerHTML).toContain('White Cell communication to Blue Team');
+        expect(responsesList.innerHTML).toContain('White Cell communication to Blue Team Scribe');
+        expect(responsesBadge.textContent).toBe('2');
+        expect(responsesBadge.hidden).toBe(false);
+        expect(journalList.innerHTML).toContain('WHITE CELL UPDATE');
+        expect(journalBadge.textContent).toBe('1');
+        expect(journalBadge.hidden).toBe(false);
+        expect(verbaAiBadge.textContent).toBe('0');
+        expect(verbaAiBadge.hidden).toBe(true);
     });
 
     it('locks a received proposal after the team has already responded', async () => {

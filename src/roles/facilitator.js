@@ -346,8 +346,8 @@ export class FacilitatorController {
 
         if (responsesDescription) {
             responsesDescription.textContent = this.isReadOnly
-                ? 'Passive feed of White Cell responses to this team.'
-                : 'View responses to your RFIs and communications';
+                ? 'Passive feed of explicit White Cell communications, update notices, and responses to this team.'
+                : 'View explicit White Cell communications, update notices, and responses to your RFIs.';
         }
 
         if (journalDescription) {
@@ -518,25 +518,18 @@ export class FacilitatorController {
                 kind: 'rfi',
                 created_at: request.responded_at || request.updated_at || request.created_at,
                 title: request.query || request.question || 'RFI response',
+                subtitle: 'Answered by White Cell',
                 content: request.response,
-                status: request.status,
-                priority: request.priority
+                badgeText: 'RFI ANSWERED',
+                badgeVariant: 'success'
             }));
 
         const directResponses = communicationsStore.getAll()
             .filter((communication) =>
                 isWhiteCellCommunicationVisibleToLead(communication, this.teamContext)
                 && communication?.type !== 'PROPOSAL_FORWARDED'
-                && !getWhiteCellCommunicationUpdateKind(communication)
             )
-            .map((communication) => ({
-                id: communication.id,
-                kind: 'communication',
-                created_at: communication.created_at,
-                title: this.formatCommunicationTarget(communication.to_role),
-                content: communication.content,
-                type: communication.type || 'MESSAGE'
-            }));
+            .map((communication) => this.buildWhiteCellResponseEntry(communication));
         const forwardedProposals = communicationsStore.getAll()
             .filter((communication) =>
                 communication?.type === 'PROPOSAL_FORWARDED'
@@ -547,8 +540,10 @@ export class FacilitatorController {
                 kind: 'proposal',
                 created_at: communication.created_at,
                 title: `Received Proposal: ${communication?.metadata?.proposal?.title || 'Untitled proposal'}`,
+                subtitle: 'Forwarded by White Cell after review',
                 content: communication.content,
-                type: 'FORWARDED PROPOSAL'
+                badgeText: 'FORWARDED PROPOSAL',
+                badgeVariant: 'warning'
             }));
 
         this.responses = [...answeredRfis, ...directResponses, ...forwardedProposals].sort(
@@ -583,6 +578,68 @@ export class FacilitatorController {
 
         this.renderTribeStreetJournalList();
         this.renderVerbaAiList();
+    }
+
+    updateSidebarBadge(elementId, count) {
+        const badge = document.getElementById(elementId);
+        if (!badge) return;
+
+        badge.textContent = String(count);
+        badge.hidden = count === 0;
+    }
+
+    getWhiteCellUpdateResponseTitle(updateKind = null) {
+        if (updateKind === WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL) {
+            return 'White Cell Update: Tribe Street Journal';
+        }
+
+        if (updateKind === WHITE_CELL_UPDATE_KINDS.VERBA_AI_POPULATION_SENTIMENT) {
+            return 'White Cell Update: Verba AI Population Sentiment';
+        }
+
+        return 'White Cell Update';
+    }
+
+    buildWhiteCellResponseEntry(communication = {}) {
+        const updateKind = getWhiteCellCommunicationUpdateKind(communication);
+        const audienceLabel = this.getCommunicationAudienceLabel(communication);
+
+        if (updateKind === WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL) {
+            return {
+                id: communication.id,
+                kind: 'white_cell_update',
+                created_at: communication.created_at,
+                title: this.getWhiteCellUpdateResponseTitle(updateKind),
+                subtitle: audienceLabel,
+                content: communication.content,
+                badgeText: 'WHITE CELL UPDATE',
+                badgeVariant: 'primary'
+            };
+        }
+
+        if (updateKind === WHITE_CELL_UPDATE_KINDS.VERBA_AI_POPULATION_SENTIMENT) {
+            return {
+                id: communication.id,
+                kind: 'white_cell_update',
+                created_at: communication.created_at,
+                title: this.getWhiteCellUpdateResponseTitle(updateKind),
+                subtitle: audienceLabel,
+                content: communication.content,
+                badgeText: 'VERBA AI UPDATE',
+                badgeVariant: 'success'
+            };
+        }
+
+        return {
+            id: communication.id,
+            kind: 'communication',
+            created_at: communication.created_at,
+            title: 'White Cell Communication',
+            subtitle: audienceLabel,
+            content: communication.content,
+            badgeText: communication.type || 'MESSAGE',
+            badgeVariant: 'info'
+        };
     }
 
     getForwardedProposalCommunication(action = null) {
@@ -683,13 +740,8 @@ export class FacilitatorController {
 
     renderReceivedProposals() {
         const container = document.getElementById('receivedProposalsList');
-        const badge = document.getElementById('receivedProposalsBadge');
-
-        if (badge) {
-            const unreadCount = countUnreadProposals(this.receivedProposals);
-            badge.textContent = unreadCount;
-            badge.hidden = unreadCount === 0;
-        }
+        const unreadCount = countUnreadProposals(this.receivedProposals);
+        this.updateSidebarBadge('receivedProposalsBadge', unreadCount);
 
         if (!container) return;
 
@@ -3080,28 +3132,33 @@ export class FacilitatorController {
 
     renderResponsesList() {
         const container = document.getElementById('responsesList');
+        this.updateSidebarBadge('responsesBadge', this.responses.length);
         if (!container) return;
 
         if (this.responses.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <h3 class="empty-state-title">No Responses Yet</h3>
-                    <p class="empty-state-message">White Cell responses and team-lead communications will appear here.</p>
+                    <p class="empty-state-message">Explicit White Cell communications, update notices, and RFI responses will appear here.</p>
                 </div>
             `;
             return;
         }
 
         container.innerHTML = this.responses.map((response) => {
-            const responseBadge = response.kind === 'rfi'
-                ? createStatusBadge('answered').outerHTML
-                : createBadge({ text: response.type, variant: 'info', size: 'sm', rounded: true }).outerHTML;
+            const responseBadge = createBadge({
+                text: response.badgeText || 'MESSAGE',
+                variant: response.badgeVariant || 'info',
+                size: 'sm',
+                rounded: true
+            }).outerHTML;
 
             return `
                 <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-2);">
                         <div>
                             <h3 class="font-semibold">${this.escapeHtml(response.title)}</h3>
+                            ${response.subtitle ? `<p class="text-xs text-gray-500">${this.escapeHtml(response.subtitle)}</p>` : ''}
                             <p class="text-xs text-gray-400">${formatDateTime(response.created_at)}</p>
                         </div>
                         ${responseBadge}
@@ -3114,6 +3171,7 @@ export class FacilitatorController {
 
     renderTribeStreetJournalList() {
         const container = document.getElementById('tribeStreetJournalList');
+        this.updateSidebarBadge('tribeStreetJournalBadge', this.journalUpdates.length);
         if (!container) return;
         this.renderTribeStreetJournalEmbed();
 
@@ -3151,7 +3209,7 @@ export class FacilitatorController {
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
                             <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
                                 ${createBadge({ text: 'WHITE CELL UPDATE', variant: 'primary', size: 'sm', rounded: true }).outerHTML}
-                                <span class="text-xs text-gray-500">${this.escapeHtml(this.formatCommunicationTarget(entry.to_role))}</span>
+                                <span class="text-xs text-gray-500">${this.escapeHtml(this.getCommunicationAudienceLabel(entry))}</span>
                             </div>
                             <span class="text-xs text-gray-400">${timestamp ? formatDateTime(timestamp) : 'Time unavailable'}</span>
                         </div>
@@ -3197,6 +3255,7 @@ export class FacilitatorController {
 
     renderVerbaAiList() {
         const container = document.getElementById('verbaAiList');
+        this.updateSidebarBadge('verbaAiBadge', this.verbaAiUpdates.length);
         if (!container) return;
 
         if (this.verbaAiUpdates.length === 0) {
@@ -3214,7 +3273,7 @@ export class FacilitatorController {
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
                     <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
                         ${createBadge({ text: 'VERBA AI', variant: 'success', size: 'sm', rounded: true }).outerHTML}
-                        <span class="text-xs text-gray-500">${this.escapeHtml(this.formatCommunicationTarget(communication.to_role))}</span>
+                        <span class="text-xs text-gray-500">${this.escapeHtml(this.getCommunicationAudienceLabel(communication))}</span>
                     </div>
                     <span class="text-xs text-gray-400">${formatDateTime(communication.created_at)}</span>
                 </div>
@@ -3304,6 +3363,19 @@ export class FacilitatorController {
         };
 
         return labels[target] || target || 'White Cell communication';
+    }
+
+    getCommunicationAudienceLabel(communication = {}) {
+        const metadata = communication?.metadata && typeof communication.metadata === 'object'
+            ? communication.metadata
+            : {};
+        const audienceTarget = metadata.recipient_role
+            || metadata.recipient_team
+            || metadata.recipient
+            || communication?.to_role
+            || '';
+
+        return this.formatCommunicationTarget(audienceTarget);
     }
 
     formatTeamLabel(team) {

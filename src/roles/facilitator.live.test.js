@@ -168,7 +168,14 @@ describe('Facilitator live store wiring', () => {
             'actionsList',
             'rfiBadge',
             'rfiList',
+            'responsesBadge',
             'responsesList',
+            'receivedProposalsBadge',
+            'tribeStreetJournalBadge',
+            'tribeStreetJournalEmbed',
+            'tribeStreetJournalList',
+            'verbaAiBadge',
+            'verbaAiList',
             'timelineList'
         ].map((id) => [id, createElement()]));
 

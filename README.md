@@ -129,6 +129,12 @@ Suggested rehearsal order:
 5. Sidebar badges are queue-specific: `Actions` counts Blue Team actions, `Proposals` counts Green Team proposals, `Move Responses` counts Red Team move responses, and `RFI` counts pending requests only.
 6. Once White Cell forwards a Green proposal, the originating Green facilitator proposal card continues to reflect the recipient team's latest status, including `Acknowledged`, `Declined`, `Ignored`, and `Responded`.
 
+### Participant Update Feeds
+
+- Facilitator and scribe surfaces now show direct White Cell communications and White Cell content updates explicitly inside `White Cell Responses`, instead of relying on generic response cards alone.
+- Sidebar badges on facilitator/scribe surfaces now track visible items in `Responses`, `Received Proposals`, `Tribe Street Journal`, and `Verba AI`, so operators can confirm the recipient team has explicit update notifications.
+- `Tribe Street Journal` and `Verba AI` still keep their dedicated sections for reading the update content in context; the `White Cell Responses` section now acts as the inbox-style notification feed.
+
 ### White Cell Timeline Filters
 
 - The White Cell `Session Timeline` now supports combined `Team`, `Role`, `Move`, and `Activity Type` filters.
