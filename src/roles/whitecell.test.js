@@ -85,6 +85,9 @@ function createFakeElement(id = null, tagName = 'div') {
             remove() {},
             toggle() {}
         },
+        querySelectorAll() {
+            return [];
+        },
         addEventListener(type, callback) {
             this.listeners[type] = callback;
         },
@@ -461,6 +464,58 @@ describe('White Cell DOM contract', () => {
             { value: 'NOTE', label: 'Note' },
             { value: 'QUOTE', label: 'Quote' }
         ]));
+    });
+
+    it('renders session metadata and timeline phase labels with ASCII separators', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { getPhaseLabel } = await import('../core/enums.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const fakeDocument = createFakeDocument(['sessionsList', 'timelineList']);
+        const emDash = String.fromCharCode(0x2014);
+        const middleDot = String.fromCharCode(0x00B7);
+        global.document = fakeDocument;
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue(null);
+
+        const controller = new WhiteCellController();
+        controller.adminSessions = [
+            {
+                id: 'session-encoding-1',
+                name: 'Encoding Check',
+                status: 'active',
+                metadata: {}
+            }
+        ];
+        controller.renderSessionsAdmin();
+
+        expect(fakeDocument.elements.sessionsList.innerHTML).toContain('Code: - | Status: active');
+        expect(fakeDocument.elements.sessionsList.innerHTML).not.toContain(`Code: ${emDash}`);
+        expect(fakeDocument.elements.sessionsList.innerHTML).not.toContain(` ${middleDot} `);
+
+        controller.timelineEvents = [
+            {
+                id: 'timeline-encoding-1',
+                team: 'blue',
+                type: 'GUIDANCE',
+                content: 'White Cell update shared.',
+                move: 3,
+                phase: 2,
+                created_at: '2026-04-08T10:06:00.000Z',
+                metadata: { role: 'blue_facilitator' }
+            }
+        ];
+        controller.timelineFilters = {
+            team: null,
+            role: null,
+            move: null,
+            activityType: null
+        };
+        controller.renderTimeline();
+
+        expect(fakeDocument.elements.timelineList.innerHTML).toContain(
+            `Move 3 | Phase 2 - ${getPhaseLabel(2)}`
+        );
+        expect(fakeDocument.elements.timelineList.innerHTML).not.toContain(` ${middleDot} `);
     });
 
     it('positions White Cell sidebar badges on the matching review queues', async () => {

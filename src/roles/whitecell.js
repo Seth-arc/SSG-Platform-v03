@@ -2643,14 +2643,14 @@ export class WhiteCellController {
 
         const rows = this.adminSessions.map((session) => {
             const isActive = session.id === activeSessionId;
-            const code = session.session_code || session.metadata?.session_code || '—';
+            const code = session.session_code || session.metadata?.session_code || '-';
             const status = session.status || 'unknown';
             return `
                 <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-2); ${isActive ? 'border-left: 3px solid var(--color-primary-500);' : ''}">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3);">
                         <div>
                             <p class="text-sm font-semibold" style="margin: 0;">${this.escapeHtml(session.name || 'Unnamed session')}${isActive ? ' <span class="text-xs" style="color: var(--color-primary-600); text-transform: uppercase; letter-spacing: 0.05em; margin-left: var(--space-2);">Active</span>' : ''}</p>
-                            <p class="text-xs text-gray-500" style="margin: 2px 0 0;">Code: ${this.escapeHtml(code)} · Status: ${this.escapeHtml(status)}</p>
+                            <p class="text-xs text-gray-500" style="margin: 2px 0 0;">Code: ${this.escapeHtml(code)} | Status: ${this.escapeHtml(status)}</p>
                         </div>
                         <button
                             type="button"
@@ -3015,7 +3015,7 @@ export class WhiteCellController {
                 : (inferredRole ? getWhiteCellFilterRoleLabel(inferredRole) : 'Unknown role');
             const move = event.move ?? 1;
             const phase = event.phase ?? 1;
-            const phaseLabel = `Phase ${phase} · ${getPhaseLabel(phase)}`;
+            const phaseLabel = `Phase ${phase} - ${getPhaseLabel(phase)}`;
             const timestamp = formatDateTime(event.created_at);
 
             return `

@@ -32,6 +32,14 @@ describe('landing public role visibility', () => {
         expect(html).toContain('bootFracturedOrderOption');
     });
 
+    it('keeps the landing poster alt text ASCII-safe', () => {
+        const html = readFileSync(LANDING_HTML_PATH, 'utf8');
+        const emDash = String.fromCharCode(0x2014);
+
+        expect(html).toContain('Fractured Order - A Seminar Simulation');
+        expect(html).not.toContain(`Fractured Order ${emDash} A Seminar Simulation`);
+    });
+
     it('contains the operator password field inside a form', () => {
         const html = readFileSync(LANDING_HTML_PATH, 'utf8');
 
