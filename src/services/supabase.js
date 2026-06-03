@@ -120,7 +120,7 @@ function buildRuntimeStatus() {
         title: runtimeAvailabilityFailure?.title || 'Supabase backend configuration is missing',
         eyebrow: runtimeAvailabilityFailure?.eyebrow || 'Configuration Required',
         note: runtimeAvailabilityFailure?.note
-            || 'Update the local environment from .env.example, restart the dev server, and reload this page.',
+            || 'Create or update an untracked .env.local from .env.example, restart the dev server, and reload this page.',
         code: runtimeAvailabilityFailure?.code || 'BACKEND_CONFIG_REQUIRED'
     };
 }

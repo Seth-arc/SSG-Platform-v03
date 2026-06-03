@@ -26,15 +26,15 @@
             top: var(--space-4);
         }
     </style>
-  <script type="module" crossorigin src="/assets/whitecell-rYskvdBA.js"></script>
+  <script type="module" crossorigin src="/assets/whitecell-DGQlpUpK.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/supabase-BQbgwcOn.js">
-  <link rel="modulepreload" crossorigin href="/assets/main-BrkOTEy1.js">
-  <link rel="modulepreload" crossorigin href="/assets/formatting-CMbm0mB5.js">
+  <link rel="modulepreload" crossorigin href="/assets/main-BNYijYnB.js">
+  <link rel="modulepreload" crossorigin href="/assets/formatting-Cgxdh3D8.js">
   <link rel="modulepreload" crossorigin href="/assets/Modal-O3kyaPUL.js">
-  <link rel="modulepreload" crossorigin href="/assets/tribeStreetJournalEmbed-BL4UxpzV.js">
-  <link rel="modulepreload" crossorigin href="/assets/exportCsv-DCiubmPV.js">
-  <link rel="modulepreload" crossorigin href="/assets/targeting-C76lucWr.js">
-  <link rel="stylesheet" crossorigin href="/assets/main-CO7l2Psi.css">
+  <link rel="modulepreload" crossorigin href="/assets/tribeStreetJournalEmbed-hZek590l.js">
+  <link rel="modulepreload" crossorigin href="/assets/exportCsv-nG8Q1lup.js">
+  <link rel="modulepreload" crossorigin href="/assets/targeting-DC7R2e0H.js">
+  <link rel="stylesheet" crossorigin href="/assets/main-DzJQFk-o.css">
   <link rel="stylesheet" crossorigin href="/assets/formatting-1fFmx5Y1.css">
 </head>
 <body data-team="white_cell">
@@ -112,7 +112,7 @@
                                 </svg>
                             </span>
                             <span class="sidebar-label">Actions</span>
-                            <span class="sidebar-badge" id="actionsBadge">0</span>
+                            <span class="sidebar-badge" id="actionsBadge" hidden>0</span>
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
@@ -123,6 +123,7 @@
                                 </svg>
                             </span>
                             <span class="sidebar-label">Proposals</span>
+                            <span class="sidebar-badge" id="proposalsBadge" hidden>0</span>
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
@@ -133,6 +134,7 @@
                                 </svg>
                             </span>
                             <span class="sidebar-label">Move Responses</span>
+                            <span class="sidebar-badge" id="responsesBadge" hidden>0</span>
                         </a>
                     </li>
                     <li class="sidebar-divider"></li>
@@ -165,7 +167,7 @@
                                 </svg>
                             </span>
                             <span class="sidebar-label">RFI</span>
-                            <span class="sidebar-badge" id="rfiBadge">0</span>
+                            <span class="sidebar-badge" id="rfiBadge" hidden>0</span>
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
@@ -440,7 +442,7 @@
                     </div>
 
                     <div class="section-body">
-                        <div class="section-grid section-grid-2" style="margin-bottom: var(--space-4);">
+                        <div class="section-grid section-grid-4" style="margin-bottom: var(--space-4);">
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label class="form-label" for="timelineTeamFilter">Team Filter</label>
                                 <select id="timelineTeamFilter" class="form-input form-select" aria-controls="timelineList">
@@ -451,6 +453,18 @@
                                 <label class="form-label" for="timelineRoleFilter">Role Filter</label>
                                 <select id="timelineRoleFilter" class="form-input form-select" aria-controls="timelineList">
                                     <option value="">All Roles</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="timelineMoveFilter">Move Filter</label>
+                                <select id="timelineMoveFilter" class="form-input form-select" aria-controls="timelineList">
+                                    <option value="">All Moves</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="timelineActivityTypeFilter">Activity Type Filter</label>
+                                <select id="timelineActivityTypeFilter" class="form-input form-select" aria-controls="timelineList">
+                                    <option value="">All Activity Types</option>
                                 </select>
                             </div>
                         </div>

@@ -165,7 +165,7 @@ export function validateConfig(config = CONFIG) {
 }
 
 export function buildMissingConfigMessage(validation = validateConfig()) {
-    const baseMessage = 'Backend configuration is required. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then restart the app.';
+    const baseMessage = 'Backend configuration is required. Copy .env.example to an untracked .env.local or set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your shell, then restart the app.';
     if (!validation?.issues?.length) {
         return baseMessage;
     }

@@ -3,7 +3,22 @@ import { describe, expect, it } from 'vitest';
 import { buildMissingConfigMessage, validateConfig } from './config.js';
 
 describe('runtime configuration validation', () => {
-    it('rejects missing and placeholder Supabase values', () => {
+    it('rejects missing Supabase values', () => {
+        const validation = validateConfig({
+            SUPABASE_URL: '',
+            SUPABASE_ANON_KEY: '',
+            RUNTIME_MODE: 'backend-required'
+        });
+
+        expect(validation.valid).toBe(false);
+        expect(validation.runtimeMode).toBe('backend-required');
+        expect(validation.issues).toEqual([
+            'VITE_SUPABASE_URL is not configured.',
+            'VITE_SUPABASE_ANON_KEY is not configured.'
+        ]);
+    });
+
+    it('rejects placeholder Supabase values', () => {
         const validation = validateConfig({
             SUPABASE_URL: 'https://your-project-ref.supabase.co',
             SUPABASE_ANON_KEY: '<your-supabase-anon-key>',
@@ -25,6 +40,7 @@ describe('runtime configuration validation', () => {
         });
 
         expect(message).toContain('Backend configuration is required.');
-        expect(message).toContain('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+        expect(message).toContain('.env.example');
+        expect(message).toContain('untracked .env.local');
     });
 });
