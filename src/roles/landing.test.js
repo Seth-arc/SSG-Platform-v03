@@ -43,9 +43,9 @@ describe('landing public role visibility', () => {
     it('uses the updated landing brand label', () => {
         const html = readFileSync(LANDING_HTML_PATH, 'utf8');
 
-        expect(html).toContain('<title>Statecraft Siumulation Group</title>');
-        expect(html).toContain('<p class="boot-label">Statecraft Siumulation Group</p>');
-        expect(html).toContain('<span>Statecraft Siumulation Group</span>');
+        expect(html).toContain('<title>Statecraft Simulation Group</title>');
+        expect(html).toContain('<p class="boot-label">Statecraft Simulation Group</p>');
+        expect(html).toContain('<span>Statecraft Simulation Group</span>');
         expect(html).not.toContain('<title>Statecraft Sim</title>');
         expect(html).not.toContain('<p class="boot-label">Statecraft Sim</p>');
     });
