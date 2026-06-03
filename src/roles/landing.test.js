@@ -40,6 +40,16 @@ describe('landing public role visibility', () => {
         expect(html).not.toContain(`Fractured Order ${emDash} A Seminar Simulation`);
     });
 
+    it('uses the updated landing brand label', () => {
+        const html = readFileSync(LANDING_HTML_PATH, 'utf8');
+
+        expect(html).toContain('<title>Statecraft Siumulation Group</title>');
+        expect(html).toContain('<p class="boot-label">Statecraft Siumulation Group</p>');
+        expect(html).toContain('<span>Statecraft Siumulation Group</span>');
+        expect(html).not.toContain('<title>Statecraft Sim</title>');
+        expect(html).not.toContain('<p class="boot-label">Statecraft Sim</p>');
+    });
+
     it('contains the operator password field inside a form', () => {
         const html = readFileSync(LANDING_HTML_PATH, 'utf8');
 
