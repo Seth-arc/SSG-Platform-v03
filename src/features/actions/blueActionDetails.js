@@ -234,7 +234,7 @@ export function formatBlueActionSelection(values = [], fallback = 'Not specified
 }
 
 function getSortableTimestamp(action = {}) {
-    const timestamp = action.created_at || action.updated_at || '';
+    const timestamp = action.submitted_at || action.updated_at || action.created_at || '';
     const parsed = new Date(timestamp).getTime();
     return Number.isFinite(parsed) ? parsed : 0;
 }

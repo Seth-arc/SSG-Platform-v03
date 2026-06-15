@@ -126,6 +126,7 @@ Surface:
 Current behavior:
 
 - Session-aware slide deck sourced from `decks/blue/fractured-order-facilitator-deck.html`, with White Cell deck overrides resolving inside `decks/<team>/`
+- The `Actions` section renders saved drafts immediately for room projection, then carries the same action slides through submission and White Cell review
 - Navbar reflects session, time, move, and phase from the live session state
 - Sidebar sections are:
   - `Actions`

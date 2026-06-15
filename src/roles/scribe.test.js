@@ -23,7 +23,7 @@ function toDatasetKey(attributeName = '') {
         .replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase());
 }
 
-function createFakeElement(id = null, className = '') {
+function createFakeElement(id = null, className = '', tagName = 'div') {
     const attributes = new Map();
     const classes = new Set(
         String(className)
@@ -35,6 +35,7 @@ function createFakeElement(id = null, className = '') {
 
     const element = {
         id,
+        tagName: String(tagName || 'div').toUpperCase(),
         hidden: false,
         dataset: {},
         get textContent() {
@@ -49,6 +50,11 @@ function createFakeElement(id = null, className = '') {
         },
         set innerHTML(value) {
             innerHTML = value == null ? '' : String(value);
+        },
+        get outerHTML() {
+            const classAttribute = element.className ? ` class="${element.className}"` : '';
+            const idAttribute = element.id ? ` id="${element.id}"` : '';
+            return `<${element.tagName.toLowerCase()}${idAttribute}${classAttribute}>${innerHTML}</${element.tagName.toLowerCase()}>`;
         },
         get className() {
             return [...classes].join(' ');
@@ -94,6 +100,10 @@ function createFakeElement(id = null, className = '') {
                 tokens.filter(Boolean).forEach((token) => classes.delete(token));
             },
             contains: (token) => classes.has(token)
+        },
+        appendChild(child) {
+            innerHTML += child?.outerHTML || '';
+            return child;
         }
     };
 
@@ -110,6 +120,9 @@ function createFakeDocument() {
 
     return {
         body,
+        createElement(tagName) {
+            return createFakeElement(null, '', tagName);
+        },
         register(element) {
             if (element?.id) {
                 elements.set(element.id, element);
@@ -131,6 +144,7 @@ async function loadScribeModule() {
 
 describe('scribe surface', () => {
     afterEach(() => {
+        vi.restoreAllMocks();
         delete globalThis.__ESG_DISABLE_AUTO_INIT__;
         global.document?.body?.removeAttribute?.('data-scribe-presentation');
         global.document?.body?.removeAttribute?.('data-role-surface');
@@ -283,7 +297,7 @@ describe('scribe surface', () => {
         );
     });
 
-    it('builds live scribe action slides from facilitator actions instead of deck images', async () => {
+    it('builds live scribe action slides from facilitator drafts and submitted actions instead of deck images', async () => {
         const { buildScribeActionSlides } = await loadScribeModule();
 
         const placeholderSlides = buildScribeActionSlides([], {
@@ -297,7 +311,7 @@ describe('scribe surface', () => {
         });
 
         const liveSlides = buildScribeActionSlides([{
-            id: 'action-1',
+            id: 'action-draft-1',
             team: 'blue',
             move: 1,
             phase: 1,
@@ -309,6 +323,22 @@ describe('scribe surface', () => {
             exposure_type: 'Supply Chain',
             targets: ['PRC', 'Japan'],
             priority: 'HIGH',
+            status: 'draft',
+            created_at: '2026-06-15T10:00:00.000Z',
+            updated_at: '2026-06-15T10:05:00.000Z'
+        }, {
+            id: 'action-1',
+            team: 'blue',
+            move: 1,
+            phase: 1,
+            goal: 'Lock coalition export threshold',
+            description: 'Commit the coalition threshold before White Cell review.',
+            expected_outcomes: 'Move the draft into a White Cell ready package.',
+            mechanism: 'Economic',
+            sector: 'Semiconductors',
+            exposure_type: 'Supply Chain',
+            targets: ['PRC'],
+            priority: 'HIGH',
             status: 'submitted',
             created_at: '2026-06-15T10:00:00.000Z',
             submitted_at: '2026-06-15T10:10:00.000Z'
@@ -316,17 +346,26 @@ describe('scribe surface', () => {
             teamLabel: 'Blue Team'
         });
 
-        expect(liveSlides.slideCount).toBe(1);
+        expect(liveSlides.slideCount).toBe(2);
         expect(liveSlides.slides[0]).toMatchObject({
-            slideKey: 'action-action-1',
+            slideKey: 'action-action-draft-1',
             slideType: 'action',
             title: 'Coordinate allied export controls',
-            sidebarOrdinal: '1'
+            sidebarOrdinal: '1',
+            sidebarKicker: 'Draft Preview | Blue Team | Move 1 | Action 1'
+        });
+        expect(liveSlides.slides[1]).toMatchObject({
+            slideKey: 'action-action-1',
+            slideType: 'action',
+            sidebarOrdinal: '2',
+            sidebarKicker: 'Submitted to White Cell | Blue Team | Move 1 | Action 2'
         });
     });
 
     it('renders blue action slides as structured briefing panels that are easier for the team to follow', async () => {
         const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        global.document.body.dataset.team = 'blue';
         const controller = new ScribeController();
         const action = {
             id: 'action-2',
@@ -375,6 +414,92 @@ describe('scribe surface', () => {
         expect(html).toContain('Expected effect:');
         expect(html).toContain('White Cell note');
         expect(html).toContain('Keep public messaging aligned with allied licensing language.');
+    });
+
+    it('moves the projected scribe stage onto a newly saved team draft slide', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const controller = new ScribeController();
+        const draftAction = {
+            id: 'draft-live-1',
+            team: controller.teamId,
+            move: 1,
+            phase: 1,
+            goal: 'Project the saved draft immediately',
+            description: 'Make the saved draft visible in the room before submission.',
+            status: 'draft',
+            created_at: '2026-06-15T10:00:00.000Z',
+            updated_at: '2026-06-15T10:05:00.000Z'
+        };
+        const getByTeamSpy = vi.spyOn(actionsStore, 'getByTeam').mockReturnValue([draftAction]);
+        controller.renderSlide = vi.fn();
+        controller.facilitatorDeckSlides = [{
+            n: 1,
+            title: 'Overview',
+            src: 'data:image/png;base64,AAA='
+        }];
+        controller.rebuildDeck();
+
+        expect(controller.getCurrentSlideKey()).toBe('deck-1');
+
+        controller.syncActionsFromStore({
+            event: 'created',
+            data: draftAction
+        });
+
+        expect(controller.getCurrentSlideKey()).toBe('action-draft-live-1');
+        expect(controller.renderSlide).toHaveBeenCalled();
+
+        getByTeamSpy.mockRestore();
+    });
+
+    it('renders saved draft actions as room-ready preview slides before White Cell submission', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        global.document.body.dataset.team = 'blue';
+        const controller = new ScribeController();
+        const action = {
+            id: 'action-draft-preview',
+            team: 'blue',
+            move: 1,
+            phase: 1,
+            goal: 'Pressure-test the export control package',
+            description: 'Review the working package in the room before submission.',
+            expected_outcomes: 'Align the room on the pre-submission package.',
+            mechanism: 'Economic',
+            sector: 'Semiconductors',
+            exposure_type: 'Supply Chain',
+            targets: ['PRC'],
+            priority: 'HIGH',
+            status: 'draft',
+            created_at: '2026-06-15T09:55:00.000Z',
+            updated_at: '2026-06-15T10:05:00.000Z',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Pressure-test the package before it goes to White Cell.',
+                levers: ['Export Controls'],
+                sectors: ['Semiconductors'],
+                implementation: 'Executive',
+                enforcementTimeline: 'Immediate',
+                coordinated: ['Diplomatic'],
+                informed: ['Industry']
+            })
+        };
+
+        const html = controller.renderActionSlide({
+            slideKey: 'action-action-draft-preview',
+            slideType: 'action',
+            sidebarOrdinal: '1',
+            sidebarKicker: 'Draft Preview | Blue Team | Move 1 | Action 1',
+            action
+        });
+
+        expect(html).toContain('Facilitator Draft Preview');
+        expect(html).toContain('What Blue Team is preparing');
+        expect(html).toContain('The working draft the team can review in the room before sending it to White Cell.');
+        expect(html).toContain('Draft status');
+        expect(html).toContain('Draft saved');
+        expect(html).toContain('Not yet submitted to White Cell');
+        expect(html).toContain('Ready for facilitator submission');
     });
 
     it('ships a standalone blue scribe html shell with live session state ids and requested sidebar labels', () => {

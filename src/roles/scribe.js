@@ -7,7 +7,13 @@ import { showToast } from '../components/ui/Toast.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import { createOutcomeBadge, createPriorityBadge, createStatusBadge } from '../components/ui/Badge.js';
-import { ENUMS, getPhaseLabel } from '../core/enums.js';
+import {
+    ENUMS,
+    getPhaseLabel,
+    isAdjudicatedAction,
+    isDraftAction,
+    isSubmittedAction
+} from '../core/enums.js';
 import { isWhiteCellCommunicationVisibleToScribe } from '../features/communications/targeting.js';
 import {
     formatActionSequenceLabel,
@@ -200,8 +206,24 @@ function buildActionPlaceholderSlide({
         title: `Awaiting ${teamLabel} facilitator decisions`,
         sidebarOrdinal: '0',
         sidebarKicker: 'No live action slides yet',
-        summary: 'Submitted facilitator decisions will appear here as follow-along briefing slides for the team scribe.'
+        summary: 'Saved drafts, submitted actions, and White Cell updates will appear here as follow-along briefing slides for the team scribe.'
     };
+}
+
+function getActionSlideLifecycleLabel(action = {}) {
+    if (isDraftAction(action)) {
+        return 'Draft Preview';
+    }
+
+    if (isAdjudicatedAction(action)) {
+        return 'White Cell Reviewed';
+    }
+
+    if (isSubmittedAction(action)) {
+        return 'Submitted to White Cell';
+    }
+
+    return 'Action';
 }
 
 export function buildScribeActionSlides(actions = [], {
@@ -232,7 +254,7 @@ export function buildScribeActionSlides(actions = [], {
             actionViewModel,
             title: actionViewModel.title,
             sidebarOrdinal: String(actionNumber),
-            sidebarKicker: sequenceLabel
+            sidebarKicker: `${getActionSlideLifecycleLabel(action)} | ${sequenceLabel}`
         };
     });
 
@@ -250,7 +272,7 @@ function buildActionSection(actions = [], {
     return {
         id: ACTIONS_SECTION_ID,
         label: 'Actions',
-        description: 'Live facilitator decisions and White Cell deliberation updates for the scribe seat.',
+        description: 'Live facilitator drafts, submitted actions, and White Cell deliberation updates for the scribe seat.',
         slideCount: actionSlides.slideCount,
         slides: actionSlides.slides
     };
@@ -294,6 +316,22 @@ function renderActionSlideDataRow({
             <dd>${escapeHtml(value)}</dd>
         </div>
     `;
+}
+
+function getActionSlideAnnouncementLabel(action = {}) {
+    if (isDraftAction(action)) {
+        return 'Draft preview';
+    }
+
+    if (isAdjudicatedAction(action)) {
+        return 'Reviewed action';
+    }
+
+    if (isSubmittedAction(action)) {
+        return 'Submitted action';
+    }
+
+    return 'Action';
 }
 
 export function setScribePresentationMode({
@@ -482,8 +520,8 @@ export class ScribeController {
 
     subscribeToLiveData() {
         this.storeUnsubscribers.push(
-            actionsStore.subscribe(() => {
-                this.syncActionsFromStore();
+            actionsStore.subscribe((event, data) => {
+                this.syncActionsFromStore({ event, data });
             })
         );
         this.storeUnsubscribers.push(
@@ -495,15 +533,26 @@ export class ScribeController {
         );
     }
 
-    syncActionsFromStore() {
+    syncActionsFromStore({
+        event = '',
+        data = null
+    } = {}) {
         this.teamActions = actionsStore.getByTeam(this.teamId);
 
         if (!this.facilitatorDeckSlides.length) {
             return;
         }
 
-        const preferredSlideKey = this.getCurrentSlideKey();
-        const preferActionsSection = this.sections[this.activeSectionIndex]?.id === ACTIONS_SECTION_ID;
+        const shouldFocusDraftPreview = (
+            (event === 'created' || event === 'updated')
+            && data?.team === this.teamId
+            && isDraftAction(data)
+        );
+        const preferredSlideKey = shouldFocusDraftPreview
+            ? `action-${data.id}`
+            : this.getCurrentSlideKey();
+        const preferActionsSection = shouldFocusDraftPreview
+            || this.sections[this.activeSectionIndex]?.id === ACTIONS_SECTION_ID;
 
         this.rebuildDeck({
             preferredSlideKey,
@@ -801,7 +850,7 @@ export class ScribeController {
         if (announcement) {
             announcement.textContent = slide.slideType === 'image'
                 ? `${activeSection.label}. ${slide.title}. Slide ${this.currentSlideIndex + 1} of ${this.deckSlides.length}.`
-                : `${activeSection.label}. ${slide.title}. Decision ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`;
+                : `${activeSection.label}. ${slide.title}. ${getActionSlideAnnouncementLabel(slide.action)} ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`;
         }
 
         const prevSlideBtn = document.getElementById('prevSlideBtn');
@@ -853,6 +902,10 @@ export class ScribeController {
         const adjudicatedLabel = action.adjudicated_at
             ? formatDateTime(action.adjudicated_at)
             : '';
+        const draftSavedLabel = action.updated_at
+            ? formatDateTime(action.updated_at)
+            : (action.created_at ? formatDateTime(action.created_at) : '');
+        const isDraftPreview = isDraftAction(action);
         const decisionBrief = actionViewModel.objective
             || actionViewModel.expectedOutcomes
             || 'Awaiting facilitator detail.';
@@ -880,6 +933,55 @@ export class ScribeController {
                 </section>
             `
             : '';
+        const slideEyebrow = isDraftPreview
+            ? 'Facilitator Draft Preview'
+            : 'Facilitator Decision';
+        const sectionLabel = isDraftPreview
+            ? `What ${this.teamLabel} is preparing`
+            : `What ${this.teamLabel} is doing`;
+        const glanceCopy = isDraftPreview
+            ? 'The working draft the team can review in the room before sending it to White Cell.'
+            : 'The core move, where it lands, and how it will be carried out.';
+        const statusBlockTitle = isDraftPreview
+            ? 'Draft status'
+            : 'Status and White Cell';
+        const statusRows = isDraftPreview
+            ? [
+                {
+                    label: 'Priority',
+                    value: formatStatus(action.priority || 'NORMAL')
+                },
+                {
+                    label: 'Draft saved',
+                    value: draftSavedLabel || 'Saved in the facilitator workspace'
+                },
+                {
+                    label: 'Submission',
+                    value: 'Ready for facilitator submission'
+                },
+                {
+                    label: 'White Cell status',
+                    value: 'Not yet submitted to White Cell'
+                }
+            ]
+            : [
+                {
+                    label: 'Priority',
+                    value: formatStatus(action.priority || 'NORMAL')
+                },
+                {
+                    label: 'Outcome',
+                    value: action.outcome ? formatStatus(action.outcome) : 'Awaiting White Cell outcome'
+                },
+                {
+                    label: 'Submitted',
+                    value: submittedLabel || 'Awaiting submission'
+                },
+                {
+                    label: 'White Cell update',
+                    value: adjudicatedLabel || 'No White Cell update yet'
+                }
+            ];
         const legacyNotes = actionViewModel.legacyNotes
             ? `
                 <section class="scribe-action-slide-note-card scribe-action-slide-note-card-secondary" aria-label="Supporting note">
@@ -893,7 +995,7 @@ export class ScribeController {
             <article class="scribe-action-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
                 <header class="scribe-action-slide-header">
                     <div>
-                        <p class="scribe-action-slide-eyebrow">Facilitator Decision</p>
+                        <p class="scribe-action-slide-eyebrow">${escapeHtml(slideEyebrow)}</p>
                         <h2 class="scribe-action-slide-title">${escapeHtml(actionViewModel.title)}</h2>
                         <p class="scribe-action-slide-summary">${escapeHtml(sequenceLabel)}</p>
                     </div>
@@ -907,7 +1009,7 @@ export class ScribeController {
                         <span>${escapeHtml(timelineLabel)}</span>
                     </div>
                     <section class="scribe-action-slide-lead" aria-label="Decision brief">
-                        <p class="scribe-action-slide-section-label">What ${escapeHtml(this.teamLabel)} is doing</p>
+                        <p class="scribe-action-slide-section-label">${escapeHtml(sectionLabel)}</p>
                         <p class="scribe-action-slide-body">${escapeHtml(decisionBrief)}</p>
                         ${showExpectedEffect
                 ? `<p class="scribe-action-slide-lead-note"><strong>Expected effect:</strong> ${escapeHtml(expectedEffect)}</p>`
@@ -917,7 +1019,7 @@ export class ScribeController {
                     <section class="scribe-action-slide-glance" aria-label="Action at a glance">
                         <div class="scribe-action-slide-section-header">
                             <h3 class="scribe-action-slide-section-title">Action at a glance</h3>
-                            <p class="scribe-action-slide-section-copy">The core move, where it lands, and how it will be carried out.</p>
+                            <p class="scribe-action-slide-section-copy">${escapeHtml(glanceCopy)}</p>
                         </div>
                         <div class="scribe-action-slide-glance-grid">
                             ${renderActionSlideGlanceCard({
@@ -968,25 +1070,10 @@ export class ScribeController {
                             </dl>
                         </section>
 
-                        <section class="scribe-action-slide-block" aria-label="Status and White Cell">
-                            <h3 class="scribe-action-slide-block-title">Status and White Cell</h3>
+                        <section class="scribe-action-slide-block" aria-label="${escapeHtml(statusBlockTitle)}">
+                            <h3 class="scribe-action-slide-block-title">${escapeHtml(statusBlockTitle)}</h3>
                             <dl class="scribe-action-slide-data-list">
-                                ${renderActionSlideDataRow({
-                label: 'Priority',
-                value: formatStatus(action.priority || 'NORMAL')
-            })}
-                                ${renderActionSlideDataRow({
-                label: 'Outcome',
-                value: action.outcome ? formatStatus(action.outcome) : 'Awaiting White Cell outcome'
-            })}
-                                ${renderActionSlideDataRow({
-                label: 'Submitted',
-                value: submittedLabel || 'Awaiting submission'
-            })}
-                                ${renderActionSlideDataRow({
-                label: 'White Cell update',
-                value: adjudicatedLabel || 'No White Cell update yet'
-            })}
+                                ${statusRows.map((row) => renderActionSlideDataRow(row)).join('')}
                             </dl>
                             ${whiteCellNoteMarkup}
                         </section>
