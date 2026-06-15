@@ -4,8 +4,11 @@ import { readFileSync } from 'node:fs';
 import {
     SCRIBE_DECK_SECTIONS,
     expandScribeDeckSections,
-    flattenScribeDeckSlides
+    flattenScribeDeckSlides,
+    getScribeDeckAssignmentDetails,
+    normalizeScribeDeckPath
 } from '../features/scribe/deckConfig.js';
+import { serializeBlueActionDetails } from '../features/actions/blueActionDetails.js';
 
 const BLUE_SCRIBE_HTML_PATH = new URL('../../teams/blue/scribe.html', import.meta.url);
 const SCRIBE_CSS_PATH = new URL('../../styles/pages/scribe.css', import.meta.url);
@@ -222,8 +225,30 @@ describe('scribe surface', () => {
 
         expect(assignment).toMatchObject({
             communicationId: 'comm-scribe-new',
-            deckPath: 'custom-scribe-deck.html',
+            deckPath: 'decks/blue/custom-scribe-deck.html',
             deckLabel: 'Blue Crisis Deck'
+        });
+    });
+
+    it('normalizes bare deck filenames into the recipient team deck folder', () => {
+        expect(normalizeScribeDeckPath('custom-scribe-deck.html', {
+            teamId: 'red'
+        })).toBe('decks/red/custom-scribe-deck.html');
+
+        expect(getScribeDeckAssignmentDetails({
+            id: 'comm-red-scribe',
+            created_at: '2026-06-15T12:00:00.000Z',
+            metadata: {
+                content_kind: 'SCRIBE_DECK_ASSIGNMENT',
+                recipient_team: 'red',
+                deck_path: 'support-brief.html',
+                deck_label: ''
+            }
+        })).toMatchObject({
+            communicationId: 'comm-red-scribe',
+            recipientTeam: 'red',
+            deckPath: 'decks/red/support-brief.html',
+            deckLabel: 'support brief'
         });
     });
 
@@ -300,6 +325,58 @@ describe('scribe surface', () => {
         });
     });
 
+    it('renders blue action slides as structured briefing panels that are easier for the team to follow', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const controller = new ScribeController();
+        const action = {
+            id: 'action-2',
+            team: 'blue',
+            move: 2,
+            phase: 1,
+            goal: 'Tighten critical-mineral export controls',
+            description: 'Align allied licensing thresholds before the next market shock.',
+            expected_outcomes: 'Slow diversion routes while preserving allied supply assurance.',
+            mechanism: 'Economic',
+            sector: 'Biotechnology',
+            exposure_type: 'Refinement',
+            targets: ['PRC', 'EU'],
+            priority: 'HIGH',
+            status: 'submitted',
+            outcome: 'approved',
+            adjudication_notes: 'Keep public messaging aligned with allied licensing language.',
+            submitted_at: '2026-06-15T10:10:00.000Z',
+            adjudicated_at: '2026-06-15T10:25:00.000Z',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Restrict sensitive mineral processing inputs with allied backing.',
+                levers: ['Export Controls', 'Industrial Policy'],
+                sectors: ['Biotechnology', 'Agriculture'],
+                implementation: 'Legislative',
+                legislativeOptions: ['Existing legislation/policy'],
+                enforcementTimeline: '6 months',
+                coordinated: ['Legislative'],
+                informed: ['Allied']
+            })
+        };
+
+        const html = controller.renderActionSlide({
+            slideKey: 'action-action-2',
+            slideType: 'action',
+            sidebarOrdinal: '1',
+            sidebarKicker: 'Blue Team | Move 2 | Action 1',
+            action
+        });
+
+        expect(html).toContain('What Blue Team is doing');
+        expect(html).toContain('Action at a glance');
+        expect(html).toContain('Execution snapshot');
+        expect(html).toContain('Status and White Cell');
+        expect(html).toContain('Focus countries');
+        expect(html).toContain('Delivery path');
+        expect(html).toContain('Expected effect:');
+        expect(html).toContain('White Cell note');
+        expect(html).toContain('Keep public messaging aligned with allied licensing language.');
+    });
+
     it('ships a standalone blue scribe html shell with live session state ids and requested sidebar labels', () => {
         const html = readFileSync(BLUE_SCRIBE_HTML_PATH, 'utf8');
 
@@ -369,6 +446,9 @@ describe('scribe surface', () => {
         expect(css).toContain('box-shadow: none;');
         expect(css).toContain('.scribe-slide-link.is-action {');
         expect(css).toContain('.scribe-action-slide::before {');
+        expect(css).toContain('.scribe-action-slide-glance-grid {');
+        expect(css).toContain('.scribe-action-slide-columns {');
+        expect(css).toContain('.scribe-action-slide-note-card {');
         expect(css).toContain('body[data-scribe-presentation="active"] .scribe-sidebar');
         expect(css).toContain('body[data-scribe-presentation="active"] .scribe-stage-card');
         expect(css).toContain('body[data-scribe-presentation="active"] .scribe-stage-nav');

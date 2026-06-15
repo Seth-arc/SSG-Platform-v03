@@ -16,6 +16,7 @@ import {
     getBlueActionViewModel
 } from '../features/actions/blueActionDetails.js';
 import {
+    buildDefaultScribeDeckPath,
     DEFAULT_SCRIBE_DECK_LABEL,
     DEFAULT_SCRIBE_DECK_PATH,
     expandScribeDeckSections,
@@ -94,9 +95,10 @@ export function resolveAssignedScribeDeck(
     communications = [],
     teamContext = resolveTeamContext()
 ) {
+    const defaultDeckPath = buildDefaultScribeDeckPath(teamContext.teamId);
     const defaultAssignment = {
         communicationId: null,
-        deckPath: DEFAULT_SCRIBE_DECK_PATH,
+        deckPath: defaultDeckPath,
         deckLabel: DEFAULT_SCRIBE_DECK_LABEL,
         assignedAt: null
     };
@@ -198,7 +200,7 @@ function buildActionPlaceholderSlide({
         title: `Awaiting ${teamLabel} facilitator decisions`,
         sidebarOrdinal: '0',
         sidebarKicker: 'No live action slides yet',
-        summary: 'Draft and submitted facilitator decisions will appear here as individual support slides.'
+        summary: 'Submitted facilitator decisions will appear here as follow-along briefing slides for the team scribe.'
     };
 }
 
@@ -254,6 +256,46 @@ function buildActionSection(actions = [], {
     };
 }
 
+function normalizeComparableText(value = '') {
+    return String(value || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+function hasDistinctActionText(primary = '', secondary = '') {
+    const normalizedPrimary = normalizeComparableText(primary);
+    const normalizedSecondary = normalizeComparableText(secondary);
+
+    return Boolean(normalizedSecondary) && normalizedPrimary !== normalizedSecondary;
+}
+
+function renderActionSlideGlanceCard({
+    label = '',
+    value = '',
+    support = ''
+} = {}) {
+    return `
+        <article class="scribe-action-slide-glance-card">
+            <p class="scribe-action-slide-glance-label">${escapeHtml(label)}</p>
+            <p class="scribe-action-slide-glance-value">${escapeHtml(value)}</p>
+            ${support ? `<p class="scribe-action-slide-glance-support">${escapeHtml(support)}</p>` : ''}
+        </article>
+    `;
+}
+
+function renderActionSlideDataRow({
+    label = '',
+    value = ''
+} = {}) {
+    return `
+        <div class="scribe-action-slide-data-row">
+            <dt>${escapeHtml(label)}</dt>
+            <dd>${escapeHtml(value)}</dd>
+        </div>
+    `;
+}
+
 export function setScribePresentationMode({
     isActive = false,
     body = document.body,
@@ -288,7 +330,7 @@ export class ScribeController {
         this.teamActions = [];
         this.sections = [];
         this.deckSlides = [];
-        this.activeDeckPath = DEFAULT_SCRIBE_DECK_PATH;
+        this.activeDeckPath = buildDefaultScribeDeckPath(this.teamId);
         this.activeDeckLabel = DEFAULT_SCRIBE_DECK_LABEL;
         this.activeDeckAssignmentId = null;
         this.currentSlideIndex = 0;
@@ -804,17 +846,46 @@ export class ScribeController {
             `Move ${action.move || 1}`,
             getPhaseLabel(action.phase || 1)
         ].join(' | ');
+        const timelineLabel = actionViewModel.enforcementTimeline || 'Timeline pending';
         const submittedLabel = action.submitted_at
             ? formatDateTime(action.submitted_at)
             : '';
         const adjudicatedLabel = action.adjudicated_at
             ? formatDateTime(action.adjudicated_at)
             : '';
+        const decisionBrief = actionViewModel.objective
+            || actionViewModel.expectedOutcomes
+            || 'Awaiting facilitator detail.';
+        const expectedEffect = actionViewModel.expectedOutcomes || '';
+        const showExpectedEffect = hasDistinctActionText(decisionBrief, expectedEffect);
+        const supplyChainFocus = actionViewModel.supplyChainFocus || action.exposure_type || 'Not specified';
+        const implementationLabel = actionViewModel.implementation || 'Not specified';
+        const deliverySupport = [
+            actionViewModel.implementation === 'Legislative'
+                ? `Legislative route: ${legislativeOptions}`
+                : '',
+            supplyChainFocus !== 'Not specified'
+                ? `Supply chain: ${supplyChainFocus}`
+                : ''
+        ].filter(Boolean).join(' | ');
+        const focusSupport = sectors !== 'Not specified'
+            ? `Sectors: ${sectors}`
+            : 'Sector detail pending';
+        const coordinationSupport = `Informed: ${informed}`;
+        const whiteCellNoteMarkup = action.adjudication_notes
+            ? `
+                <section class="scribe-action-slide-note-card" aria-label="White Cell note">
+                    <p class="scribe-action-slide-note-label">White Cell note</p>
+                    <p class="scribe-action-slide-note-body">${escapeHtml(action.adjudication_notes)}</p>
+                </section>
+            `
+            : '';
         const legacyNotes = actionViewModel.legacyNotes
             ? `
-                <p class="scribe-action-slide-detail scribe-action-slide-detail-full">
-                    <strong>Additional Notes:</strong> ${escapeHtml(actionViewModel.legacyNotes)}
-                </p>
+                <section class="scribe-action-slide-note-card scribe-action-slide-note-card-secondary" aria-label="Supporting note">
+                    <p class="scribe-action-slide-note-label">Supporting note</p>
+                    <p class="scribe-action-slide-note-body">${escapeHtml(actionViewModel.legacyNotes)}</p>
+                </section>
             `
             : '';
 
@@ -833,27 +904,95 @@ export class ScribeController {
                     <div class="scribe-action-slide-meta">
                         <span>${escapeHtml(timingLabel)}</span>
                         <span>${escapeHtml(formatStatus(action.status || ENUMS.ACTION_STATUS.DRAFT))}</span>
+                        <span>${escapeHtml(timelineLabel)}</span>
                     </div>
-                    <p class="scribe-action-slide-body">${escapeHtml(actionViewModel.expectedOutcomes || 'No expected outcomes recorded.')}</p>
-                    <div class="scribe-action-slide-details">
-                        <p class="scribe-action-slide-detail"><strong>Objective:</strong> ${escapeHtml(actionViewModel.objective || 'Not specified')}</p>
-                        <p class="scribe-action-slide-detail"><strong>Instrument:</strong> ${escapeHtml(actionViewModel.instrumentOfPower || action.mechanism || 'Not specified')}</p>
-                        <p class="scribe-action-slide-detail"><strong>Levers:</strong> ${escapeHtml(levers)}</p>
-                        <p class="scribe-action-slide-detail"><strong>Implementation:</strong> ${escapeHtml(actionViewModel.implementation || 'Not specified')}</p>
-                        ${actionViewModel.implementation === 'Legislative'
-                ? `<p class="scribe-action-slide-detail"><strong>Legislative Route:</strong> ${escapeHtml(legislativeOptions)}</p>`
+                    <section class="scribe-action-slide-lead" aria-label="Decision brief">
+                        <p class="scribe-action-slide-section-label">What ${escapeHtml(this.teamLabel)} is doing</p>
+                        <p class="scribe-action-slide-body">${escapeHtml(decisionBrief)}</p>
+                        ${showExpectedEffect
+                ? `<p class="scribe-action-slide-lead-note"><strong>Expected effect:</strong> ${escapeHtml(expectedEffect)}</p>`
                 : ''}
-                        <p class="scribe-action-slide-detail"><strong>Focus Countries:</strong> ${escapeHtml(targets)}</p>
-                        <p class="scribe-action-slide-detail"><strong>Sectors:</strong> ${escapeHtml(sectors)}</p>
-                        <p class="scribe-action-slide-detail"><strong>Supply Chain Focus:</strong> ${escapeHtml(actionViewModel.supplyChainFocus || action.exposure_type || 'Not specified')}</p>
-                        <p class="scribe-action-slide-detail"><strong>Timeline:</strong> ${escapeHtml(actionViewModel.enforcementTimeline || 'Not specified')}</p>
-                        <p class="scribe-action-slide-detail"><strong>Coordinated:</strong> ${escapeHtml(coordinated)}</p>
-                        <p class="scribe-action-slide-detail"><strong>Informed:</strong> ${escapeHtml(informed)}</p>
-                        ${submittedLabel ? `<p class="scribe-action-slide-detail"><strong>Submitted:</strong> ${escapeHtml(submittedLabel)}</p>` : ''}
-                        ${adjudicatedLabel ? `<p class="scribe-action-slide-detail"><strong>Deliberation Update:</strong> ${escapeHtml(adjudicatedLabel)}</p>` : ''}
-                        ${action.adjudication_notes ? `<p class="scribe-action-slide-detail scribe-action-slide-detail-full"><strong>White Cell Notes:</strong> ${escapeHtml(action.adjudication_notes)}</p>` : ''}
-                        ${legacyNotes}
+                    </section>
+
+                    <section class="scribe-action-slide-glance" aria-label="Action at a glance">
+                        <div class="scribe-action-slide-section-header">
+                            <h3 class="scribe-action-slide-section-title">Action at a glance</h3>
+                            <p class="scribe-action-slide-section-copy">The core move, where it lands, and how it will be carried out.</p>
+                        </div>
+                        <div class="scribe-action-slide-glance-grid">
+                            ${renderActionSlideGlanceCard({
+                label: 'Primary move',
+                value: actionViewModel.instrumentOfPower || action.mechanism || 'Not specified',
+                support: levers !== 'Not specified' ? levers : 'Lever detail pending'
+            })}
+                            ${renderActionSlideGlanceCard({
+                label: 'Focus countries',
+                value: targets,
+                support: focusSupport
+            })}
+                            ${renderActionSlideGlanceCard({
+                label: 'Delivery path',
+                value: implementationLabel,
+                support: deliverySupport || 'Execution detail pending'
+            })}
+                            ${renderActionSlideGlanceCard({
+                label: 'Coordination',
+                value: coordinated,
+                support: coordinationSupport
+            })}
+                        </div>
+                    </section>
+
+                    <div class="scribe-action-slide-columns">
+                        <section class="scribe-action-slide-block" aria-label="Execution snapshot">
+                            <h3 class="scribe-action-slide-block-title">Execution snapshot</h3>
+                            <dl class="scribe-action-slide-data-list">
+                                ${renderActionSlideDataRow({
+                label: 'Timeline',
+                value: timelineLabel
+            })}
+                                ${renderActionSlideDataRow({
+                label: 'Supply chain focus',
+                value: supplyChainFocus
+            })}
+                                ${actionViewModel.implementation === 'Legislative'
+                ? renderActionSlideDataRow({
+                    label: 'Legislative route',
+                    value: legislativeOptions
+                })
+                : ''}
+                                ${renderActionSlideDataRow({
+                label: 'Sequence',
+                value: sequenceLabel
+            })}
+                            </dl>
+                        </section>
+
+                        <section class="scribe-action-slide-block" aria-label="Status and White Cell">
+                            <h3 class="scribe-action-slide-block-title">Status and White Cell</h3>
+                            <dl class="scribe-action-slide-data-list">
+                                ${renderActionSlideDataRow({
+                label: 'Priority',
+                value: formatStatus(action.priority || 'NORMAL')
+            })}
+                                ${renderActionSlideDataRow({
+                label: 'Outcome',
+                value: action.outcome ? formatStatus(action.outcome) : 'Awaiting White Cell outcome'
+            })}
+                                ${renderActionSlideDataRow({
+                label: 'Submitted',
+                value: submittedLabel || 'Awaiting submission'
+            })}
+                                ${renderActionSlideDataRow({
+                label: 'White Cell update',
+                value: adjudicatedLabel || 'No White Cell update yet'
+            })}
+                            </dl>
+                            ${whiteCellNoteMarkup}
+                        </section>
                     </div>
+
+                    ${legacyNotes}
                 </section>
             </article>
         `;

@@ -437,7 +437,7 @@ describe('White Cell DOM contract', () => {
 
         await controller.handleScribeDeckAssignmentSubmit('blue');
 
-        expect(global.fetch).toHaveBeenCalledWith('/custom-scribe-deck.html', {
+        expect(global.fetch).toHaveBeenCalledWith('/decks/blue/custom-scribe-deck.html', {
             credentials: 'same-origin'
         });
         expect(createCommunication).toHaveBeenCalledWith(expect.objectContaining({
@@ -445,10 +445,10 @@ describe('White Cell DOM contract', () => {
             from_role: 'white_cell',
             to_role: 'blue_scribe',
             type: 'GUIDANCE',
-            content: 'White Cell loaded "Blue Crisis Deck" into Blue Team Scribe (custom-scribe-deck.html).',
+            content: 'White Cell loaded "Blue Crisis Deck" into Blue Team Scribe (decks/blue/custom-scribe-deck.html).',
             metadata: expect.objectContaining({
                 content_kind: 'SCRIBE_DECK_ASSIGNMENT',
-                deck_path: 'custom-scribe-deck.html',
+                deck_path: 'decks/blue/custom-scribe-deck.html',
                 deck_label: 'Blue Crisis Deck',
                 recipient: 'blue_scribe',
                 recipient_scope: 'role',
@@ -469,7 +469,7 @@ describe('White Cell DOM contract', () => {
             metadata: expect.objectContaining({
                 role: 'whitecell_lead',
                 content_kind: 'SCRIBE_DECK_ASSIGNMENT',
-                deck_path: 'custom-scribe-deck.html',
+                deck_path: 'decks/blue/custom-scribe-deck.html',
                 deck_label: 'Blue Crisis Deck',
                 recipient_role: 'blue_scribe'
             })
@@ -516,12 +516,12 @@ describe('White Cell DOM contract', () => {
 
         expect(assignments.blue).toMatchObject({
             communicationId: 'comm-blue-new',
-            deckPath: 'blue-new-deck.html',
+            deckPath: 'decks/blue/blue-new-deck.html',
             deckLabel: 'Blue New Deck'
         });
         expect(assignments.red).toMatchObject({
             communicationId: 'comm-red-new',
-            deckPath: 'red-deck.html',
+            deckPath: 'decks/red/red-deck.html',
             deckLabel: 'Red Deck'
         });
         expect(assignments.green).toMatchObject({

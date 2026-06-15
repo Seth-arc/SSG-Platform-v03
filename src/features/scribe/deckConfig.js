@@ -1,6 +1,19 @@
-export const DEFAULT_SCRIBE_DECK_PATH = 'fractured-order-facilitator-deck.html';
+export const DEFAULT_SCRIBE_DECK_FILE = 'fractured-order-facilitator-deck.html';
+export const DEFAULT_SCRIBE_DECK_TEAM = 'blue';
+export const DEFAULT_SCRIBE_DECK_PATH = `decks/${DEFAULT_SCRIBE_DECK_TEAM}/${DEFAULT_SCRIBE_DECK_FILE}`;
 export const DEFAULT_SCRIBE_DECK_LABEL = 'Fractured Order Facilitator Deck';
 export const SCRIBE_DECK_ASSIGNMENT_CONTENT_KIND = 'SCRIBE_DECK_ASSIGNMENT';
+
+function normalizeScribeDeckTeamId(teamId = DEFAULT_SCRIBE_DECK_TEAM) {
+    return ['blue', 'red', 'green'].includes(teamId)
+        ? teamId
+        : DEFAULT_SCRIBE_DECK_TEAM;
+}
+
+export function buildDefaultScribeDeckPath(teamId = DEFAULT_SCRIBE_DECK_TEAM) {
+    const resolvedTeamId = normalizeScribeDeckTeamId(teamId);
+    return `decks/${resolvedTeamId}/${DEFAULT_SCRIBE_DECK_FILE}`;
+}
 
 export const SCRIBE_DECK_SECTIONS = Object.freeze([
     {
@@ -79,10 +92,17 @@ export function parseScribeDeckHtml(html = '') {
     return slides;
 }
 
-export function normalizeScribeDeckPath(deckPath = DEFAULT_SCRIBE_DECK_PATH) {
+export function normalizeScribeDeckPath(
+    deckPath = '',
+    {
+        teamId = DEFAULT_SCRIBE_DECK_TEAM
+    } = {}
+) {
+    const resolvedTeamId = normalizeScribeDeckTeamId(teamId);
+    const defaultDeckPath = buildDefaultScribeDeckPath(resolvedTeamId);
     const rawPath = String(deckPath || '').trim();
     if (!rawPath) {
-        return DEFAULT_SCRIBE_DECK_PATH;
+        return defaultDeckPath;
     }
 
     if (/^[a-z]+:/i.test(rawPath) || rawPath.startsWith('//')) {
@@ -102,20 +122,38 @@ export function normalizeScribeDeckPath(deckPath = DEFAULT_SCRIBE_DECK_PATH) {
         throw new Error('Scribe deck paths must point to an HTML deck file.');
     }
 
+    if (
+        normalizedPath === DEFAULT_SCRIBE_DECK_FILE
+        || normalizedPath === DEFAULT_SCRIBE_DECK_PATH
+    ) {
+        return defaultDeckPath;
+    }
+
+    if (!normalizedPath.includes('/')) {
+        return `decks/${resolvedTeamId}/${normalizedPath}`;
+    }
+
+    if (!normalizedPath.startsWith(`decks/${resolvedTeamId}/`)) {
+        throw new Error(`Scribe deck paths must stay inside decks/${resolvedTeamId}/.`);
+    }
+
     return normalizedPath;
 }
 
 export function normalizeScribeDeckLabel(
     deckLabel = '',
-    deckPath = DEFAULT_SCRIBE_DECK_PATH
+    deckPath = '',
+    {
+        teamId = DEFAULT_SCRIBE_DECK_TEAM
+    } = {}
 ) {
     const trimmedLabel = typeof deckLabel === 'string' ? deckLabel.trim() : '';
     if (trimmedLabel) {
         return trimmedLabel;
     }
 
-    const normalizedPath = normalizeScribeDeckPath(deckPath);
-    if (normalizedPath === DEFAULT_SCRIBE_DECK_PATH) {
+    const normalizedPath = normalizeScribeDeckPath(deckPath, { teamId });
+    if (normalizedPath === buildDefaultScribeDeckPath(teamId)) {
         return DEFAULT_SCRIBE_DECK_LABEL;
     }
 
@@ -146,12 +184,16 @@ export function getScribeDeckAssignmentDetails(communication = {}) {
     }
 
     try {
-        const deckPath = normalizeScribeDeckPath(metadata.deck_path || DEFAULT_SCRIBE_DECK_PATH);
+        const deckPath = normalizeScribeDeckPath(metadata.deck_path || '', {
+            teamId: recipientTeam
+        });
         return {
             communicationId: communication?.id || null,
             recipientTeam,
             deckPath,
-            deckLabel: normalizeScribeDeckLabel(metadata.deck_label, deckPath),
+            deckLabel: normalizeScribeDeckLabel(metadata.deck_label, deckPath, {
+                teamId: recipientTeam
+            }),
             assignedAt: communication?.created_at || communication?.updated_at || null
         };
     } catch (_error) {

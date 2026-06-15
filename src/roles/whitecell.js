@@ -68,6 +68,7 @@ import {
     isTeamCaptureTimelineEvent
 } from '../features/communications/targeting.js';
 import {
+    buildDefaultScribeDeckPath,
     DEFAULT_SCRIBE_DECK_LABEL,
     DEFAULT_SCRIBE_DECK_PATH,
     SCRIBE_DECK_ASSIGNMENT_CONTENT_KIND,
@@ -810,7 +811,7 @@ function buildDefaultScribeDeckAssignment(team = {}) {
     return {
         teamId: team.id,
         teamLabel: team.label,
-        deckPath: DEFAULT_SCRIBE_DECK_PATH,
+        deckPath: buildDefaultScribeDeckPath(team.id),
         deckLabel: DEFAULT_SCRIBE_DECK_LABEL,
         assignedAt: null,
         communicationId: null
@@ -3112,10 +3113,11 @@ export class WhiteCellController {
             return;
         }
 
-        summary.textContent = 'Load a repo-hosted HTML deck into each scribe seat. Only same-app .html decks with the slide manifest contract are accepted.';
+        summary.textContent = 'Load a repo-hosted HTML deck into each scribe seat from decks/<team>/. Bare filenames are resolved inside that team folder automatically.';
 
         container.innerHTML = TEAM_OPTIONS.map((team) => {
             const assignment = this.scribeDeckAssignments[team.id] || buildDefaultScribeDeckAssignment(team);
+            const defaultDeckPath = buildDefaultScribeDeckPath(team.id);
             const pathInputId = `scribeDeckPath-${team.id}`;
             const labelInputId = `scribeDeckLabel-${team.id}`;
             const currentDeckBadge = createBadge({
@@ -3145,11 +3147,11 @@ export class WhiteCellController {
                             class="form-input"
                             type="text"
                             value="${this.escapeHtml(assignment.deckPath)}"
-                            placeholder="${this.escapeHtml(DEFAULT_SCRIBE_DECK_PATH)}"
+                            placeholder="${this.escapeHtml(defaultDeckPath)}"
                             spellcheck="false"
                             autocomplete="off"
                         >
-                        <p class="form-hint">Example: <code>${this.escapeHtml(DEFAULT_SCRIBE_DECK_PATH)}</code></p>
+                        <p class="form-hint">Example: <code>${this.escapeHtml(defaultDeckPath)}</code> or <code>custom-scribe-deck.html</code></p>
                     </div>
                     <div class="form-group" style="margin-bottom: var(--space-3);">
                         <label class="form-label" for="${labelInputId}">Deck Label</label>
@@ -3211,7 +3213,7 @@ export class WhiteCellController {
         const pathInput = document.getElementById(`scribeDeckPath-${teamId}`);
         const labelInput = document.getElementById(`scribeDeckLabel-${teamId}`);
         const rawDeckPath = useDefault
-            ? DEFAULT_SCRIBE_DECK_PATH
+            ? buildDefaultScribeDeckPath(team.id)
             : pathInput?.value || '';
 
         if (!useDefault && !String(rawDeckPath).trim()) {
@@ -3221,7 +3223,9 @@ export class WhiteCellController {
 
         let deckPath;
         try {
-            deckPath = normalizeScribeDeckPath(rawDeckPath || DEFAULT_SCRIBE_DECK_PATH);
+            deckPath = normalizeScribeDeckPath(rawDeckPath || '', {
+                teamId: team.id
+            });
         } catch (error) {
             showToast({ message: error.message || 'Deck path is invalid.', type: 'error' });
             return;
@@ -3229,7 +3233,9 @@ export class WhiteCellController {
 
         const deckLabel = useDefault
             ? DEFAULT_SCRIBE_DECK_LABEL
-            : normalizeScribeDeckLabel(labelInput?.value || '', deckPath);
+            : normalizeScribeDeckLabel(labelInput?.value || '', deckPath, {
+                teamId: team.id
+            });
         const loader = showLoader({
             message: useDefault
                 ? `Restoring ${team.label} scribe deck...`
