@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
     mockSupabase,
@@ -64,6 +64,10 @@ describe('database action write contracts', () => {
         });
     });
 
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it('derives the proposal mechanism before inserting a Green proposal row', async () => {
         const { database } = await import('./database.js');
         const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
@@ -96,6 +100,43 @@ describe('database action write contracts', () => {
 
         expect(insert).toHaveBeenCalledWith(expect.objectContaining({
             mechanism: 'Proposal'
+        }));
+    });
+
+    it('stamps submitted_at when creating an item directly in submitted state', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-04-09T10:20:00.000Z'));
+
+        const { database } = await import('./database.js');
+        const { serializeMoveResponseDetails } = await import('../features/actions/moveResponseDetails.js');
+        const { insert } = mockInsertChain();
+
+        await database.createAction({
+            session_id: 'session-1',
+            client_id: 'client-action-write-test',
+            move: 2,
+            phase: 1,
+            team: 'red',
+            mechanism: null,
+            sector: null,
+            exposure_type: null,
+            targets: [],
+            goal: 'Counter logistics corridor squeeze',
+            expected_outcomes: 'Preserve throughput and deny escalation payoff.',
+            ally_contingencies: serializeMoveResponseDetails({
+                strategicAssessment: 'Blue is tightening maritime leverage.',
+                responseStrategy: 'Exploit alternate port relationships.',
+                keyActions: 'Shift freight priorities.',
+                targetsAndPressurePoints: 'Ports and logistics timing.',
+                deliveryChannel: 'Private shipping briefings.'
+            }),
+            priority: 'NORMAL',
+            status: 'submitted'
+        });
+
+        expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+            status: 'submitted',
+            submitted_at: '2026-04-09T10:20:00.000Z'
         }));
     });
 

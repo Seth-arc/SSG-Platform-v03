@@ -1091,14 +1091,21 @@ export class FacilitatorController {
         const actionsList = document.getElementById('actionsList');
         if (!actionsList) return;
         const isGreenProposalFlow = this.teamId === 'green';
-        const emptyStateTitle = isGreenProposalFlow ? 'No Proposals Yet' : 'No Actions Yet';
+        const isRedResponseFlow = this.teamId === 'red';
+        const emptyStateTitle = isGreenProposalFlow
+            ? 'No Proposals Yet'
+            : (isRedResponseFlow ? 'No Responses Yet' : 'No Actions Yet');
         const emptyStateMessage = this.isReadOnly
             ? (isGreenProposalFlow
                 ? 'No team proposals have been created yet.'
-                : 'No facilitator actions have been created yet.')
+                : (isRedResponseFlow
+                    ? 'No move responses have been created yet.'
+                    : 'No facilitator actions have been created yet.'))
             : (isGreenProposalFlow
                 ? 'Create your first proposal to start the White Cell review flow.'
-                : 'Create your first strategic action to start the draft to White Cell review flow.');
+                : (isRedResponseFlow
+                    ? 'Create your first response to start the White Cell review flow.'
+                    : 'Create your first strategic action to start the draft to White Cell review flow.'));
 
         if (this.actions.length === 0) {
             actionsList.innerHTML = `
@@ -1147,8 +1154,13 @@ export class FacilitatorController {
 
     renderActionCard(action) {
         const blueAction = getBlueActionViewModel(action);
-        const title = blueAction.title;
-        const expectedOutcomes = blueAction.expectedOutcomes || 'No expected outcomes';
+        const isGreenProposalFlow = this.teamId === 'green';
+        const isRedResponseFlow = this.teamId === 'red';
+        const moveResponse = isRedResponseFlow ? getMoveResponseViewModel(action) : null;
+        const title = isRedResponseFlow ? moveResponse.title : blueAction.title;
+        const expectedOutcomes = isRedResponseFlow
+            ? (moveResponse.expectedEffect || 'No expected effect recorded')
+            : (blueAction.expectedOutcomes || 'No expected outcomes');
         const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
         const sequenceLabel = this.isBlueTeamActionWizardEnabled(action)
             ? this.getBlueActionSequenceContext(action).label
@@ -1157,11 +1169,25 @@ export class FacilitatorController {
         const canManageDraft = !this.isReadOnly && canEditAction(action);
         const canSubmitDraft = !this.isReadOnly && canSubmitAction(action);
         const canRemoveDraft = !this.isReadOnly && canDeleteAction(action);
-        const isGreenProposalFlow = this.teamId === 'green';
         const forwardedProposalCommunication = isGreenProposalFlow
             ? this.getForwardedProposalCommunication(action)
             : null;
         const shouldHideWhiteCellReviewDetails = Boolean(isGreenProposalFlow && forwardedProposalCommunication);
+        const statusBadge = isRedResponseFlow && isSubmittedAction(action)
+            ? createBadge({
+                text: 'Deliberation Underway',
+                variant: 'warning',
+                size: 'sm',
+                rounded: true
+            }).outerHTML
+            : (isRedResponseFlow && isAdjudicatedAction(action)
+                ? createBadge({
+                    text: 'Reviewed',
+                    variant: 'success',
+                    size: 'sm',
+                    rounded: true
+                }).outerHTML
+                : createStatusBadge(status).outerHTML);
         const outcomeBadge = action.outcome
             ? createOutcomeBadge(action.outcome).outerHTML
             : '';
@@ -1173,7 +1199,25 @@ export class FacilitatorController {
                 rounded: true
             }).outerHTML
             : createPriorityBadge(action.priority || 'NORMAL').outerHTML;
-        const detailsMarkup = blueAction.hasBlueActionDetails
+        const detailsMarkup = isRedResponseFlow
+            ? `
+                <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
+                    <strong>Strategic Assessment:</strong> ${this.escapeHtml(moveResponse.strategicAssessment || 'Not specified')}
+                </p>
+                <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
+                    <strong>Response Strategy:</strong> ${this.escapeHtml(moveResponse.responseStrategy || 'Not specified')}
+                </p>
+                <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
+                    <strong>Key Actions:</strong> ${this.escapeHtml(moveResponse.keyActions || 'Not specified')}
+                </p>
+                <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
+                    <strong>Targets / Pressure Points:</strong> ${this.escapeHtml(moveResponse.targetsAndPressurePoints || 'Not specified')}
+                </p>
+                <p class="text-xs text-gray-500">
+                    <strong>Delivery Channel:</strong> ${this.escapeHtml(moveResponse.deliveryChannel || 'Not specified')}
+                </p>
+            `
+            : blueAction.hasBlueActionDetails
             ? `
                 ${blueAction.objective ? `
                     <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
@@ -1212,17 +1256,23 @@ export class FacilitatorController {
             <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
                 ${isGreenProposalFlow
                     ? 'Draft proposals can be edited, sent to White Cell, or deleted by the active team-lead seat.'
-                    : 'Draft actions can be edited, submitted, or deleted by the active team-lead seat.'}
+                    : (isRedResponseFlow
+                        ? 'Draft move responses can be edited, submitted, or deleted by the active team-lead seat.'
+                        : 'Draft actions can be edited, submitted, or deleted by the active team-lead seat.')}
             </p>
         `;
 
         if (isSubmittedAction(action)) {
             lifecycleMessage = `
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                    ${isGreenProposalFlow ? 'Sent to White Cell' : 'Submitted to White Cell'} ${action.submitted_at ? formatRelativeTime(action.submitted_at) : ''}.
+                    ${isGreenProposalFlow
+                        ? 'Sent to White Cell'
+                        : (isRedResponseFlow ? 'Submitted to White Cell' : 'Submitted to White Cell')} ${action.submitted_at ? formatRelativeTime(action.submitted_at) : ''}.
                     ${isGreenProposalFlow
                         ? 'This proposal is now read-only for facilitator and scribe seats until White Cell review.'
-                        : 'This action is now read-only for facilitator and scribe seats until adjudication.'}
+                        : (isRedResponseFlow
+                            ? 'White Cell deliberation is underway. This move response is now read-only for facilitator and scribe seats.'
+                            : 'This action is now read-only for facilitator and scribe seats until adjudication.')}
                 </p>
             `;
         } else if (isAdjudicatedAction(action)) {
@@ -1230,7 +1280,9 @@ export class FacilitatorController {
                 ? ''
                 : `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                        White Cell ${isGreenProposalFlow ? 'reviewed this proposal' : 'adjudicated this action'} ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
+                        White Cell ${isGreenProposalFlow
+                            ? 'reviewed this proposal'
+                            : (isRedResponseFlow ? 'reviewed this move response' : 'adjudicated this action')} ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
                     </p>
                 `;
         } else if (this.isReadOnly) {
@@ -1238,7 +1290,9 @@ export class FacilitatorController {
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
                     ${isGreenProposalFlow
                         ? 'Observer mode is read-only. Draft proposals are visible but cannot be changed from this page.'
-                        : 'Observer mode is read-only. Draft actions are visible but cannot be changed from this page.'}
+                        : (isRedResponseFlow
+                            ? 'Observer mode is read-only. Move responses are visible but cannot be changed from this page.'
+                            : 'Observer mode is read-only. Draft actions are visible but cannot be changed from this page.')}
                 </p>
             `;
         }
@@ -1253,14 +1307,18 @@ export class FacilitatorController {
                         </p>
                     </div>
                     <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end;">
-                        ${createStatusBadge(status).outerHTML}
+                        ${statusBadge}
                         ${secondaryBadge}
                         ${outcomeBadge}
                     </div>
                 </div>
 
                 <div class="card-body">
-                    <p class="text-sm mb-3">${this.escapeHtml(expectedOutcomes)}</p>
+                    <p class="text-sm mb-3">
+                        ${isRedResponseFlow
+                            ? `<strong>Expected Effect &amp; System Impact:</strong> ${this.escapeHtml(expectedOutcomes)}`
+                            : this.escapeHtml(expectedOutcomes)}
+                    </p>
                     ${detailsMarkup}
                     ${isGreenProposalFlow ? this.renderProposalRecipientState(action) : ''}
                     ${action.adjudication_notes && !shouldHideWhiteCellReviewDetails ? `

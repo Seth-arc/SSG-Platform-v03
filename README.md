@@ -80,10 +80,11 @@ Suggested rehearsal order:
 5. Join White Cell Lead and White Cell Support with the operator access code.
 6. On Blue Team, use the three-page `Take Action` wizard to save a draft or submit directly after the confirmation modal. Multi-select fields in facilitator modals now use explicit checkbox groups instead of Ctrl/Command multi-select. The wizard shows the Blue Team move and action number being built, and White Cell surfaces the same sequence label during review. Confirm the scribe seat lands on its dedicated support deck at `teams/<team>/scribe.html`; the `Actions` section should stay empty until facilitator decisions arrive, then render those decisions as blue action slides. Submit any remaining draft to White Cell.
 7. On Green Team, confirm the facilitator proposal queue uses proposal-specific language throughout the UI, including `Proposals`, `New Proposal`, and `No Proposals Yet`, so proposal review is clearly distinct from Blue Team actions.
-8. Have at least two notetakers save different seat-scoped notes and shared captures at the same time.
-9. Adjudicate the submitted action from White Cell Lead.
-10. Use Game Master `Participant Roster` to remove one occupied seat, then rejoin it from a second browser.
-11. Export the session bundle from Game Master, then confirm the active White Cell seat exposes the same research path by default.
+8. On Red Team, confirm the facilitator queue uses response-specific language throughout the UI, including `Move Responses`, `New Response`, `No Responses Yet`, and `Deliberation Underway` while White Cell review is pending, so Red planning stays distinct from Blue Team action copy.
+9. Have at least two notetakers save different seat-scoped notes and shared captures at the same time.
+10. Adjudicate the submitted action from White Cell Lead.
+11. Use Game Master `Participant Roster` to remove one occupied seat, then rejoin it from a second browser.
+12. Export the session bundle from Game Master, then confirm the active White Cell seat exposes the same research path by default.
     - By default, confirm `Download Research ZIP` and `Print Report` are available in both Game Master and White Cell and produce the research archive plus `report.html`.
     - When `public.live_demo_runtime_config.research_capture_mode = 'standard'`, confirm the legacy JSON and per-table CSV downloads still work while the research archive controls stay locked.
 

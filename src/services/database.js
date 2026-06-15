@@ -865,6 +865,9 @@ export const database = {
         const resolvedActionData = resolveActionWritePayload(actionData, 'createAction', {
             requireMechanism: true
         });
+        const submittedAt = status === ENUMS.ACTION_STATUS.SUBMITTED
+            ? (resolvedActionData.submitted_at || new Date().toISOString())
+            : (resolvedActionData.submitted_at || null);
 
         const { data, error } = await supabase
             .from('actions')
@@ -883,7 +886,7 @@ export const database = {
                 ally_contingencies: resolvedActionData.ally_contingencies,
                 priority: resolvedActionData.priority,
                 status,
-                submitted_at: resolvedActionData.submitted_at || null,
+                submitted_at: submittedAt,
                 adjudicated_at: resolvedActionData.adjudicated_at || null
             })
             .select()

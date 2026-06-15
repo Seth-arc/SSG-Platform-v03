@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const FACILITATOR_HTML_PATH = new URL('../../teams/blue/facilitator.html', import.meta.url);
 const GREEN_FACILITATOR_HTML_PATH = new URL('../../teams/green/facilitator.html', import.meta.url);
+const RED_FACILITATOR_HTML_PATH = new URL('../../teams/red/facilitator.html', import.meta.url);
 
 function createFakeElement(id = null, tagName = 'div') {
     let textContent = '';
@@ -198,6 +199,18 @@ describe('Facilitator and scribe access', () => {
         expect(html).toContain('id="receivedProposalsList"');
     });
 
+    it('labels the Red facilitator action trigger as New Response', () => {
+        const html = readFileSync(RED_FACILITATOR_HTML_PATH, 'utf8');
+
+        expect(html).toContain('id="newActionBtn"');
+        expect(html).toContain('Move Responses');
+        expect(html).toContain('New Response');
+        expect(html).toContain('No Responses Yet');
+        expect(html).toContain('Create your first response to start the White Cell review flow.');
+        expect(html).not.toContain('No Actions Yet');
+        expect(html).not.toContain('strategic action');
+    });
+
     it('renders proposal-specific empty-state copy for the Green facilitator queue', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
@@ -219,6 +232,31 @@ describe('Facilitator and scribe access', () => {
 
         expect(actionsList.innerHTML).toContain('No Proposals Yet');
         expect(actionsList.innerHTML).toContain('Create your first proposal to start the White Cell review flow.');
+        expect(actionsList.innerHTML).not.toContain('No Actions Yet');
+        expect(actionsList.innerHTML).not.toContain('strategic action');
+    });
+
+    it('renders response-specific empty-state copy for the Red facilitator queue', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'red';
+        controller.teamLabel = 'Red Team';
+        controller.actions = [];
+        controller.isReadOnly = false;
+
+        const actionsList = createFakeElement('actionsList');
+        global.document = {
+            getElementById(id) {
+                return {
+                    actionsList
+                }[id] || null;
+            }
+        };
+
+        controller.renderActionsList();
+
+        expect(actionsList.innerHTML).toContain('No Responses Yet');
+        expect(actionsList.innerHTML).toContain('Create your first response to start the White Cell review flow.');
         expect(actionsList.innerHTML).not.toContain('No Actions Yet');
         expect(actionsList.innerHTML).not.toContain('strategic action');
     });
@@ -713,6 +751,47 @@ describe('Facilitator and scribe access', () => {
         expect(markup).toContain('Blue Team can support this with customs coordination.');
         expect(markup).not.toContain('White Cell reviewed this proposal');
         expect(markup).not.toContain('Adjudication Notes:</strong>');
+    });
+
+    it('renders Red move responses with structured review-state copy instead of generic action details', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeMoveResponseDetails } = await import('../features/actions/moveResponseDetails.js');
+        global.document = createFakeDocument();
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'red';
+        controller.teamLabel = 'Red Team';
+
+        const markup = controller.renderActionCard({
+            id: 'move-response-red-1',
+            team: 'red',
+            status: 'submitted',
+            submitted_at: '2026-04-09T10:10:00.000Z',
+            goal: 'Counter logistics corridor squeeze',
+            mechanism: 'Move Response',
+            expected_outcomes: 'Preserve throughput and deny escalation payoff.',
+            ally_contingencies: serializeMoveResponseDetails({
+                strategicAssessment: 'Blue is tightening maritime leverage.',
+                responseStrategy: 'Exploit alternate port relationships.',
+                keyActions: 'Shift freight and publicize redundancy measures.',
+                targetsAndPressurePoints: 'Port authorities and customs timing.',
+                deliveryChannel: 'Backchannel assurances to carriers.'
+            }),
+            move: 2,
+            phase: 1
+        });
+
+        expect(markup).toContain('Deliberation Underway');
+        expect(markup).toContain('Expected Effect &amp; System Impact:</strong> Preserve throughput and deny escalation payoff.');
+        expect(markup).toContain('Strategic Assessment:</strong> Blue is tightening maritime leverage.');
+        expect(markup).toContain('Response Strategy:</strong> Exploit alternate port relationships.');
+        expect(markup).toContain('Key Actions:</strong> Shift freight and publicize redundancy measures.');
+        expect(markup).toContain('Targets / Pressure Points:</strong> Port authorities and customs timing.');
+        expect(markup).toContain('Delivery Channel:</strong> Backchannel assurances to carriers.');
+        expect(markup).toContain('White Cell deliberation is underway.');
+        expect(markup).not.toContain('Ally Contingencies:</strong>');
+        expect(markup).not.toContain('Targets:</strong> Not specified');
+        expect(markup).not.toContain('This action is now read-only for facilitator and scribe seats until adjudication.');
     });
 
     it('rerenders facilitator proposal cards when communications change', async () => {
