@@ -25,16 +25,18 @@
         }
     </style>
   <script type="module" crossorigin src="/assets/supabase-BQbgwcOn.js"></script>
-  <script type="module" crossorigin src="/assets/main-60SItiRF.js"></script>
-  <script type="module" crossorigin src="/assets/validation-BIMb4K4j.js"></script>
-  <script type="module" crossorigin src="/assets/formatting-X2qnGpo7.js"></script>
+  <script type="module" crossorigin src="/assets/main-B4RR-wWs.js"></script>
   <script type="module" crossorigin src="/assets/Modal-O3kyaPUL.js"></script>
-  <script type="module" crossorigin src="/assets/tribeStreetJournalEmbed-hZek590l.js"></script>
-  <script type="module" crossorigin src="/assets/targeting-DTDkgBS0.js"></script>
-  <script type="module" crossorigin src="/assets/facilitator-BhjL83VU.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/main-DzJQFk-o.css">
-  <link rel="stylesheet" crossorigin href="/assets/validation-cvd1K-Uc.css">
-  <link rel="stylesheet" crossorigin href="/assets/formatting-1fFmx5Y1.css">
+  <script type="module" crossorigin src="/assets/formatting-DdUDl-fG.js"></script>
+  <script type="module" crossorigin src="/assets/blueActionDetails-C2WxnKAr.js"></script>
+  <script type="module" crossorigin src="/assets/targeting-BlYO8DnJ.js"></script>
+  <script type="module" crossorigin src="/assets/tribeStreetJournalEmbed-fmrX_x-G.js"></script>
+  <script type="module" crossorigin src="/assets/validation-ZVuL9aQ-.js"></script>
+  <script type="module" crossorigin src="/assets/facilitator-1oGIKd8t.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/main-DIt3fMsB.css">
+  <link rel="stylesheet" crossorigin href="/assets/grid-BrzUvBhI.css">
+  <link rel="stylesheet" crossorigin href="/assets/loader-BBMTnfiF.css">
+  <link rel="stylesheet" crossorigin href="/assets/sidebar-BKNu2aOX.css">
 </head>
 <body data-team="blue">
     <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -122,6 +124,7 @@
                                 </svg>
                             </span>
                             <span class="sidebar-label">Responses</span>
+                            <span class="sidebar-badge" id="responsesBadge" hidden>0</span>
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
@@ -145,6 +148,7 @@
                                 </svg>
                             </span>
                             <span class="sidebar-label">Tribe Street Journal</span>
+                            <span class="sidebar-badge" id="tribeStreetJournalBadge" hidden>0</span>
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
@@ -155,6 +159,7 @@
                                 </svg>
                             </span>
                             <span class="sidebar-label">Verba AI Population Sentiments</span>
+                            <span class="sidebar-badge" id="verbaAiBadge" hidden>0</span>
                         </a>
                     </li>
                     <li class="sidebar-menu-item">
@@ -245,7 +250,7 @@
                     <div class="section-header">
                         <div class="section-title-wrapper">
                             <h2 class="section-title">White Cell Responses</h2>
-                            <p class="section-description">View responses to your RFIs and communications</p>
+                            <p class="section-description">View explicit White Cell communications, update notices, and responses to your RFIs.</p>
                         </div>
                     </div>
 

@@ -28,7 +28,7 @@ async function fillAndWaitForAutoSave(page, {
     await expect(page.locator(statusSelector)).toHaveText('Saved to your notes');
 }
 
-test('@live-demo one-team topology covers operator session creation, onboarding, White Cell access, team-lead parity, and seat contention', async ({ browser }) => {
+test('@live-demo one-team topology covers operator session creation, onboarding, White Cell access, the dedicated scribe deck, and seat contention', async ({ browser }) => {
     test.slow();
 
     const context = await browser.newContext();
@@ -131,15 +131,28 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         }, 'The requested role is full. Please choose another seat.');
     });
 
-    await test.step('verify scribe parity and complete the facilitator to White Cell workflow', async () => {
+    await test.step('verify the dedicated scribe deck and complete the facilitator to White Cell workflow', async () => {
         await createDraftAction(facilitator, {
             goal: actionGoal
         });
 
-        await expect(scribe.locator('body')).toHaveAttribute('data-facilitator-mode', 'scribe');
-        await expect(scribe.locator('#newActionBtn')).toBeVisible();
-        await expect(scribe.locator('#captureSection')).toBeVisible();
-        await expect(scribe.locator('#actionsList')).toContainText(actionGoal);
+        await expect(scribe).toHaveURL(/\/teams\/blue\/scribe\.html(?:\?.*)?$/);
+        await expect(scribe.locator('body')).toHaveAttribute('data-role-surface', 'scribe');
+        await expect(scribe.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready');
+        await expect(scribe.locator('#scribeSectionList')).toContainText('Communications');
+        await expect(scribe.locator('#deckSlideImage')).toBeVisible();
+        await expect(scribe.locator('#newActionBtn')).toHaveCount(0);
+
+        const actionsSectionTrigger = scribe.locator('#scribeSectionList .scribe-section-trigger').first();
+        await expect(actionsSectionTrigger).toContainText('Actions');
+        await actionsSectionTrigger.click();
+
+        const actionSlideLink = scribe.locator('#scribeSectionList button[data-slide-key^="action-"]').first();
+        await expect(actionSlideLink).toBeVisible();
+        await expect(actionSlideLink).toContainText(actionGoal);
+        await actionSlideLink.click();
+        await expect(scribe.locator('#deckActionFrame')).toBeVisible();
+        await expect(scribe.locator('#main-content')).toContainText(actionGoal);
 
         await submitAction(facilitator, actionGoal);
 
@@ -150,9 +163,9 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
 
         await expect(whiteCellLead.locator('#adjudicationQueue')).toContainText('No actions are waiting for adjudication.');
 
-        await expect(scribe.locator('#actionsList')).toContainText(actionGoal);
-        await expect(scribe.locator('#actionsList')).toContainText('Success');
-        await expect(scribe.locator('#actionsList')).toContainText('Approved by White Cell lead during the topology rehearsal.');
+        await expect(scribe.locator('#nextSlideBtn')).toBeVisible();
+        await expect(scribe.locator('#main-content')).toContainText(actionGoal);
+        await expect(scribe.locator('#main-content')).toContainText('Approved by White Cell lead during the topology rehearsal.');
     });
 
     await test.step('record the active seat counts for the one-team topology', async () => {

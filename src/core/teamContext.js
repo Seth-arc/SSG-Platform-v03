@@ -180,7 +180,7 @@ export function buildTeamRoute(teamId, surface, { observer = false, basePath } =
     }
 
     const team = getTeamConfig(teamId);
-    const pageSurface = surface === ROLE_SURFACES.VIEWER || surface === ROLE_SURFACES.SCRIBE
+    const pageSurface = surface === ROLE_SURFACES.VIEWER
         ? ROLE_SURFACES.FACILITATOR
         : surface;
 

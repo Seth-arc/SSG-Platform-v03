@@ -9,12 +9,16 @@ It is not a redesign document. It describes the current shipped role surfaces, w
 Primary source files:
 
 - `src/roles/facilitator.js`
+- `src/roles/scribe.js`
 - `src/roles/notetaker.js`
 - `src/roles/whitecell.js`
 - `src/roles/gamemaster.js`
 - `teams/blue/facilitator.html`
+- `teams/blue/scribe.html`
 - `teams/red/facilitator.html`
+- `teams/red/scribe.html`
 - `teams/green/facilitator.html`
+- `teams/green/scribe.html`
 - `whitecell.html`
 - `master.html`
 - `src/features/actions/proposalRecipientState.js`
@@ -44,7 +48,7 @@ Each of Blue, Red, and Green currently exposes:
 
 These rules are important because the backend should preserve them unless the frontend is intentionally changed.
 
-- `Scribe` is a first-class seat and role string, but today it is an operational copy of the matching team's facilitator surface.
+- `Scribe` is a first-class seat and role string with its own dedicated support-deck surface.
 - Team leads do not have a freeform outbound communications composer.
 - White Cell is the only role with a freeform communications composer.
 - Team-lead outbound paths are limited to:
@@ -116,19 +120,30 @@ Backend alignment implications:
 
 Surface:
 
-- Same page and controller as Blue Facilitator
+- `teams/blue/scribe.html`
+- `src/roles/scribe.js`
 
 Current behavior:
 
-- Same permissions and same workflow as Blue Facilitator
-- Same response feed
-- Same `Received Proposals` inbox
-- Same timeline visibility
+- Session-aware slide deck sourced from `fractured-order-facilitator-deck.html`
+- Navbar reflects session, time, move, and phase from the live session state
+- Sidebar sections are:
+  - `Actions`
+  - `Overview`
+  - `Schedule`
+  - `Roles and Objectives`
+  - `BRICS+ Context`
+  - `Gameplay`
+  - `Support Materials`
+  - `Supply Chain Data`
+  - `Economic Tools`
+  - `Communications`
+- No facilitator action, RFI, response, or received-proposal workflow is rendered on the scribe page
 
 Important note:
 
-- `blue_scribe` is a separate seat and role identity even though it currently mirrors Blue Facilitator behavior.
-- Backend permissions should preserve separate seat identity while allowing the same action and communication paths Blue Facilitator has today.
+- `blue_scribe` remains a separate seat and role identity.
+- Backend seat-claim behavior must preserve that identity, but the frontend no longer treats the scribe surface as facilitator-equivalent workflow.
 
 ### Blue Notetaker
 
@@ -230,7 +245,8 @@ Backend alignment implications:
 
 Current behavior:
 
-- Same page, same permissions, same response feed, same `Received Proposals` inbox, and same timeline as Red Facilitator
+- Same dedicated support-deck shell and slide structure as Blue Scribe, but scoped to `red_scribe`
+- No Red facilitator move-response workflow, inbox, or timeline feed is rendered on the scribe page
 - Separate seat and role identity: `red_scribe`
 
 ### Red Notetaker
@@ -305,7 +321,8 @@ Backend alignment implications:
 
 Current behavior:
 
-- Same page, same permissions, same proposal workflow, same response feed, and same timeline as Green Facilitator
+- Same dedicated support-deck shell and slide structure as Blue Scribe, but scoped to `green_scribe`
+- No Green facilitator proposal workflow, inbox, or timeline feed is rendered on the scribe page
 - Separate seat and role identity: `green_scribe`
 
 ### Green Notetaker

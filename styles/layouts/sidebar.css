@@ -62,7 +62,12 @@
 }
 
 .nav-item.active {
-    background: var(--color-surface-alt);
+    background: var(--color-navy-soft);
+    color: var(--color-navy);
+}
+
+.nav-item.active .nav-title {
+    color: var(--color-navy);
 }
 
 .nav-item.active::before {
@@ -266,7 +271,7 @@
 .section-header h2 {
     font-family: var(--font-serif);
     font-size: var(--text-2xl);
-    font-weight: var(--font-bold);
+    font-weight: var(--font-medium);
     color: var(--color-text);
     margin-bottom: 4px;
     letter-spacing: var(--tracking-tight);

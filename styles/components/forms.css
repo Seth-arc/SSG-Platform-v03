@@ -163,7 +163,7 @@ select.move-selector {
 
 .form-checkbox:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(26, 68, 128, 0.1);
+    box-shadow: 0 0 0 3px var(--color-navy-soft);
 }
 
 /* Radio */

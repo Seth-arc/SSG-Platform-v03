@@ -91,10 +91,13 @@ async function expectRoleSurface(page, roleCase) {
     }
 
     if (roleCase.roleSurface === ROLE_SURFACES.SCRIBE) {
-        await expect(page).toHaveURL(new RegExp(`/teams/${roleCase.teamId}/facilitator\\.html(?:\\?.*)?$`));
+        await expect(page).toHaveURL(new RegExp(`/teams/${roleCase.teamId}/scribe\\.html(?:\\?.*)?$`));
         await expect(page.locator('#sessionRoleLabel')).toHaveText('Scribe');
-        await expect(page.locator('body')).toHaveAttribute('data-facilitator-mode', 'scribe');
-        await expect(page.locator('#newActionBtn')).toBeVisible();
+        await expect(page.locator('body')).toHaveAttribute('data-role-surface', 'scribe');
+        await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready');
+        await expect(page.locator('#scribeSectionList')).toContainText('Actions');
+        await expect(page.locator('#deckSlideImage')).toBeVisible();
+        await expect(page.locator('#newActionBtn')).toHaveCount(0);
         return;
     }
 
@@ -107,7 +110,7 @@ async function expectRoleSurface(page, roleCase) {
         return;
     }
 
-    await expect(page).toHaveURL(/\/teams\/blue\/whitecell\.html(?:\?.*)?$/);
+    await expect(page).toHaveURL(/\/whitecell\.html(?:\?.*)?$/);
     await expect(page.locator('#startTimerBtn')).toBeVisible();
 
     if (roleCase.operatorRole === WHITE_CELL_OPERATOR_ROLES.SUPPORT) {
@@ -117,7 +120,7 @@ async function expectRoleSurface(page, roleCase) {
     }
 }
 
-test('@live-demo browser role matrix covers all teams and roles through join, public-role reauth on reload, and operator roster visibility', async ({ browser }) => {
+test('@live-demo browser role matrix covers all teams and roles through join, reload persistence, and operator roster visibility', async ({ browser }) => {
     test.slow();
 
     const context = await browser.newContext();
@@ -137,7 +140,7 @@ test('@live-demo browser role matrix covers all teams and roles through join, pu
         expect(session).toBeTruthy();
     });
 
-    await test.step('join every shipped role across blue, red, and green and require public roles to log back in after reload', async () => {
+    await test.step('join every shipped role across blue, red, and green and preserve the active seat across reload', async () => {
         for (const roleCase of LIVE_DEMO_ROLE_MATRIX) {
             const actorPage = await createIsolatedActorPage(context, roleCase.actorName);
 
@@ -158,21 +161,6 @@ test('@live-demo browser role matrix covers all teams and roles through join, pu
 
             await expectRoleSurface(actorPage, roleCase);
             await actorPage.reload();
-
-            if (roleCase.roleSurface === ROLE_SURFACES.WHITECELL) {
-                await expectRoleSurface(actorPage, roleCase);
-                continue;
-            }
-
-            await actorPage.waitForURL(/\/$/);
-            await expect(actorPage.locator('#joinForm')).toBeVisible();
-
-            await joinPublicParticipant(actorPage, {
-                sessionCode: SESSION_CODE,
-                displayName: roleCase.displayName,
-                team: roleCase.teamId,
-                roleSurface: roleCase.roleSurface
-            });
             await expectRoleSurface(actorPage, roleCase);
         }
     });

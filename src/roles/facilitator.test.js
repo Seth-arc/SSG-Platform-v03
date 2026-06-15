@@ -105,7 +105,7 @@ describe('Facilitator and scribe access', () => {
         delete globalThis.__ESG_DISABLE_AUTO_INIT__;
     });
 
-    it('allows facilitator and scribe seats onto the shared team-lead surface', async () => {
+    it('allows facilitator seats and rejects scribe seats on the facilitator surface', async () => {
         const { getFacilitatorAccessState } = await loadFacilitatorModule();
         const teamContext = {
             teamId: 'blue',
@@ -127,17 +127,15 @@ describe('Facilitator and scribe access', () => {
             role: 'blue_scribe',
             teamContext,
         })).toMatchObject({
-            allowed: true,
-            readOnly: false,
-            reason: null,
-            roleSurface: 'scribe'
+            allowed: false,
+            reason: 'role-mismatch'
         });
     });
 
-    it('renders scribe-mode labels on the shared facilitator surface', async () => {
+    it('renders facilitator-mode labels on the facilitator surface', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
-        controller.role = 'blue_scribe';
+        controller.role = 'blue_facilitator';
 
         const roleLabel = createFakeElement('sessionRoleLabel');
         const notice = createFakeElement('facilitatorModeNotice');
@@ -167,9 +165,9 @@ describe('Facilitator and scribe access', () => {
 
         controller.configureAccessMode();
 
-        expect(global.document.body.dataset.facilitatorMode).toBe('scribe');
-        expect(roleLabel.textContent).toBe('Scribe');
-        expect(headerTitle.textContent).toBe('Blue Team Scribe');
+        expect(global.document.body.dataset.facilitatorMode).toBe('facilitator');
+        expect(roleLabel.textContent).toBe('Facilitator');
+        expect(headerTitle.textContent).toBe('Blue Team Facilitator');
         expect(notice.style.display).toBe('none');
         expect(notice.innerHTML).toBe('');
     });

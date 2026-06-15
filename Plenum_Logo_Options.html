@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plenum — Logo Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16191d; --graphite-deep:#101317; --graphite:#20242b;
+    --paper:#fffefb; --canvas:#f6f4ee; --mist:#ece9e0; --hair:#e2ddd0; --hair-strong:#cec9ba; --muted:#6e7178;
+    --accent:#bd5a39; --accent-bright:#d67c58;
+    --serif:'Source Serif 4', ui-serif, Georgia, serif;
+    --sans:'Inter', ui-sans-serif, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ font-family:var(--sans); color:var(--ink); background:var(--canvas); line-height:1.6; -webkit-font-smoothing:antialiased; }
+  body::after{ content:""; position:fixed; inset:0; pointer-events:none; z-index:9999; opacity:.04; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  .wrap{ max-width:1080px; margin:0 auto; padding:0 clamp(24px,5vw,56px); }
+
+  header.top{ padding:clamp(48px,8vh,84px) 0 28px; }
+  header.top .eyebrow{ font-size:.66rem; letter-spacing:.28em; text-transform:uppercase; font-weight:600; color:var(--accent); }
+  header.top h1{ font-family:var(--serif); font-weight:500; font-size:clamp(1.8rem,4vw,2.6rem); letter-spacing:-.02em; margin-top:8px; }
+  header.top p{ color:var(--muted); margin-top:10px; max-width:60ch; font-size:.96rem; }
+
+  .toolbar{ display:flex; flex-wrap:wrap; align-items:center; gap:18px; margin-top:26px; padding-top:22px; border-top:1px solid var(--hair); }
+  .accents{ display:flex; gap:10px; align-items:center; }
+  .accents .lbl{ font-size:.64rem; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin-right:2px; }
+  .adot{ width:22px; height:22px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:.14s ease; }
+  .adot:hover{ transform:scale(1.12); }
+  .adot.sel{ border-color:var(--ink); }
+  .switch{ margin-left:auto; display:inline-flex; border:1px solid var(--hair-strong); border-radius:999px; overflow:hidden; }
+  .switch button{ font-family:var(--sans); font-size:.76rem; font-weight:600; padding:7px 16px; border:none; background:transparent; color:var(--muted); cursor:pointer; }
+  .switch button.on{ background:var(--ink); color:#fff; }
+
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(290px,1fr)); gap:20px; padding:14px 0 80px; }
+  .card{ border:1px solid var(--hair); border-radius:16px; background:var(--paper); padding:40px 30px 26px; display:flex; flex-direction:column; align-items:center; text-align:center; transition:.18s ease; }
+  .card:hover{ border-color:var(--hair-strong); transform:translateY(-3px); box-shadow:0 16px 40px rgba(20,20,16,.06); }
+  body.dark .card{ background:var(--graphite); border-color:#2c313a; }
+  body.dark .card .mark{ color:#f3f2ee; }
+  body.dark .card .lk-word, body.dark .card .c-name{ color:#f3f2ee; }
+  body.dark .card .c-desc{ color:rgba(243,242,238,.6); }
+  body.dark .card .c-div{ background:rgba(243,242,238,.14); }
+
+  .mark{ color:var(--ink); overflow:visible; }
+  .acc-fill{ fill:var(--accent); } .acc-stroke{ stroke:var(--accent); }
+
+  .lk-word{ font-family:var(--serif); font-weight:500; font-size:1.7rem; letter-spacing:-.025em; color:var(--ink); margin-top:20px; }
+  .lk-word .dot{ color:var(--accent); }
+  .c-div{ width:34px; height:1px; background:var(--hair-strong); margin:20px 0 14px; }
+  .c-num{ font-family:var(--serif); font-style:italic; color:var(--accent); font-size:.9rem; }
+  .c-name{ font-size:.92rem; font-weight:600; margin-top:2px; color:var(--ink); }
+  .c-desc{ font-size:.82rem; color:var(--muted); margin-top:7px; max-width:30ch; line-height:1.5; }
+  .badge{ font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; font-weight:600; color:var(--accent); border:1px solid var(--accent); border-radius:999px; padding:3px 9px; margin-top:9px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="eyebrow">Plenum · Identity</div>
+    <h1>Six directions for the mark</h1>
+    <p>Each shares the neutral core, the Source Serif wordmark, and the swappable accent. Switch the accent or background to judge them under real conditions.</p>
+    <div class="toolbar">
+      <div class="accents">
+        <span class="lbl">Accent</span>
+        <span class="adot sel" style="background:#bd5a39" data-a="#bd5a39" data-b="#d67c58"></span>
+        <span class="adot" style="background:#115740" data-a="#115740" data-b="#3f8466"></span>
+        <span class="adot" style="background:#274472" data-a="#274472" data-b="#4a6aa0"></span>
+        <span class="adot" style="background:#8c2f39" data-a="#8c2f39" data-b="#b1505a"></span>
+        <span class="adot" style="background:#1f6f73" data-a="#1f6f73" data-b="#3f9498"></span>
+        <span class="adot" style="background:#5b4b8a" data-a="#5b4b8a" data-b="#7e6cb0"></span>
+      </div>
+      <div class="switch">
+        <button id="bLight" class="on">Light</button>
+        <button id="bDark">Dark</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+
+    <!-- 1 · HEMICYCLE -->
+    <div class="card">
+      <svg class="mark" width="94" height="94" viewBox="0 0 80 80">
+        <circle class="acc-fill" cx="40" cy="51" r="3.4"/>
+        <g fill="currentColor"><circle cx="51.0" cy="42.4" r="2.4"/><circle cx="46.1" cy="38.4" r="2.4"/><circle cx="40" cy="37.0" r="2.4"/><circle cx="33.9" cy="38.4" r="2.4"/><circle cx="29.0" cy="42.4" r="2.4"/></g>
+        <g fill="currentColor" opacity=".6"><circle cx="58.9" cy="36.2" r="2.1"/><circle cx="50.5" cy="29.4" r="2.1"/><circle cx="40" cy="27.0" r="2.1"/><circle cx="29.5" cy="29.4" r="2.1"/><circle cx="21.1" cy="36.2" r="2.1"/></g>
+      </svg>
+      <div class="lk-word">Plenum<span class="dot">.</span></div>
+      <div class="c-div"></div>
+      <div class="c-num">01</div>
+      <div class="c-name">Hemicycle</div>
+      <div class="c-desc">An amphitheater of seats curved toward the rostrum. Representational, scholarly.</div>
+      <span class="badge">Current</span>
+    </div>
+
+    <!-- 2 · ROUND TABLE -->
+    <div class="card">
+      <svg class="mark" width="94" height="94" viewBox="0 0 80 80">
+        <circle class="acc-fill" cx="40" cy="40" r="4"/>
+        <g fill="currentColor">
+          <circle cx="63.0" cy="40.0" r="2.3"/><circle cx="58.6" cy="26.5" r="2.3"/><circle cx="47.1" cy="18.1" r="2.3"/><circle cx="32.9" cy="18.1" r="2.3"/><circle cx="21.4" cy="26.5" r="2.3"/>
+          <circle cx="17.0" cy="40.0" r="2.3"/><circle cx="21.4" cy="53.5" r="2.3"/><circle cx="32.9" cy="61.9" r="2.3"/><circle cx="47.1" cy="61.9" r="2.3"/><circle cx="58.6" cy="53.5" r="2.3"/>
+        </g>
+      </svg>
+      <div class="lk-word">Plenum<span class="dot">.</span></div>
+      <div class="c-div"></div>
+      <div class="c-num">02</div>
+      <div class="c-name">Round Table</div>
+      <div class="c-desc">The body seen from above — members ringed around a single decision. Convening, equal voices.</div>
+    </div>
+
+    <!-- 3 · THE DOME -->
+    <div class="card">
+      <svg class="mark" width="94" height="94" viewBox="0 0 80 80">
+        <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M28 53 A12 12 0 0 0 52 53"/>
+          <path d="M21 53 A19 19 0 0 0 59 53" opacity=".62"/>
+          <path d="M14 53 A26 26 0 0 0 66 53" opacity=".4"/>
+        </g>
+        <circle class="acc-fill" cx="40" cy="53" r="3.5"/>
+      </svg>
+      <div class="lk-word">Plenum<span class="dot">.</span></div>
+      <div class="c-div"></div>
+      <div class="c-num">03</div>
+      <div class="c-name">The Dome</div>
+      <div class="c-desc">Nested vaults of the chamber rising over the floor. Architectural, calm, institutional.</div>
+    </div>
+
+    <!-- 4 · SEAL / LETTERMARK -->
+    <div class="card">
+      <svg class="mark" width="94" height="94" viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r="31" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="39" y="41" text-anchor="middle" style="font-family:var(--serif); font-weight:500; font-size:42px; fill:currentColor; dominant-baseline:central;">P</text>
+        <circle class="acc-fill" cx="52" cy="50" r="3"/>
+      </svg>
+      <div class="lk-word">Plenum<span class="dot">.</span></div>
+      <div class="c-div"></div>
+      <div class="c-num">04</div>
+      <div class="c-name">The Seal</div>
+      <div class="c-desc">A serif monogram within a ring — a crest. Maximum institutional authority and formality.</div>
+    </div>
+
+    <!-- 5 · COLUMN -->
+    <div class="card">
+      <svg class="mark" width="94" height="94" viewBox="0 0 80 80">
+        <circle class="acc-fill" cx="40" cy="18" r="2.6"/>
+        <g stroke="currentColor" stroke-linecap="round" fill="none">
+          <line x1="26" y1="23" x2="54" y2="23" stroke-width="2.4"/>
+          <g stroke-width="2.2">
+            <line x1="31" y1="26.5" x2="31" y2="55.5"/>
+            <line x1="37" y1="26.5" x2="37" y2="55.5"/>
+            <line x1="43" y1="26.5" x2="43" y2="55.5"/>
+            <line x1="49" y1="26.5" x2="49" y2="55.5"/>
+          </g>
+          <line x1="24" y1="59" x2="56" y2="59" stroke-width="2.8"/>
+        </g>
+      </svg>
+      <div class="lk-word">Plenum<span class="dot">.</span></div>
+      <div class="c-div"></div>
+      <div class="c-num">05</div>
+      <div class="c-name">The Column</div>
+      <div class="c-desc">A classical pillar crowned by a single point. Government, law, the weight of precedent.</div>
+    </div>
+
+    <!-- 6 · ENCLOSURE -->
+    <div class="card">
+      <svg class="mark" width="94" height="94" viewBox="0 0 80 80">
+        <g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
+          <path d="M30 23 A17 17 0 0 0 30 57"/>
+          <path d="M50 23 A17 17 0 0 1 50 57"/>
+        </g>
+        <circle class="acc-fill" cx="40" cy="40" r="4"/>
+      </svg>
+      <div class="lk-word">Plenum<span class="dot">.</span></div>
+      <div class="c-div"></div>
+      <div class="c-num">06</div>
+      <div class="c-name">The Enclosure</div>
+      <div class="c-desc">The chamber holding the decision at its center — an open floor. Abstract, modern, scalable.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  var root = document.documentElement, body = document.body;
+  document.querySelectorAll('.adot').forEach(function(dot){
+    dot.addEventListener('click', function(){
+      root.style.setProperty('--accent', dot.dataset.a);
+      root.style.setProperty('--accent-bright', dot.dataset.b);
+      document.querySelectorAll('.adot').forEach(function(d){ d.classList.remove('sel'); });
+      dot.classList.add('sel');
+    });
+  });
+  var bL = document.getElementById('bLight'), bD = document.getElementById('bDark');
+  bL.addEventListener('click', function(){ body.classList.remove('dark'); bL.classList.add('on'); bD.classList.remove('on'); });
+  bD.addEventListener('click', function(){ body.classList.add('dark'); bD.classList.add('on'); bL.classList.remove('on'); });
+</script>
+
+</body>
+</html>

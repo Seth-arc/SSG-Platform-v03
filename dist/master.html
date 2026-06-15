@@ -8,17 +8,19 @@
     <title>Statecraft Sim | Game Master Operator Console</title>
 
     <!-- Styles -->
-  <script type="module" crossorigin src="/assets/master-z4Fi2in-.js"></script>
+  <script type="module" crossorigin src="/assets/master-BRUGZFy3.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/supabase-BQbgwcOn.js">
-  <link rel="modulepreload" crossorigin href="/assets/main-60SItiRF.js">
-  <link rel="modulepreload" crossorigin href="/assets/validation-BIMb4K4j.js">
-  <link rel="modulepreload" crossorigin href="/assets/formatting-X2qnGpo7.js">
+  <link rel="modulepreload" crossorigin href="/assets/main-B4RR-wWs.js">
   <link rel="modulepreload" crossorigin href="/assets/Modal-O3kyaPUL.js">
-  <link rel="modulepreload" crossorigin href="/assets/exportCsv-C1oxfKLz.js">
-  <link rel="stylesheet" crossorigin href="/assets/main-DzJQFk-o.css">
-  <link rel="stylesheet" crossorigin href="/assets/validation-cvd1K-Uc.css">
-  <link rel="stylesheet" crossorigin href="/assets/formatting-1fFmx5Y1.css">
-  <link rel="stylesheet" crossorigin href="/assets/master-Nx1XNa69.css">
+  <link rel="modulepreload" crossorigin href="/assets/formatting-DdUDl-fG.js">
+  <link rel="modulepreload" crossorigin href="/assets/validation-ZVuL9aQ-.js">
+  <link rel="modulepreload" crossorigin href="/assets/blueActionDetails-C2WxnKAr.js">
+  <link rel="modulepreload" crossorigin href="/assets/researchExport-By0MM4FB.js">
+  <link rel="stylesheet" crossorigin href="/assets/main-DIt3fMsB.css">
+  <link rel="stylesheet" crossorigin href="/assets/master-B2_Z4wZL.css">
+  <link rel="stylesheet" crossorigin href="/assets/grid-BrzUvBhI.css">
+  <link rel="stylesheet" crossorigin href="/assets/loader-BBMTnfiF.css">
+  <link rel="stylesheet" crossorigin href="/assets/sidebar-BKNu2aOX.css">
 </head>
 
 <body>
@@ -274,7 +276,7 @@
                     <div class="section-header">
                         <div class="section-title-wrapper">
                             <h2 class="section-title">Data Export</h2>
-                            <p class="section-description">Download JSON and CSV extracts from a selected live session</p>
+                            <p class="section-description">Download legacy JSON or CSV extracts, plus the research archive and print-ready report by default. Switch runtime config to standard to lock the research bundle.</p>
                         </div>
                         <div class="section-actions">
                             <label class="sr-only" for="exportSessionSelect">Select session for export</label>
@@ -285,9 +287,9 @@
                     </div>
 
                     <div class="section-body">
-                        <p class="text-sm text-gray-500 mb-4" id="exportSelectionState">Select a session before exporting JSON or CSV data.</p>
+                        <p class="text-sm text-gray-500 mb-4" id="exportSelectionState">Select a session before exporting JSON, CSV, or research archive data.</p>
 
-                        <div class="section-grid section-grid-2">
+                        <div class="section-grid section-grid-3">
                             <div class="card card-bordered card-hoverable" id="exportJson">
                                 <div class="card-body" style="text-align: center; padding: var(--space-8);">
                                     <div style="margin-bottom: var(--space-4); color: var(--color-navy);">
@@ -324,6 +326,30 @@
                                         <button class="btn btn-outline btn-sm" id="exportRequestsCsvBtn" disabled>RFIs CSV</button>
                                         <button class="btn btn-outline btn-sm" id="exportTimelineCsvBtn" disabled>Timeline CSV</button>
                                         <button class="btn btn-outline btn-sm" id="exportParticipantsCsvBtn" disabled>Participants CSV</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card card-bordered card-hoverable" id="exportResearchArchive">
+                                <div class="card-body" style="text-align: center; padding: var(--space-8);">
+                                    <div style="margin-bottom: var(--space-4); color: var(--color-warning);">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="1.5">
+                                            <path d="M4 7h16"></path>
+                                            <path d="M6 11h12"></path>
+                                            <path d="M8 15h8"></path>
+                                            <path d="M4 4h16v16H4z"></path>
+                                        </svg>
+                                    </div>
+                                    <h3>Research Archive</h3>
+                                    <p class="text-sm text-gray-500 mb-4">Single ZIP bundle with machine-readable tables, report.html, and the legacy export subset</p>
+                                    <label for="exportResearchIncludeNotes" class="text-sm text-gray-500" style="display: inline-flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-4); text-align: left;">
+                                        <input type="checkbox" id="exportResearchIncludeNotes">
+                                        Include notes appendix in report.html when study consent allows it
+                                    </label>
+                                    <div style="display: grid; gap: var(--space-2);">
+                                        <button class="btn btn-outline btn-sm" id="exportResearchArchiveBtn" disabled>Download Research ZIP</button>
+                                        <button class="btn btn-outline btn-sm" id="printResearchReportBtn" disabled>Print Report</button>
                                     </div>
                                 </div>
                             </div>

@@ -8,8 +8,8 @@
     padding: var(--btn-padding-y) var(--btn-padding-x);
     border: 1px solid transparent;
     /* Always have border */
-    border-radius: var(--radius-sm);
-    /* Sharp/minimal radius */
+    border-radius: var(--btn-radius);
+    /* Rounded control radius (8px) */
     font-size: 0.8125rem;
     font-weight: var(--font-medium);
     font-family: var(--font-sans);
@@ -47,16 +47,16 @@
     font-size: var(--text-md);
 }
 
-/* Primary button - dark text on hover */
+/* Primary button - accent green CTA */
 .btn-primary {
-    background: var(--color-text);
+    background: var(--color-navy);
     color: white;
-    border: 1px solid var(--color-text);
+    border: 1px solid var(--color-navy);
 }
 
 .btn-primary:hover:not(:disabled) {
-    background: var(--color-text-secondary);
-    border-color: var(--color-text-secondary);
+    background: var(--color-navy-deep);
+    border-color: var(--color-navy-deep);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -85,14 +85,14 @@
     background: var(--color-navy);
     color: white;
     border: 1px solid var(--color-navy);
-    box-shadow: 0 4px 12px rgba(26, 68, 128, 0.25);
+    box-shadow: 0 4px 12px rgba(17, 87, 64, 0.22);
 }
 
 .btn-success:hover:not(:disabled) {
     background: var(--color-navy-muted);
     border-color: var(--color-navy-muted);
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(26, 68, 128, 0.3);
+    box-shadow: 0 6px 16px rgba(17, 87, 64, 0.28);
 }
 
 .btn-success:active:not(:disabled) {

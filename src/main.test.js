@@ -152,3 +152,55 @@ describe('main reload reauthentication guard', () => {
         expect(mockNavigateToApp).not.toHaveBeenCalled();
     });
 });
+
+describe('sidebar toggle state resolution', () => {
+    beforeEach(() => {
+        vi.resetModules();
+        global.document = {
+            readyState: 'loading',
+            addEventListener: vi.fn(),
+            getElementById: vi.fn(() => null),
+            querySelectorAll: vi.fn(() => [])
+        };
+    });
+
+    afterEach(() => {
+        vi.resetModules();
+        delete global.document;
+    });
+
+    it('collapses the desktop sidebar without treating it as a mobile drawer', async () => {
+        const { resolveSidebarState } = await import('./main.js');
+
+        expect(resolveSidebarState({
+            trigger: 'sidebar',
+            isCompact: false,
+            isOpen: false,
+            isCollapsed: false
+        })).toEqual({
+            isOpen: false,
+            isCollapsed: true
+        });
+    });
+
+    it('uses the sidebar toggle as a close action on compact viewports', async () => {
+        const { resolveSidebarState } = await import('./main.js');
+
+        expect(resolveSidebarState({
+            trigger: 'sidebar',
+            isCompact: true,
+            isOpen: true,
+            isCollapsed: true
+        })).toEqual({
+            isOpen: false,
+            isCollapsed: true
+        });
+    });
+
+    it('detects compact sidebar viewports at and below the mobile breakpoint', async () => {
+        const { isCompactSidebarViewport } = await import('./main.js');
+
+        expect(isCompactSidebarViewport({ windowWidth: 768 })).toBe(true);
+        expect(isCompactSidebarViewport({ windowWidth: 769 })).toBe(false);
+    });
+});

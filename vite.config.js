@@ -53,11 +53,15 @@ export default defineConfig(({ mode }) => {
                     main: resolve(__dirname, 'index.html'),
                     master: resolve(__dirname, 'master.html'),
                     whitecell: resolve(__dirname, 'whitecell.html'),
+                    facilitatorDeck: resolve(__dirname, 'fractured-order-facilitator-deck.html'),
                     blueFacilitator: resolve(__dirname, 'teams/blue/facilitator.html'),
+                    blueScribe: resolve(__dirname, 'teams/blue/scribe.html'),
                     blueNotetaker: resolve(__dirname, 'teams/blue/notetaker.html'),
                     redFacilitator: resolve(__dirname, 'teams/red/facilitator.html'),
+                    redScribe: resolve(__dirname, 'teams/red/scribe.html'),
                     redNotetaker: resolve(__dirname, 'teams/red/notetaker.html'),
                     greenFacilitator: resolve(__dirname, 'teams/green/facilitator.html'),
+                    greenScribe: resolve(__dirname, 'teams/green/scribe.html'),
                     greenNotetaker: resolve(__dirname, 'teams/green/notetaker.html')
                 },
                 output: {

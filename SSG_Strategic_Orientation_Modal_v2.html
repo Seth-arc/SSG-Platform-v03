@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strategic Orientation — SSG Simulation Platform</title>
+<style>
+  :root {
+    --green:#115740;
+    --green-deep:#0c3f2e;
+    --gold:#b9975b;
+    --gold-bright:#d8b673;
+    --ivory:#f7f4ec;
+    --ivory-2:#fbf9f3;
+    --ink:#1b2620;
+    --muted:#6f6a5e;
+    --hair:#e0dccf;
+    --panel:#ffffff;
+    --t-blue:#2c5f8a;
+    --t-red:#8c2f39;
+    --t-green:#4a7c59;
+    --sans:ui-sans-serif,'Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif;
+  }
+
+  * { box-sizing:border-box; margin:0; padding:0; }
+
+  body {
+    font-family:var(--sans);
+    color:var(--ink);
+    background:radial-gradient(circle at 50% -10%, var(--ivory-2), var(--ivory) 60%);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---- Demo launcher (not part of the modal) ---- */
+  .launch-wrap {
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; padding:40px; text-align:center;
+  }
+  .launch-wrap .eyebrow { font-size:.7rem; letter-spacing:.22em; text-transform:uppercase; color:var(--green); font-weight:700; }
+  .launch-wrap h1 { font-size:1.6rem; color:var(--green); letter-spacing:-0.02em; }
+  .launch-wrap p { color:var(--muted); max-width:46ch; line-height:1.55; }
+  .btn-launch {
+    margin-top:6px; font-family:var(--sans); font-size:.92rem; font-weight:600;
+    color:#fff; background:var(--green); border:none; border-radius:7px;
+    padding:12px 22px; cursor:pointer; box-shadow:0 2px 10px rgba(17,87,64,0.22);
+  }
+  .btn-launch:hover { background:var(--green-deep); }
+
+  /* ============ MODAL SHELL ============ */
+  .overlay {
+    position:fixed; inset:0; z-index:100;
+    background:rgba(12,38,32,0.55); backdrop-filter:blur(2px);
+    display:none; align-items:flex-start; justify-content:center;
+    padding:clamp(16px,4vh,48px) 16px; overflow-y:auto;
+  }
+  .overlay.open { display:flex; }
+
+  .modal {
+    width:100%; max-width:760px; background:var(--panel); border-radius:12px;
+    box-shadow:0 24px 70px rgba(8,28,22,0.40); overflow:hidden;
+    animation:rise .28s cubic-bezier(.2,.7,.2,1) both;
+  }
+  @keyframes rise { from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none} }
+
+  /* ---- Header ---- */
+  .modal-head { position:relative; background:linear-gradient(150deg, var(--green-deep), var(--green)); color:var(--ivory); padding:22px 26px 20px; }
+  .modal-head::after { content:""; position:absolute; inset:0; pointer-events:none; background:radial-gradient(circle at 88% 10%, rgba(216,182,115,0.18), transparent 48%); }
+  .mh-top { display:flex; align-items:center; justify-content:space-between; gap:12px; position:relative; }
+  .mh-eyebrow { font-size:.62rem; letter-spacing:.2em; text-transform:uppercase; font-weight:700; color:var(--gold-bright); margin-bottom:6px; }
+  .step-pill {
+    font-size:.62rem; letter-spacing:.14em; text-transform:uppercase; font-weight:700;
+    color:rgba(247,244,236,0.92); background:rgba(255,255,255,0.14);
+    border-radius:999px; padding:4px 11px;
+  }
+  .modal-head h2 { font-size:1.5rem; letter-spacing:-0.02em; font-weight:700; line-height:1.1; position:relative; }
+  .mh-sub { font-size:.85rem; color:rgba(247,244,236,0.82); margin-top:6px; line-height:1.45; max-width:58ch; position:relative; }
+  .btn-close {
+    position:absolute; top:18px; right:18px; width:32px; height:32px; border-radius:7px;
+    background:rgba(255,255,255,0.12); border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; color:var(--ivory);
+  }
+  .btn-close:hover { background:rgba(255,255,255,0.22); }
+  .btn-close svg { width:15px; height:15px; }
+
+  /* ---- Body ---- */
+  .modal-body { padding:22px 26px 6px; }
+  .instruction { font-size:.9rem; color:#3a3833; line-height:1.55; margin-bottom:6px; }
+  .instruction strong { color:var(--green-deep); }
+  .field-label { font-size:.66rem; letter-spacing:.16em; text-transform:uppercase; font-weight:700; color:var(--muted); margin:20px 0 10px; }
+  .field-label .req { color:var(--t-red); }
+  .field-label .opt-note { color:var(--muted); font-weight:600; letter-spacing:.04em; text-transform:none; }
+
+  /* ---- Orientation cards (step 1) ---- */
+  .options { display:flex; flex-direction:column; gap:12px; }
+  .opt {
+    position:relative; text-align:left; width:100%;
+    background:var(--ivory-2); border:1.5px solid var(--hair); border-left-width:5px;
+    border-radius:9px; padding:16px 18px 16px 20px; cursor:pointer;
+    transition:border-color .15s ease, background .15s ease, box-shadow .15s ease;
+    font-family:var(--sans); color:var(--ink);
+  }
+  .opt:hover { background:#fff; box-shadow:0 3px 14px rgba(17,87,64,0.08); }
+  .opt:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .opt[data-orientation="pressure"]      { border-left-color:var(--t-red); }
+  .opt[data-orientation="stabilization"] { border-left-color:var(--t-blue); }
+  .opt[data-orientation="reframe"]       { border-left-color:var(--t-green); }
+  .opt[aria-pressed="true"] { border-color:var(--gold); background:#fff; box-shadow:0 4px 18px rgba(185,151,91,0.22); }
+  .opt-head { display:flex; align-items:baseline; gap:10px; margin-bottom:2px; }
+  .opt-num { font-size:.72rem; font-weight:700; color:var(--muted); border:1px solid var(--hair); border-radius:5px; padding:1px 7px; line-height:1.5; }
+  .opt-name { font-size:1.1rem; font-weight:700; color:var(--green-deep); letter-spacing:-0.01em; }
+  .opt[data-orientation="pressure"] .opt-name      { color:var(--t-red); }
+  .opt[data-orientation="stabilization"] .opt-name { color:var(--t-blue); }
+  .opt[data-orientation="reframe"] .opt-name       { color:var(--t-green); }
+  .opt-tag { font-size:.82rem; color:#46443f; font-style:italic; margin-bottom:10px; }
+  .opt-desc { font-size:.86rem; line-height:1.55; color:#33312c; margin-bottom:12px; max-width:64ch; }
+  .opt-chars { display:grid; grid-template-columns:1fr 1fr; gap:8px 18px; border-top:1px dashed var(--hair); padding-top:11px; }
+  .char { font-size:.78rem; line-height:1.35; }
+  .char .k { display:block; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:700; margin-bottom:1px; }
+  .char .v { color:var(--ink); }
+  .opt-check { position:absolute; top:14px; right:14px; width:24px; height:24px; border-radius:50%; background:var(--gold); color:#fff; display:none; align-items:center; justify-content:center; }
+  .opt[aria-pressed="true"] .opt-check { display:flex; }
+  .opt-check svg { width:13px; height:13px; }
+
+  /* ---- Step 2: configuring banner ---- */
+  .config-banner {
+    display:flex; align-items:center; gap:10px;
+    background:var(--ivory-2); border:1px solid var(--hair); border-left:5px solid var(--green);
+    border-radius:9px; padding:11px 16px; margin-bottom:6px;
+  }
+  .config-banner.pressure      { border-left-color:var(--t-red); }
+  .config-banner.stabilization { border-left-color:var(--t-blue); }
+  .config-banner.reframe       { border-left-color:var(--t-green); }
+  .cb-k { font-size:.6rem; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); font-weight:700; }
+  .cb-name { font-size:1.05rem; font-weight:700; color:var(--green-deep); }
+  .config-banner.pressure .cb-name      { color:var(--t-red); }
+  .config-banner.stabilization .cb-name { color:var(--t-blue); }
+  .config-banner.reframe .cb-name       { color:var(--t-green); }
+  .cb-tag { font-size:.8rem; font-style:italic; color:#46443f; }
+
+  /* ---- Chips ---- */
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip {
+    display:inline-flex; align-items:center; gap:7px;
+    font-family:var(--sans); font-size:.82rem; font-weight:500; color:var(--ink);
+    background:var(--ivory-2); border:1.5px solid var(--hair); border-radius:8px;
+    padding:8px 13px; cursor:pointer; line-height:1.3;
+    transition:border-color .12s ease, background .12s ease, box-shadow .12s ease;
+  }
+  .chip:hover { background:#fff; border-color:var(--muted); }
+  .chip:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .chip[aria-pressed="true"] {
+    border-color:var(--gold); background:#fff; color:var(--green-deep); font-weight:600;
+    box-shadow:0 3px 12px rgba(185,151,91,0.20);
+  }
+  .chip .dot {
+    width:15px; height:15px; border-radius:4px; border:1.5px solid var(--hair);
+    display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+    color:#fff;
+  }
+  .chip.single .dot { border-radius:50%; }
+  .chip[aria-pressed="true"] .dot { background:var(--gold); border-color:var(--gold); }
+  .chip .dot svg { width:10px; height:10px; display:none; }
+  .chip[aria-pressed="true"] .dot svg { display:block; }
+
+  /* ---- Rationale ---- */
+  textarea {
+    width:100%; min-height:78px; resize:vertical;
+    font-family:var(--sans); font-size:.88rem; line-height:1.5; color:var(--ink);
+    background:var(--ivory-2); border:1.5px solid var(--hair); border-radius:8px; padding:11px 13px;
+  }
+  textarea:focus { outline:none; border-color:var(--gold); background:#fff; }
+  textarea::placeholder { color:#9c978b; }
+  .help { font-size:.74rem; color:var(--muted); margin-top:6px; line-height:1.45; }
+
+  /* ---- Footer ---- */
+  .modal-foot {
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:16px 26px; border-top:1px solid var(--hair); background:var(--ivory-2);
+    margin-top:18px; flex-wrap:wrap;
+  }
+  .foot-summary { font-size:.82rem; color:var(--muted); }
+  .foot-summary b { color:var(--green-deep); font-weight:700; }
+  .foot-actions { display:flex; gap:10px; }
+  .btn {
+    font-family:var(--sans); font-size:.86rem; font-weight:600; border-radius:7px;
+    padding:10px 18px; cursor:pointer; border:1.5px solid transparent;
+    transition:background .15s ease, opacity .15s ease;
+  }
+  .btn-ghost { background:transparent; border-color:var(--hair); color:var(--muted); }
+  .btn-ghost:hover { border-color:var(--muted); color:var(--ink); }
+  .btn-primary { background:var(--green); color:#fff; }
+  .btn-primary:hover { background:var(--green-deep); }
+  .btn-primary:disabled { opacity:.45; cursor:not-allowed; }
+
+  /* ---- View toggles ---- */
+  .view { display:none; }
+  .view.show { display:block; }
+
+  /* ---- Confirmation ---- */
+  .confirm-view { display:none; padding:30px 26px 26px; }
+  .confirm-view.show { display:block; }
+  .confirm-badge { width:52px; height:52px; border-radius:50%; background:var(--green); color:#fff; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; }
+  .confirm-badge svg { width:26px; height:26px; }
+  .confirm-view h3 { text-align:center; color:var(--green-deep); font-size:1.2rem; margin-bottom:4px; }
+  .confirm-view .c-sub { text-align:center; color:var(--muted); font-size:.85rem; margin-bottom:18px; }
+  .summary-card { border:1px solid var(--hair); border-left:5px solid var(--gold); border-radius:9px; background:var(--ivory-2); padding:16px 18px; }
+  .summary-card .s-name { font-size:1.1rem; font-weight:700; color:var(--green-deep); }
+  .summary-card .s-tag { font-size:.82rem; font-style:italic; color:#46443f; margin:2px 0 8px; }
+  .summary-card .s-k { font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; margin-top:12px; }
+  .summary-card .s-v { font-size:.86rem; color:#33312c; line-height:1.5; }
+  .summary-card ul { list-style:none; margin:3px 0 0; padding:0; }
+  .summary-card ul li { position:relative; padding-left:16px; font-size:.85rem; color:#33312c; line-height:1.5; }
+  .summary-card ul li::before { content:""; position:absolute; left:0; top:.55em; width:6px; height:6px; background:var(--gold); transform:rotate(45deg); }
+  .confirm-foot { display:flex; justify-content:center; gap:10px; margin-top:18px; }
+</style>
+</head>
+<body>
+
+  <div class="launch-wrap">
+    <div class="eyebrow">Pre-Move 1 Activity</div>
+    <h1>Strategic Orientation</h1>
+    <p>This standalone page demonstrates the selection modal. In the platform it would open from the team workspace before Move 1.</p>
+    <button class="btn-launch" type="button" onclick="openModal()">Open Strategic Orientation</button>
+  </div>
+
+  <!-- ============ MODAL ============ -->
+  <div class="overlay" id="overlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="so-title">
+
+      <!-- Header -->
+      <div class="modal-head">
+        <div class="mh-top">
+          <div class="mh-eyebrow">Pre-Move 1 &middot; Team Selection</div>
+          <div class="step-pill" id="stepPill">Step 1 of 2</div>
+        </div>
+        <h2 id="so-title">Strategic Orientation</h2>
+        <div class="mh-sub" id="mhSub">Select the orientation your team will adopt for the scenario. This choice is made once, before Move 1, and frames how your subsequent actions are read by the White Cell.</div>
+        <button class="btn-close" type="button" aria-label="Close" onclick="closeModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
+        </button>
+      </div>
+
+      <!-- ===== STEP 1: Orientation ===== -->
+      <div class="view show" id="step1">
+        <div class="modal-body">
+          <p class="instruction">Each orientation reflects a distinct posture toward strategic competition with the PRC. They are <strong>mutually exclusive</strong>. Review the doctrine and the trade-offs, then select one.</p>
+
+          <div class="field-label">Orientation <span class="req">&middot; required</span></div>
+
+          <div class="options" id="options">
+
+            <button class="opt" type="button" data-orientation="pressure" aria-pressed="false" data-name="Pressure" data-tag="Focus on affecting PRC GDP growth">
+              <span class="opt-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <div class="opt-head"><span class="opt-num">01</span><span class="opt-name">Pressure</span></div>
+              <div class="opt-tag">Focus on affecting PRC GDP growth.</div>
+              <div class="opt-desc">The United States prioritizes coercive leverage and cost imposition as the primary means of shaping Chinese behavior. Cooperative or stabilizing measures are explicitly subordinate to enforcement objectives. This approach accepts elevated escalation risk and sustained economic friction as necessary instruments of competition, signaling a willingness to impose and absorb near-term disruption to achieve strategic effect.</div>
+              <div class="opt-chars">
+                <div class="char"><span class="k">Primary lever</span><span class="v">Coercive leverage &amp; cost imposition</span></div>
+                <div class="char"><span class="k">Objective</span><span class="v">Affect PRC GDP growth</span></div>
+                <div class="char"><span class="k">Escalation posture</span><span class="v">Accepts elevated risk</span></div>
+                <div class="char"><span class="k">Accepted cost</span><span class="v">Sustained economic friction</span></div>
+              </div>
+            </button>
+
+            <button class="opt" type="button" data-orientation="stabilization" aria-pressed="false" data-name="Stabilization" data-tag="Achieve normalization with partners and existing relationships">
+              <span class="opt-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <div class="opt-head"><span class="opt-num">02</span><span class="opt-name">Stabilization</span></div>
+              <div class="opt-tag">Achieve normalization with partners and existing relationships.</div>
+              <div class="opt-desc">Competition is deliberately constrained to mitigate escalation dynamics and systemic fragmentation. The expansion of sanctions, export controls, or punitive economic measures is intentionally limited to preserve predictability and reassure markets and allies. This approach prioritizes stability over leverage, accepting reduced coercive flexibility in exchange for lowered volatility and clearer guardrails.</div>
+              <div class="opt-chars">
+                <div class="char"><span class="k">Primary lever</span><span class="v">Constraint &amp; predictability</span></div>
+                <div class="char"><span class="k">Objective</span><span class="v">Normalize existing relationships</span></div>
+                <div class="char"><span class="k">Escalation posture</span><span class="v">Mitigate &amp; de-escalate</span></div>
+                <div class="char"><span class="k">Accepted cost</span><span class="v">Reduced coercive flexibility</span></div>
+              </div>
+            </button>
+
+            <button class="opt" type="button" data-orientation="reframe" aria-pressed="false" data-name="Reframe" data-tag="Develop new alliance and partnership structures">
+              <span class="opt-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <div class="opt-head"><span class="opt-num">03</span><span class="opt-name">Reframe</span></div>
+              <div class="opt-tag">Develop new alliance and partnership structures.</div>
+              <div class="opt-desc">The United States systematically reallocates economic exposure away from China through deliberate industrial and supply-chain restructuring. This approach does not center on punitive escalation or crisis management, but on gradual reallocation of interdependence to build long-term strategic autonomy. Transitional inefficiencies and economic friction are accepted as the price of structural resilience rather than immediate leverage.</div>
+              <div class="opt-chars">
+                <div class="char"><span class="k">Primary lever</span><span class="v">Supply-chain restructuring</span></div>
+                <div class="char"><span class="k">Objective</span><span class="v">New alliance/partnership structures</span></div>
+                <div class="char"><span class="k">Escalation posture</span><span class="v">Non-punitive, gradual</span></div>
+                <div class="char"><span class="k">Accepted cost</span><span class="v">Transitional inefficiencies</span></div>
+              </div>
+            </button>
+
+          </div>
+        </div>
+
+        <div class="modal-foot">
+          <div class="foot-summary">Selected: <b id="footPick">none</b></div>
+          <div class="foot-actions">
+            <button class="btn btn-ghost" type="button" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" id="nextBtn" type="button" disabled onclick="goStep2()">Next: Configure</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== STEP 2: Configure levers / costs / posture ===== -->
+      <div class="view" id="step2">
+        <div class="modal-body">
+          <div class="config-banner" id="configBanner">
+            <div>
+              <div class="cb-k">Configuring orientation</div>
+              <span class="cb-name" id="cbName">—</span>
+              <span class="cb-tag" id="cbTag"></span>
+            </div>
+          </div>
+
+          <p class="instruction" style="margin-top:14px;">Select the instruments your team will use, the costs you accept, and the posture you will hold. Options are scoped to your chosen orientation.</p>
+
+          <div class="field-label">Primary levers <span class="req">&middot; select at least one</span></div>
+          <div class="chips" id="leverChips"></div>
+
+          <div class="field-label">Accepted costs <span class="req">&middot; select at least one</span></div>
+          <div class="chips" id="costChips"></div>
+
+          <div class="field-label">Posture <span class="req">&middot; select one</span></div>
+          <div class="chips" id="postureChips"></div>
+
+          <div class="field-label">Team rationale <span class="opt-note">(recorded with your selection)</span></div>
+          <textarea id="rationale" placeholder="Briefly state why your team chose this orientation and configuration. Recorded for the White Cell and the after-action review."></textarea>
+          <div class="help">Optional but recommended. Your rationale travels with the selection and gives the White Cell context for how to read your moves.</div>
+        </div>
+
+        <div class="modal-foot">
+          <div class="foot-summary" id="step2Status">Levers <b>0</b> &middot; Costs <b>0</b> &middot; Posture <b>not set</b></div>
+          <div class="foot-actions">
+            <button class="btn btn-ghost" type="button" onclick="goStep1()">Back</button>
+            <button class="btn btn-primary" id="confirmBtn" type="button" disabled onclick="confirmSelection()">Confirm Orientation</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Confirmation ===== -->
+      <div class="confirm-view" id="confirmView">
+        <div class="confirm-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h3>Orientation locked for Move 1</h3>
+        <div class="c-sub">This selection and configuration have been recorded for your team.</div>
+
+        <div class="summary-card">
+          <div class="s-name" id="sumName">—</div>
+          <div class="s-tag" id="sumTag">—</div>
+
+          <div class="s-k">Primary levers</div>
+          <ul id="sumLevers"></ul>
+
+          <div class="s-k">Accepted costs</div>
+          <ul id="sumCosts"></ul>
+
+          <div class="s-k">Posture</div>
+          <div class="s-v" id="sumPosture">—</div>
+
+          <div class="s-k">Team rationale</div>
+          <div class="s-v" id="sumRationale">—</div>
+        </div>
+
+        <div class="confirm-foot">
+          <button class="btn btn-ghost" type="button" onclick="reopenSelection()">Change selection</button>
+          <button class="btn btn-primary" type="button" onclick="closeModal()">Done</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+  // Orientation-specific option sets (levers, costs, posture), derived from each doctrine.
+  var ORIENTATIONS = {
+    pressure: {
+      name:"Pressure", tag:"Focus on affecting PRC GDP growth",
+      levers:["Expanded financial sanctions","Technology export controls","Tariffs & trade restrictions","Secondary sanctions on third parties","Entity-list designations","Capital / investment restrictions"],
+      costs:["Sustained economic friction","Elevated escalation risk","Retaliation against U.S. firms","Higher domestic prices","Strain on allied coordination","Market volatility"],
+      posture:["Assertive — accept elevated escalation","Calibrated — escalate deliberately","Maximum pressure — absorb disruption"]
+    },
+    stabilization: {
+      name:"Stabilization", tag:"Achieve normalization with partners and existing relationships",
+      levers:["Diplomatic engagement channels","Crisis-communication guardrails","Confidence-building measures","Selective tariff pauses","Restraint on new export controls","Multilateral coordination"],
+      costs:["Reduced coercive flexibility","Forgone near-term leverage","Perception of accommodation","Slower strategic effect","Limited pressure on PRC GDP"],
+      posture:["De-escalatory — prioritize restraint","Predictable — transparent signaling","Guardrail-focused — manage risk"]
+    },
+    reframe: {
+      name:"Reframe", tag:"Develop new alliance and partnership structures",
+      levers:["Friend-shoring agreements","Domestic industrial policy / reshoring","Critical-input diversification","New partnership frameworks","Strategic stockpiling & capacity","R&D / manufacturing investment"],
+      costs:["Transitional inefficiencies","Near-term economic friction","Higher transition-period costs","Long lead times to resilience","Capital-intensive investment","Friction with existing partners"],
+      posture:["Gradual — long-horizon reallocation","Non-punitive — restructure, not coerce","Resilience-first — accept transition cost"]
+    }
+  };
+
+  var state = { selected:null, name:null, tag:null, levers:[], costs:[], posture:null, rationale:"" };
+
+  var overlay     = document.getElementById('overlay');
+  var optionEls   = document.querySelectorAll('.opt');
+  var nextBtn     = document.getElementById('nextBtn');
+  var confirmBtn  = document.getElementById('confirmBtn');
+  var footPick    = document.getElementById('footPick');
+  var rationaleEl = document.getElementById('rationale');
+  var stepPill    = document.getElementById('stepPill');
+  var mhSub       = document.getElementById('mhSub');
+
+  var SUB_STEP1 = "Select the orientation your team will adopt for the scenario. This choice is made once, before Move 1, and frames how your subsequent actions are read by the White Cell.";
+  var SUB_STEP2 = "Configure how your orientation will be carried out. Choose your primary levers, the costs you accept, and the posture you will hold.";
+
+  var checkSVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  /* ---- Step 1: orientation selection ---- */
+  optionEls.forEach(function(el){
+    el.addEventListener('click', function(){
+      var chosen = el.getAttribute('data-orientation');
+      // If switching orientation, clear the step-2 configuration
+      if(state.selected && state.selected !== chosen){
+        state.levers = []; state.costs = []; state.posture = null;
+      }
+      optionEls.forEach(function(o){ o.setAttribute('aria-pressed','false'); });
+      el.setAttribute('aria-pressed','true');
+      state.selected = chosen;
+      state.name = el.getAttribute('data-name');
+      state.tag  = el.getAttribute('data-tag');
+      footPick.textContent = state.name;
+      nextBtn.disabled = false;
+    });
+  });
+
+  /* ---- Chip rendering ---- */
+  function buildChips(group, containerId, items, mode){
+    var c = document.getElementById(containerId);
+    c.innerHTML = "";
+    items.forEach(function(label){
+      var selected = (mode === 'single') ? (state[group] === label) : (state[group].indexOf(label) !== -1);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip' + (mode === 'single' ? ' single' : '');
+      btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      btn.innerHTML = '<span class="dot">' + checkSVG + '</span><span>' + label + '</span>';
+      btn.addEventListener('click', function(){
+        if(mode === 'single'){
+          state[group] = (state[group] === label) ? null : label;
+        } else {
+          var i = state[group].indexOf(label);
+          if(i === -1){ state[group].push(label); } else { state[group].splice(i,1); }
+        }
+        buildChips(group, containerId, items, mode); // re-render group
+        updateStep2Status();
+      });
+      c.appendChild(btn);
+    });
+  }
+
+  function renderStep2(){
+    var o = ORIENTATIONS[state.selected];
+    var banner = document.getElementById('configBanner');
+    banner.className = 'config-banner ' + state.selected;
+    document.getElementById('cbName').textContent = o.name;
+    document.getElementById('cbTag').textContent = ' — ' + o.tag + '.';
+    buildChips('levers', 'leverChips', o.levers, 'multi');
+    buildChips('costs', 'costChips', o.costs, 'multi');
+    buildChips('posture', 'postureChips', o.posture, 'single');
+    updateStep2Status();
+  }
+
+  function updateStep2Status(){
+    document.getElementById('step2Status').innerHTML =
+      'Levers <b>' + state.levers.length + '</b> &middot; Costs <b>' + state.costs.length +
+      '</b> &middot; Posture <b>' + (state.posture ? 'set' : 'not set') + '</b>';
+    confirmBtn.disabled = !(state.levers.length >= 1 && state.costs.length >= 1 && state.posture);
+  }
+
+  /* ---- Step navigation ---- */
+  function goStep2(){
+    if(!state.selected){ return; }
+    document.getElementById('step1').classList.remove('show');
+    document.getElementById('step2').classList.add('show');
+    stepPill.textContent = 'Step 2 of 2';
+    mhSub.textContent = SUB_STEP2;
+    renderStep2();
+  }
+  function goStep1(){
+    document.getElementById('step2').classList.remove('show');
+    document.getElementById('step1').classList.add('show');
+    stepPill.textContent = 'Step 1 of 2';
+    mhSub.textContent = SUB_STEP1;
+  }
+
+  rationaleEl.addEventListener('input', function(){ state.rationale = rationaleEl.value; });
+
+  /* ---- Confirm ---- */
+  function confirmSelection(){
+    if(!(state.levers.length && state.costs.length && state.posture)){ return; }
+    state.rationale = rationaleEl.value.trim();
+
+    var payload = {
+      activity:"strategic_orientation",
+      phase:"pre_move_1",
+      orientation:state.selected,            // "pressure" | "stabilization" | "reframe"
+      orientation_label:state.name,
+      primary_levers:state.levers,           // array
+      accepted_costs:state.costs,            // array
+      posture:state.posture,                 // single string
+      rationale:state.rationale
+    };
+    console.log("Strategic Orientation selected:", payload);
+
+    document.getElementById('sumName').textContent = state.name;
+    document.getElementById('sumTag').textContent  = state.tag + ".";
+    fillList('sumLevers', state.levers);
+    fillList('sumCosts', state.costs);
+    document.getElementById('sumPosture').textContent = state.posture;
+    document.getElementById('sumRationale').textContent = state.rationale ? state.rationale : "No rationale provided.";
+
+    document.getElementById('step2').classList.remove('show');
+    document.getElementById('confirmView').classList.add('show');
+    stepPill.style.display = 'none';
+  }
+
+  function fillList(id, arr){
+    var ul = document.getElementById(id);
+    ul.innerHTML = "";
+    arr.forEach(function(item){
+      var li = document.createElement('li');
+      li.textContent = item;
+      ul.appendChild(li);
+    });
+  }
+
+  function reopenSelection(){
+    document.getElementById('confirmView').classList.remove('show');
+    document.getElementById('step1').classList.add('show');
+    stepPill.style.display = '';
+    stepPill.textContent = 'Step 1 of 2';
+    mhSub.textContent = SUB_STEP1;
+  }
+
+  /* ---- Open / close ---- */
+  function openModal(){ overlay.classList.add('open'); overlay.setAttribute('aria-hidden','false'); }
+  function closeModal(){ overlay.classList.remove('open'); overlay.setAttribute('aria-hidden','true'); }
+
+  overlay.addEventListener('click', function(e){ if(e.target === overlay){ closeModal(); } });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && overlay.classList.contains('open')){ closeModal(); } });
+
+  openModal();
+</script>
+
+</body>
+</html>

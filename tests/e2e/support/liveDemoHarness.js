@@ -32,7 +32,7 @@ function resolveExpectedUrlPattern(roleSurface) {
     }
 
     if (roleSurface === 'scribe') {
-        return /facilitator\.html/;
+        return /scribe\.html/;
     }
 
     if (roleSurface === 'viewer') {

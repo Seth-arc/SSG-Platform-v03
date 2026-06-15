@@ -4,7 +4,7 @@
  * Based on refined minimalist design with restrained navy accents
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
 
 :root {
     /* ==================== CORE PALETTE ==================== */
@@ -16,7 +16,8 @@
     --color-navy-deep: #0B3B2B;
     --color-navy-muted: #1A7558;
     --color-navy-soft: rgba(17, 87, 64, 0.08);
-    --color-navy-strong: rgba(26, 68, 128, 0.14);
+    --color-navy-strong: rgba(17, 87, 64, 0.14);
+    --color-navy-bright: #3f8466;
 
     /* William & Mary Palette - Accent */
     --color-gold: #B9975B;
@@ -29,23 +30,23 @@
 
     /* ==================== NEUTRAL PALETTE (Dominant) ==================== */
 
-    --color-bg: #fafafa;
-    --color-bg-app: #F9FAFB;
+    --color-bg: #ffffff;
+    --color-bg-app: #f8faf8;
     --color-surface: #ffffff;
-    --color-surface-alt: #f5f5f5;
-    --color-surface-hover: #F3F4F6;
+    --color-surface-alt: #f8faf8;
+    --color-surface-hover: #f1f4f1;
 
-    /* Borders - subtle by design */
-    --color-border: #e0e0e0;
-    --color-border-light: #ebebeb;
-    --color-border-subtle: rgba(0, 0, 0, 0.04);
-    --color-border-focus: rgba(26, 68, 128, 0.2);
+    /* Borders - subtle, green-tinted hairlines */
+    --color-border: #e4e8e3;
+    --color-border-light: #eef1ed;
+    --color-border-subtle: rgba(16, 40, 28, 0.05);
+    --color-border-focus: rgba(17, 87, 64, 0.2);
 
-    /* Text hierarchy */
-    --color-text: #1a1a1a;
-    --color-text-primary: #1a1a1a;
-    --color-text-secondary: #505050;
-    --color-text-muted: #888888;
+    /* Text hierarchy - warm green-tinted ink */
+    --color-text: #1a1f1c;
+    --color-text-primary: #1a1f1c;
+    --color-text-secondary: #4d564f;
+    --color-text-muted: #7c857d;
 
     /* ==================== GRAY SCALE ==================== */
 
@@ -96,9 +97,9 @@
     --color-info-600: #2563eb;
 
     /* Team colors */
-    --color-team-blue: #1a4480;
-    --color-team-green: #2e7d5a;
-    --color-team-red: #c23b22;
+    --color-team-blue: #2c5f8a;
+    --color-team-green: #4a7c59;
+    --color-team-red: #8c2f39;
 
     /* ==================== STATUS COLORS ==================== */
 
@@ -123,8 +124,8 @@
 
     /* Font families */
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-serif: var(--font-sans);
-    --font-mono: var(--font-sans);
+    --font-serif: 'Source Serif 4', ui-serif, Georgia, serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
     /* Font sizes */
     --text-xs: 0.6875rem;
@@ -219,9 +220,10 @@
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.03);
-    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
-    --shadow-float: 0 12px 24px -4px rgba(0, 0, 0, 0.1);
-    --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.03);
+    --shadow-card: 0 1px 2px rgba(16, 40, 28, 0.045), 0 4px 12px rgba(16, 40, 28, 0.04);
+    --shadow-hover: 0 2px 4px rgba(16, 40, 28, 0.05), 0 8px 22px rgba(16, 40, 28, 0.07);
+    --shadow-float: 0 12px 24px -4px rgba(16, 40, 28, 0.1);
+    --shadow-inner: inset 0 2px 4px 0 rgba(16, 40, 28, 0.03);
     --shadow-glow: 0 0 0 4px rgba(17, 87, 64, 0.08);
 
     /* ==================== TRANSITIONS ==================== */
@@ -268,17 +270,17 @@
     --btn-height-lg: 48px;
     --btn-padding-x: 18px;
     --btn-padding-y: 10px;
-    --btn-radius: var(--radius-md);
+    --btn-radius: var(--radius-lg);
 
     /* Inputs */
     --input-height: 44px;
     --input-padding-x: 14px;
     --input-padding-y: 12px;
-    --input-radius: var(--radius-md);
+    --input-radius: var(--radius-lg);
 
     /* Cards */
     --card-padding: var(--space-md);
-    --card-radius: var(--radius-lg);
+    --card-radius: var(--radius-xl);
     --card-shadow: var(--shadow-card);
 
     /* Navigation */
@@ -309,10 +311,15 @@ body {
     min-height: 100vh;
 }
 
-/* Scrollbar styling */
+/* Minimalist dark-green scrollbar (vertical only) */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #115740 transparent;
+}
+
 ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 10px;
+    height: 0;
 }
 
 ::-webkit-scrollbar-track {
@@ -320,10 +327,17 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--color-border);
-    border-radius: 3px;
+    background: rgba(17, 87, 64, 0.7);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-text-muted);
+    background: #0b3b2b;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
 }

@@ -78,7 +78,7 @@ Suggested rehearsal order:
 3. On the live Pages target, have the Game Master create one session and distribute the session code.
 4. Join one facilitator, one scribe, and two notetakers on the same team.
 5. Join White Cell Lead and White Cell Support with the operator access code.
-6. On Blue Team, use the three-page `Take Action` wizard to save a draft or submit directly after the confirmation modal. Multi-select fields in facilitator modals now use explicit checkbox groups instead of Ctrl/Command multi-select. The wizard shows the Blue Team move and action number being built, and White Cell surfaces the same sequence label during review. Confirm the scribe seat sees the same team-lead action feed and workflow, then submit any remaining draft to White Cell.
+6. On Blue Team, use the three-page `Take Action` wizard to save a draft or submit directly after the confirmation modal. Multi-select fields in facilitator modals now use explicit checkbox groups instead of Ctrl/Command multi-select. The wizard shows the Blue Team move and action number being built, and White Cell surfaces the same sequence label during review. Confirm the scribe seat lands on its dedicated support deck at `teams/<team>/scribe.html`; the `Actions` section should stay empty until facilitator decisions arrive, then render those decisions as blue action slides. Submit any remaining draft to White Cell.
 7. On Green Team, confirm the facilitator proposal queue uses proposal-specific language throughout the UI, including `Proposals`, `New Proposal`, and `No Proposals Yet`, so proposal review is clearly distinct from Blue Team actions.
 8. Have at least two notetakers save different seat-scoped notes and shared captures at the same time.
 9. Adjudicate the submitted action from White Cell Lead.
@@ -124,15 +124,16 @@ Suggested rehearsal order:
    - `Forward to Blue Team` or `Forward to Red Team`, based on the proposal's intended recipient
    - `Request Changes`
    - `Reject Proposal`
-3. Forwarding creates the White Cell communication for the addressed team immediately. The reviewed proposal remains visible in the White Cell `Proposals` queue, and it appears for the recipient facilitator/scribe in both `Received Proposals` and the general White Cell responses feed.
+3. Forwarding creates the White Cell communication for the addressed team immediately. The reviewed proposal remains visible in the White Cell `Proposals` queue, and it appears for the recipient facilitator in both `Received Proposals` and the general White Cell responses feed.
 4. `Request Changes` and `Reject Proposal` record the White Cell review without forwarding the current proposal. If Green Team wants to continue that line, they must submit a new proposal revision.
 5. Sidebar badges are queue-specific: `Actions` counts Blue Team actions, `Proposals` counts Green Team proposals, `Move Responses` counts Red Team move responses, and `RFI` counts pending requests only.
 6. Once White Cell forwards a Green proposal, the originating Green facilitator proposal card continues to reflect the recipient team's latest status, including `Acknowledged`, `Declined`, `Ignored`, and `Responded`.
 
 ### Participant Update Feeds
 
-- Facilitator and scribe surfaces now show direct White Cell communications and White Cell content updates explicitly inside `White Cell Responses`, instead of relying on generic response cards alone.
-- Sidebar badges on facilitator/scribe surfaces now track visible items in `Responses`, `Received Proposals`, `Tribe Street Journal`, and `Verba AI`, so operators can confirm the recipient team has explicit update notifications.
+- Facilitator surfaces now show direct White Cell communications and White Cell content updates explicitly inside `White Cell Responses`, instead of relying on generic response cards alone.
+- Sidebar badges on facilitator surfaces now track visible items in `Responses`, `Received Proposals`, `Tribe Street Journal`, and `Verba AI`, so operators can confirm the recipient team has explicit update notifications.
+- Scribe surfaces now open the dedicated support deck at `teams/<team>/scribe.html`; the `Actions` section is a live facilitator-decision feed that turns team actions into individual decision slides, while the remaining sections stay tied to the support deck. The slide stage stays centered, vertically pinned, and visually flat with no raised frame chrome while sidebar scrolling stays isolated to the section rail, horizontal overflow is suppressed, and `Present` switches into a deck-only layout that hides the sidebar chrome while keeping the shared navbar visible.
 - `Tribe Street Journal` and `Verba AI` still keep their dedicated sections for reading the update content in context; the `White Cell Responses` section now acts as the inbox-style notification feed.
 
 ### White Cell Timeline Filters

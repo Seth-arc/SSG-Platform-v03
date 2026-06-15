@@ -242,32 +242,126 @@ function setupMobileMenu() {
 
     if (!sidebar) return;
 
-    function toggleSidebar() {
-        sidebar.classList.toggle('sidebar-open');
+    function applySidebarState({
+        isOpen = false,
+        isCollapsed = false
+    } = {}) {
+        sidebar.classList.toggle('sidebar-open', isOpen);
+        sidebar.classList.toggle('sidebar-collapsed', isCollapsed);
+
         if (overlay) {
-            overlay.classList.toggle('sidebar-overlay-visible');
+            overlay.classList.toggle(
+                'sidebar-overlay-visible',
+                isOpen && isCompactSidebarViewport()
+            );
+        }
+
+        syncSidebarControlState();
+    }
+
+    function syncSidebarControlState() {
+        const isCompact = isCompactSidebarViewport();
+        const isOpen = sidebar.classList.contains('sidebar-open');
+        const isCollapsed = sidebar.classList.contains('sidebar-collapsed');
+
+        if (menuToggle) {
+            menuToggle.setAttribute('aria-controls', 'sidebar');
+            menuToggle.setAttribute('aria-expanded', String(isCompact && isOpen));
+        }
+
+        if (sidebarToggle) {
+            sidebarToggle.setAttribute('aria-controls', 'sidebar');
+            sidebarToggle.setAttribute('aria-expanded', String(isCompact ? isOpen : !isCollapsed));
+            sidebarToggle.setAttribute(
+                'aria-label',
+                isCompact
+                    ? (isOpen ? 'Close sidebar' : 'Open sidebar')
+                    : isCollapsed
+                        ? 'Expand sidebar'
+                        : 'Collapse sidebar'
+            );
         }
     }
 
-    function closeSidebar() {
-        sidebar.classList.remove('sidebar-open');
-        if (overlay) {
-            overlay.classList.remove('sidebar-overlay-visible');
-        }
+    function updateSidebar(trigger = 'close') {
+        const nextState = resolveSidebarState({
+            trigger,
+            isCompact: isCompactSidebarViewport(),
+            isOpen: sidebar.classList.contains('sidebar-open'),
+            isCollapsed: sidebar.classList.contains('sidebar-collapsed')
+        });
+
+        applySidebarState(nextState);
     }
 
     if (menuToggle) {
-        menuToggle.addEventListener('click', toggleSidebar);
+        menuToggle.addEventListener('click', () => {
+            updateSidebar('menu');
+        });
     }
 
     if (sidebarToggle) {
         sidebarToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('sidebar-collapsed');
+            updateSidebar('sidebar');
         });
     }
 
     if (overlay) {
-        overlay.addEventListener('click', closeSidebar);
+        overlay.addEventListener('click', () => {
+            updateSidebar('close');
+        });
+    }
+
+    window.addEventListener('resize', () => {
+        if (isCompactSidebarViewport()) {
+            syncSidebarControlState();
+            return;
+        }
+
+        applySidebarState({
+            isOpen: false,
+            isCollapsed: sidebar.classList.contains('sidebar-collapsed')
+        });
+    });
+
+    syncSidebarControlState();
+}
+
+export function isCompactSidebarViewport({
+    windowWidth = typeof window !== 'undefined' ? window.innerWidth : Number.POSITIVE_INFINITY,
+    compactBreakpoint = 768
+} = {}) {
+    return Number(windowWidth) <= compactBreakpoint;
+}
+
+export function resolveSidebarState({
+    trigger = 'close',
+    isCompact = false,
+    isOpen = false,
+    isCollapsed = false
+} = {}) {
+    switch (trigger) {
+    case 'menu':
+        return {
+            isOpen: isCompact ? !isOpen : isOpen,
+            isCollapsed
+        };
+    case 'sidebar':
+        return isCompact
+            ? {
+                isOpen: false,
+                isCollapsed
+            }
+            : {
+                isOpen: false,
+                isCollapsed: !isCollapsed
+            };
+    case 'close':
+    default:
+        return {
+            isOpen: false,
+            isCollapsed
+        };
     }
 }
 

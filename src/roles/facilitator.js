@@ -135,15 +135,6 @@ export function getFacilitatorAccessState({
         };
     }
 
-    if (role === teamContext.scribeRole) {
-        return {
-            allowed: true,
-            readOnly: false,
-            reason: null,
-            roleSurface: 'scribe'
-        };
-    }
-
     if (role === ENUMS.ROLES.VIEWER && observerTeamId === teamContext.teamId) {
         return {
             allowed: true,
@@ -218,7 +209,7 @@ export class FacilitatorController {
             showToast({
                 message: accessState.reason === 'observer-team-mismatch'
                     ? 'Observer access is limited to the team selected when you joined the session.'
-                    : `This page is only available to the ${this.teamLabel} Facilitator or Scribe role.`,
+                    : `This page is only available to the ${this.teamLabel} Facilitator role.`,
                 type: 'error'
             });
             navigateToApp(redirectPath || '', { replace: true });
@@ -247,29 +238,24 @@ export class FacilitatorController {
     isAllowedRole(role) {
         return (
             role === this.teamContext.facilitatorRole
-            || role === this.teamContext.scribeRole
             || role === ENUMS.ROLES.VIEWER
         );
     }
 
     isScribeSeat() {
-        return (this.role || sessionStore.getRole()) === this.teamContext.scribeRole;
+        return false;
     }
 
     getCurrentLeadRole() {
-        return this.isScribeSeat()
-            ? this.teamContext.scribeRole
-            : this.teamContext.facilitatorRole;
+        return this.teamContext.facilitatorRole;
     }
 
     getCurrentLeadLabel() {
-        return this.isScribeSeat()
-            ? this.teamContext.scribeLabel
-            : this.teamContext.facilitatorLabel;
+        return this.teamContext.facilitatorLabel;
     }
 
     getCurrentLeadSurfaceLabel() {
-        return this.isScribeSeat() ? 'Scribe' : 'Facilitator';
+        return 'Facilitator';
     }
 
     configureAccessMode() {
@@ -288,7 +274,7 @@ export class FacilitatorController {
 
         document.body.dataset.facilitatorMode = this.isReadOnly
             ? 'observer'
-            : (this.isScribeSeat() ? 'scribe' : 'facilitator');
+            : 'facilitator';
 
         if (roleLabel) {
             roleLabel.textContent = this.isReadOnly ? 'Observer' : this.getCurrentLeadSurfaceLabel();

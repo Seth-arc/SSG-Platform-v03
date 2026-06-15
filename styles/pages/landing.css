@@ -144,7 +144,7 @@ html, body {
 .form-panel-title {
     font-family: var(--font-serif);
     font-size: var(--text-2xl);
-    font-weight: 700;
+    font-weight: var(--font-medium);
     color: var(--color-text);
     margin: 0 0 var(--space-1);
     letter-spacing: -0.02em;
@@ -194,7 +194,7 @@ html, body {
     height: 44px;
     font-size: var(--text-sm);
     padding: 0 var(--space-3);
-    border-radius: var(--radius-md);
+    border-radius: var(--input-radius);
 }
 
 .lf-fieldset {
@@ -274,7 +274,7 @@ html, body {
     letter-spacing: 0.02em;
     background: var(--color-navy);
     border-color: var(--color-navy);
-    border-radius: var(--radius-md);
+    border-radius: var(--btn-radius);
     margin-top: var(--space-1);
     transition: all 250ms var(--ease-butter);
 }
