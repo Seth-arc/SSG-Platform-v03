@@ -16,14 +16,19 @@ function buildBundleFixture() {
         session: {
             id: 'session-research-1',
             name: 'Research Session Alpha',
+            status: 'active',
             metadata: {
-                session_code: 'ALPHA-R'
+                session_code: 'ALPHA-R',
+                description: 'Testing the richer research export report output.'
             },
-            created_at: '2026-06-03T10:00:00.000Z'
+            created_at: '2026-06-03T10:00:00.000Z',
+            updated_at: '2026-06-03T10:20:00.000Z'
         },
         gameState: {
             move: 3,
-            phase: 2
+            phase: 2,
+            timer_seconds: 5400,
+            timer_running: false
         },
         participants: [
             {
@@ -290,7 +295,17 @@ describe('research export builder', () => {
             move_response_id: 'move-response-red-1',
             posture: 'Hold'
         });
-        expect(exportBundle.reportHtml).toContain('Research Export Report');
+        expect(exportBundle.reportHtml).toContain('Post-Game Analysis Report');
+        expect(exportBundle.reportHtml).toContain('Table Of Contents');
+        expect(exportBundle.reportHtml).toContain('font-family: "Inter"');
+        expect(exportBundle.reportHtml).toContain('Session Snapshot');
+        expect(exportBundle.reportHtml).toContain('Event Log Chronology');
+        expect(exportBundle.reportHtml).toContain('Draft And Submission History');
+        expect(exportBundle.reportHtml).toContain('Data Quality And Export Integrity');
+        expect(exportBundle.reportHtml).toContain('ALPHA-R');
+        expect(exportBundle.reportHtml).toContain('1h 30m');
+        expect(exportBundle.reportHtml).toContain('Forwarded Green Team proposal.');
+        expect(exportBundle.reportHtml).toContain('White Cell clarification changed the pacing.');
         expect(exportBundle.reportHtml).toContain('Notes Appendix');
         expect(exportBundle.files.map((file) => file.path)).toEqual(expect.arrayContaining([
             'manifest.json',
@@ -345,7 +360,11 @@ describe('research export builder', () => {
         });
 
         expect(reportHtml).toContain('Notes appendix withheld at report-generation time');
+        expect(reportHtml).toContain('Table Of Contents');
+        expect(reportHtml).toContain('Session Snapshot');
+        expect(reportHtml).toContain('Note Summary');
         expect(reportHtml).toContain('window.print()');
+        expect(reportHtml).not.toContain('Blue notes');
     });
 
     it('creates a downloadable ZIP blob without adding a new archive dependency', async () => {

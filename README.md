@@ -158,6 +158,7 @@ Suggested rehearsal order:
 - Unless `public.live_demo_runtime_config.research_capture_mode = 'standard'`, both Game Master and White Cell expose the research export path:
   - `Download Research ZIP` creates a single archive containing `manifest.json`, `codebook.json`, `report.html`, the event log, the research table projections, and a `legacy/` directory that preserves the current bundle layout unchanged.
   - `Print Report` opens the generated `report.html` and uses the browser's native print dialog for print-to-PDF. The PDF is not stored in the archive; the reproducible source artifact is the archived `report.html`.
+  - The printable report now renders as a print-first post-game analysis document with an explicit table of contents, Inter-based typography, restrained tables, and the session/game-state snapshot, participant seat activity, draft history, event-log chronology, decision-content detail, interaction flows, note-capture summary, and manifest integrity fields so operators can review the live session without dropping back to the raw CSV/JSON files first.
 - Set `public.live_demo_runtime_config.research_capture_mode = 'standard'` only when you need the legacy-only consent posture for a session. That keeps the legacy downloads available and explicitly disables the research archive buttons.
 - The research archive adds the process-rich artifacts that were missing from the legacy bundle:
   - notetaker-derived notes

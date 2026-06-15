@@ -22,6 +22,9 @@ import {
     exportSessionRequestsCsv,
     exportSessionTimelineCsv
 } from './exportCsv.js';
+import { AIDDATA_LOGO_DATA_URI, SSG_LOGO_DATA_URI } from './reportAssets.js';
+
+const SIMULATION_NAME = 'Fractured Order';
 
 export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.2.0';
 export const RESEARCH_EXPORT_FORMAT_REVISION = 3;
@@ -1942,78 +1945,656 @@ function renderInteractionMatrix(interactionEdges = []) {
     return renderReportTable(['Source', 'Target', 'Count'], rows);
 }
 
+function hasReportValue(value) {
+    if (Array.isArray(value)) {
+        return value.some((entry) => hasReportValue(entry));
+    }
+
+    if (value && typeof value === 'object') {
+        return Object.values(value).some((entry) => hasReportValue(entry));
+    }
+
+    return value !== null && value !== undefined && String(value).trim() !== '';
+}
+
+function humanizeReportLabel(value = '') {
+    const normalized = String(value ?? '')
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!normalized) {
+        return '';
+    }
+
+    return normalized
+        .split(' ')
+        .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+        .join(' ')
+        .replace(/\bRfi\b/g, 'RFI')
+        .replace(/\bUtc\b/g, 'UTC')
+        .replace(/\bId\b/g, 'ID')
+        .replace(/\bKpi\b/g, 'KPI');
+}
+
+function formatReportTimestamp(value, fallback = 'N/A') {
+    const isoValue = asUtcIso(value);
+    return isoValue
+        ? isoValue.replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC').replace(/Z$/, ' UTC')
+        : fallback;
+}
+
+function formatReportDuration(value, fallback = 'N/A') {
+    if (value === null || value === undefined || value === '') {
+        return fallback;
+    }
+
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+        return String(value);
+    }
+
+    const totalSeconds = Math.max(0, Math.round(Number(numericValue.toFixed(3))));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const parts = [
+        hours ? `${hours}h` : '',
+        minutes ? `${minutes}m` : '',
+        seconds || (!hours && !minutes) ? `${seconds}s` : ''
+    ].filter(Boolean);
+
+    return parts.join(' ');
+}
+
+function formatReportValue(value, fallback = 'N/A') {
+    if (!hasReportValue(value)) {
+        return fallback;
+    }
+
+    if (Array.isArray(value)) {
+        return value
+            .filter((entry) => hasReportValue(entry))
+            .map((entry) => formatReportValue(entry, ''))
+            .filter(Boolean)
+            .join(', ');
+    }
+
+    if (value && typeof value === 'object') {
+        return Object.entries(value)
+            .filter(([, entry]) => hasReportValue(entry))
+            .map(([key, entry]) => `${humanizeReportLabel(key)}: ${formatReportValue(entry, '')}`)
+            .join('; ');
+    }
+
+    if (typeof value === 'boolean') {
+        return value ? 'Yes' : 'No';
+    }
+
+    return String(value);
+}
+
+function renderReportBadge(badge) {
+    const descriptor = typeof badge === 'string'
+        ? { label: badge, tone: 'default' }
+        : {
+            label: badge?.label,
+            tone: badge?.tone || 'default'
+        };
+
+    if (!hasReportValue(descriptor.label)) {
+        return '';
+    }
+
+    return `<span class="report-badge report-badge--${escapeHtml(descriptor.tone)}">${escapeHtml(formatReportValue(descriptor.label, ''))}</span>`;
+}
+
+function renderReportBadgeGroup(badges = []) {
+    const renderedBadges = safeArray(badges)
+        .map((badge) => renderReportBadge(badge))
+        .filter(Boolean)
+        .join('');
+
+    return renderedBadges
+        ? `<div class="report-badge-list">${renderedBadges}</div>`
+        : '';
+}
+
+function renderReportMetaGrid(items = []) {
+    const visibleItems = safeArray(items).filter((item) => hasReportValue(item?.value) || hasReportValue(item?.html));
+    if (!visibleItems.length) {
+        return '';
+    }
+
+    return `
+        <dl class="report-meta-grid">
+            ${visibleItems.map((item) => `
+                <div class="report-meta-item">
+                    <dt>${escapeHtml(item.label || '')}</dt>
+                    <dd>${item.html || escapeHtml(formatReportValue(item.value, ''))}</dd>
+                </div>
+            `).join('')}
+        </dl>
+    `;
+}
+
+function renderReportSummaryCards(cards = []) {
+    const visibleCards = safeArray(cards).filter((card) => hasReportValue(card?.value) || hasReportValue(card?.valueHtml));
+    if (!visibleCards.length) {
+        return '';
+    }
+
+    return `
+        <div class="report-summary-grid">
+            ${visibleCards.map((card) => `
+                <article class="report-summary-card">
+                    <p class="report-summary-label">${escapeHtml(card.label || '')}</p>
+                    <p class="report-summary-value">${card.valueHtml || escapeHtml(formatReportValue(card.value, ''))}</p>
+                    ${hasReportValue(card.detail)
+                        ? `<p class="report-summary-detail">${escapeHtml(formatReportValue(card.detail, ''))}</p>`
+                        : ''}
+                </article>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderReportSectionBlock(title, html) {
+    if (!html) {
+        return '';
+    }
+
+    return `
+        <div class="report-block">
+            <h3 class="report-block-title">${escapeHtml(title || '')}</h3>
+            ${html}
+        </div>
+    `;
+}
+
+function renderReportEntityCard({
+    eyebrow = '',
+    title = '',
+    summary = '',
+    badges = [],
+    metadata = [],
+    sections = []
+} = {}) {
+    const renderedMetadata = renderReportMetaGrid(metadata);
+    const renderedSections = safeArray(sections)
+        .filter((section) => section?.html)
+        .map((section) => `
+            <div class="report-entity-section">
+                <h4 class="report-entity-section-title">${escapeHtml(section.title || '')}</h4>
+                ${section.html}
+            </div>
+        `)
+        .join('');
+
+    return `
+        <article class="report-entity-card">
+            <div class="report-entity-header">
+                <div class="report-entity-headings">
+                    ${eyebrow ? `<p class="report-eyebrow">${escapeHtml(eyebrow)}</p>` : ''}
+                    <h3 class="report-entity-title">${escapeHtml(title || 'Untitled')}</h3>
+                    ${summary ? `<p class="report-entity-summary">${escapeHtml(summary)}</p>` : ''}
+                </div>
+                ${renderReportBadgeGroup(badges)}
+            </div>
+            ${renderedMetadata}
+            ${renderedSections}
+        </article>
+    `;
+}
+
+function renderReportEntityCollection(cards = [], emptyMessage = 'No records were captured for this section.') {
+    if (!safeArray(cards).length) {
+        return `<p class="report-empty">${escapeHtml(emptyMessage)}</p>`;
+    }
+
+    return `
+        <div class="report-entity-stack">
+            ${cards.join('')}
+        </div>
+    `;
+}
+
+function renderReportContentsList(items = []) {
+    const visibleItems = safeArray(items).filter((item) => hasReportValue(item?.title));
+    if (!visibleItems.length) {
+        return '';
+    }
+
+    return `
+        <ol class="report-contents-list">
+            ${visibleItems.map((item, index) => `
+                <li class="report-contents-item">
+                    <div class="report-contents-row">
+                        <span class="report-contents-index">${index + 1}.</span>
+                        <span class="report-contents-title">${escapeHtml(item.title || '')}</span>
+                    </div>
+                    ${item.description
+                        ? `<p class="report-contents-description">${escapeHtml(item.description)}</p>`
+                        : ''}
+                </li>
+            `).join('')}
+        </ol>
+    `;
+}
+
+function formatActorLabel(actor = {}) {
+    return [
+        actor.actor_pseudonym,
+        actor.actor_role,
+        actor.actor_team
+    ].filter((entry) => hasReportValue(entry)).join(' / ');
+}
+
+function formatEntityLabel(entity = {}) {
+    return [
+        entity.entity_type,
+        entity.entity_id
+    ].filter((entry) => hasReportValue(entry)).join(' / ');
+}
+
+function formatStateDelta(beforeState, afterState) {
+    const beforeLabel = hasReportValue(beforeState) ? formatReportValue(beforeState, '') : '';
+    const afterLabel = hasReportValue(afterState) ? formatReportValue(afterState, '') : '';
+
+    if (beforeLabel && afterLabel) {
+        return `${beforeLabel} -> ${afterLabel}`;
+    }
+
+    return afterLabel || beforeLabel || 'N/A';
+}
+
 export function buildResearchReportHtml(dataset, {
     includeNotesAppendix = false
 } = {}) {
     const sessionMetrics = dataset.derivedSessionMetrics[0] || {};
-    const proposalRows = dataset.proposalContent.map((proposal) => [
-        proposal.title || 'Untitled proposal',
-        proposal.intended_recipient_team || 'N/A',
-        proposal.review_decision || 'pending',
-        proposal.final_recipient_state || 'none',
-        proposal.review_reason || ''
+    const manifest = safeObject(dataset.manifest);
+    const sessionConfigSnapshot = safeObject(manifest.session_config_snapshot);
+    const gameState = safeObject(sessionConfigSnapshot.game_state);
+    const sessionMetadata = safeObject(dataset.session?.metadata);
+    const adjudicationByTargetId = new Map(
+        safeArray(dataset.adjudicationContent).map((entry) => [entry.target_entity_id, entry])
+    );
+    const eventTypeCounts = safeArray(dataset.eventLog).reduce((counts, event) => {
+        const eventType = event?.event_type || 'unknown';
+        counts.set(eventType, (counts.get(eventType) || 0) + 1);
+        return counts;
+    }, new Map());
+    const rowCountRows = Object.entries(safeObject(manifest.row_counts))
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, value]) => [humanizeReportLabel(key), String(value)]);
+    const participantRosterRows = safeArray(dataset.participants).map((participant) => [
+        participant.participant_pseudonym || '',
+        participant.role || '',
+        participant.team || '',
+        participant.seat_index === null || participant.seat_index === undefined ? '' : String(participant.seat_index),
+        formatReportTimestamp(participant.first_seen_utc),
+        formatReportTimestamp(participant.last_seen_utc),
+        formatReportDuration(participant.active_duration_s),
+        participant.rejoin_count === null || participant.rejoin_count === undefined ? '' : String(participant.rejoin_count)
     ]);
-    const actionRows = dataset.actionContent.map((action) => {
-        const adjudication = dataset.adjudicationContent.find((entry) => entry.target_entity_id === action.action_id);
-        return [
-            action.title || 'Untitled action',
-            action.action_type || 'N/A',
-            action.intent_text || '',
-            adjudication?.ruling || 'pending',
-            adjudication?.reasoning || ''
-        ];
-    });
-    const moveResponseRows = dataset.moveResponseContent.map((response) => [
-        response.posture || 'N/A',
-        response.response_text || '',
-        response.rationale || '',
-        response.review_state || 'submitted'
-    ]);
-    const rfiRows = dataset.rfiContent.map((rfi) => [
-        rfi.requester_team || 'team',
-        rfi.question_text || '',
-        rfi.answer_text || '',
-        rfi.status || 'pending'
-    ]);
-    const dataQualityRows = dataset.dataQualityEvents.map((event) => [
-        event.team || 'unknown',
-        event.event_type || 'event',
-        event.occurred_utc || '',
-        event.gap_seconds === null || event.gap_seconds === undefined ? '' : String(event.gap_seconds)
-    ]);
-    const participantRows = dataset.derivedParticipantMetrics.map((participant) => [
-        participant.participant_pseudonym,
+    const participantMetricRows = dataset.derivedParticipantMetrics.map((participant) => [
+        participant.participant_pseudonym || '',
         participant.role || '',
         participant.team || '',
         String(participant.events_count || 0),
         String(participant.notes_count || 0),
+        String(participant.note_edits_count || 0),
         String(participant.drafts_count || 0),
-        participant.mean_time_to_submit_s === null || participant.mean_time_to_submit_s === undefined
-            ? ''
-            : String(participant.mean_time_to_submit_s),
-        participant.active_duration_s === null || participant.active_duration_s === undefined
-            ? ''
-            : String(participant.active_duration_s)
+        String(participant.submissions_count || 0),
+        formatReportDuration(participant.mean_time_to_submit_s),
+        formatReportDuration(participant.mean_response_latency_s),
+        formatReportDuration(participant.active_duration_s),
+        String(participant.disconnect_count || 0)
     ]);
-    const timelineRows = dataset.stateTransitions
+    const dataQualityRows = dataset.dataQualityEvents.map((event) => [
+        event.team || 'unknown',
+        event.event_type || 'event',
+        formatReportTimestamp(event.occurred_utc),
+        formatReportDuration(event.gap_seconds),
+        formatReportValue(event.detail)
+    ]);
+    const transitionRows = dataset.stateTransitions
         .slice()
         .sort((left, right) => new Date(left.transition_utc).getTime() - new Date(right.transition_utc).getTime())
         .map((transition) => [
-            transition.transition_utc || '',
+            formatReportTimestamp(transition.transition_utc),
             transition.entity_type || '',
+            transition.entity_id || '',
+            transition.from_state || '',
             transition.to_state || '',
+            transition.actor_role || '',
             transition.recipient_team || '',
-            transition.move_number === null || transition.move_number === undefined
-                ? ''
-                : String(transition.move_number)
+            transition.move_number === null || transition.move_number === undefined ? '' : String(transition.move_number),
+            formatReportDuration(transition.dwell_in_from_s)
         ]);
+    const eventLogRows = safeArray(dataset.eventLog)
+        .slice()
+        .sort((left, right) => new Date(left.event_ts_utc).getTime() - new Date(right.event_ts_utc).getTime())
+        .map((event) => [
+            formatReportTimestamp(event.event_ts_utc),
+            formatActorLabel(event),
+            event.event_type || '',
+            formatEntityLabel(event),
+            event.move_number === null || event.move_number === undefined ? '' : String(event.move_number),
+            formatStateDelta(event.before_state, event.after_state),
+            formatReportValue(event.payload)
+        ]);
+    const draftRevisionRows = safeArray(dataset.draftRevisions).map((draft) => [
+        draft.author_pseudonym || '',
+        draft.artifact_type || '',
+        draft.artifact_id || '',
+        draft.move_number === null || draft.move_number === undefined ? '' : String(draft.move_number),
+        draft.action_sequence === null || draft.action_sequence === undefined ? '' : String(draft.action_sequence),
+        draft.revision_number === null || draft.revision_number === undefined ? '' : String(draft.revision_number),
+        draft.status || '',
+        draft.wizard_page_reached === null || draft.wizard_page_reached === undefined ? '' : String(draft.wizard_page_reached),
+        formatReportTimestamp(draft.created_utc),
+        formatReportTimestamp(draft.submitted_utc),
+        formatReportDuration(draft.time_to_submit_s),
+        formatReportValue(draft.content_snapshot)
+    ]);
+    const communicationRows = safeArray(dataset.interactionEdges).map((edge) => [
+        edge.communication_type || edge.channel || '',
+        edge.source_team || '',
+        edge.target_team || '',
+        edge.direction || '',
+        edge.move_number === null || edge.move_number === undefined ? '' : String(edge.move_number),
+        formatReportTimestamp(edge.occurred_utc),
+        formatReportDuration(edge.latency_s)
+    ]);
+    const notesSummaryRows = dataset.notes.map((note) => [
+        note.author_pseudonym || '',
+        note.author_role || '',
+        note.author_team || '',
+        note.scope || '',
+        note.visibility || '',
+        note.move_number === null || note.move_number === undefined ? '' : String(note.move_number),
+        formatReportTimestamp(note.created_utc),
+        String(note.content_length_chars || 0),
+        String(note.edit_count || 0)
+    ]);
     const notesRows = dataset.notes.map((note) => [
         note.author_pseudonym || '',
         note.author_role || '',
         note.author_team || '',
-        note.created_utc || '',
+        formatReportTimestamp(note.created_utc),
         note.content_text || ''
     ]);
+    const actionCards = dataset.actionContent.map((action) => {
+        const adjudication = adjudicationByTargetId.get(action.action_id);
+        const details = safeObject(safeObject(action.full_content).details);
+
+        return renderReportEntityCard({
+            eyebrow: `Move ${action.move_number ?? 'N/A'}${action.action_sequence ? ` - Action ${action.action_sequence}` : ''}`,
+            title: action.title || 'Untitled action',
+            summary: action.intent_text || safeObject(action.full_content).goal || '',
+            badges: [
+                { label: action.author_team || 'team', tone: 'accent' },
+                { label: action.final_status || 'pending', tone: 'success' },
+                { label: action.action_type || 'unspecified', tone: 'muted' }
+            ],
+            metadata: [
+                { label: 'Author', value: `${action.author_pseudonym || 'N/A'} / ${action.author_role || 'unknown'}` },
+                { label: 'Submitted', value: formatReportTimestamp(action.submitted_utc) },
+                { label: 'Targets', value: action.targets },
+                { label: 'Instrument Of Power', value: action.instruments },
+                { label: 'Resources Committed', value: action.resources_committed }
+            ],
+            sections: [
+                {
+                    title: 'Action Detail',
+                    html: renderReportMetaGrid([
+                        { label: 'Goal', value: safeObject(action.full_content).goal },
+                        { label: 'Sector', value: safeObject(action.full_content).sector },
+                        { label: 'Supply Chain Focus', value: safeObject(action.full_content).exposure_type },
+                        { label: 'Expected Outcomes', value: safeObject(action.full_content).expected_outcomes },
+                        { label: 'Levers', value: details.levers },
+                        { label: 'Sectors', value: details.sectors },
+                        { label: 'Implementation', value: details.implementation },
+                        { label: 'Legislative Options', value: details.legislativeOptions },
+                        { label: 'Focus Countries', value: details.focusCountries },
+                        { label: 'Enforcement Timeline', value: details.enforcementTimeline },
+                        { label: 'Coordinated With', value: details.coordinated },
+                        { label: 'Informed Parties', value: details.informed }
+                    ])
+                },
+                adjudication
+                    ? {
+                        title: 'Adjudication',
+                        html: renderReportMetaGrid([
+                            { label: 'Ruling', value: adjudication.ruling },
+                            { label: 'Reasoning', value: adjudication.reasoning },
+                            { label: 'Adjudicated UTC', value: formatReportTimestamp(adjudication.adjudicated_utc) },
+                            { label: 'Effects', value: adjudication.effects }
+                        ])
+                    }
+                    : null
+            ].filter(Boolean)
+        });
+    });
+    const proposalCards = dataset.proposalContent.map((proposal) => {
+        const details = safeObject(safeObject(proposal.full_content).proposal_details);
+
+        return renderReportEntityCard({
+            eyebrow: `Move ${proposal.move_number ?? 'N/A'} - Proposal`,
+            title: proposal.title || 'Untitled proposal',
+            summary: proposal.proposal_text || safeObject(proposal.full_content).goal || '',
+            badges: [
+                { label: proposal.author_team || 'team', tone: 'accent' },
+                { label: proposal.review_decision || 'pending review', tone: 'success' },
+                { label: proposal.final_recipient_state || proposal.intended_recipient_team || 'awaiting recipient', tone: 'muted' }
+            ],
+            metadata: [
+                { label: 'Author', value: `${proposal.author_pseudonym || 'N/A'} / ${proposal.author_role || 'unknown'}` },
+                { label: 'Intended Recipient', value: proposal.intended_recipient_team },
+                { label: 'Forwarded To', value: proposal.forwarded_to_team },
+                { label: 'Submitted', value: formatReportTimestamp(proposal.submitted_utc) },
+                { label: 'Reviewed', value: formatReportTimestamp(proposal.reviewed_utc) }
+            ],
+            sections: [
+                {
+                    title: 'Proposal Detail',
+                    html: renderReportMetaGrid([
+                        { label: 'Objective', value: proposal.proposal_text },
+                        { label: 'Requested Action', value: proposal.requested_action },
+                        { label: 'Rationale', value: proposal.rationale },
+                        { label: 'Originators', value: details.originators },
+                        { label: 'Category', value: details.category },
+                        { label: 'Intended Partners', value: details.intendedPartners },
+                        { label: 'Focus Sector', value: details.focusSector || safeObject(proposal.full_content).focusSector },
+                        { label: 'Delivery', value: details.delivery },
+                        { label: 'Timing And Conditions', value: details.timingAndConditions },
+                        { label: 'Expected Outcomes', value: safeObject(proposal.full_content).expected_outcomes }
+                    ])
+                },
+                {
+                    title: 'Review Outcome',
+                    html: renderReportMetaGrid([
+                        { label: 'Review Decision', value: proposal.review_decision },
+                        { label: 'Review Reason', value: proposal.review_reason },
+                        { label: 'Reviewer', value: proposal.reviewer_pseudonym },
+                        { label: 'Final Recipient State', value: proposal.final_recipient_state }
+                    ])
+                }
+            ]
+        });
+    });
+    const moveResponseCards = dataset.moveResponseContent.map((response) => {
+        const details = safeObject(safeObject(response.full_content).details);
+
+        return renderReportEntityCard({
+            eyebrow: `Move ${response.move_number ?? 'N/A'} - Move response`,
+            title: safeObject(response.full_content).goal || 'Untitled response',
+            summary: response.response_text || '',
+            badges: [
+                { label: response.author_team || 'team', tone: 'accent' },
+                { label: response.review_state || 'submitted', tone: 'success' },
+                { label: response.posture || 'posture not set', tone: 'muted' }
+            ],
+            metadata: [
+                { label: 'Author', value: `${response.author_pseudonym || 'N/A'} / ${response.author_role || 'unknown'}` },
+                { label: 'Submitted', value: formatReportTimestamp(response.submitted_utc) },
+                { label: 'Responding To', value: response.responding_to_entity_type }
+            ],
+            sections: [
+                {
+                    title: 'Response Detail',
+                    html: renderReportMetaGrid([
+                        { label: 'Strategic Assessment', value: response.rationale || details.strategicAssessment },
+                        { label: 'Response Strategy', value: response.posture || details.responseStrategy },
+                        { label: 'Key Actions', value: response.response_text || details.keyActions },
+                        { label: 'Targets And Pressure Points', value: details.targetsAndPressurePoints },
+                        { label: 'Delivery Channel', value: details.deliveryChannel },
+                        { label: 'Expected Effect', value: safeObject(response.full_content).expected_outcomes }
+                    ])
+                }
+            ]
+        });
+    });
+    const rfiCards = dataset.rfiContent.map((rfi) => renderReportEntityCard({
+        eyebrow: `Move ${rfi.move_number ?? 'N/A'} - RFI`,
+        title: rfi.requester_team ? `${humanizeReportLabel(rfi.requester_team)} team request` : 'Request for information',
+        summary: rfi.question_text || '',
+        badges: [
+            { label: rfi.requester_team || 'team', tone: 'accent' },
+            { label: rfi.status || 'pending', tone: 'success' }
+        ],
+        metadata: [
+            { label: 'Requester', value: `${rfi.requester_pseudonym || 'N/A'} / ${rfi.requester_role || 'unknown'}` },
+            { label: 'Raised UTC', value: formatReportTimestamp(rfi.raised_utc) },
+            { label: 'Answered UTC', value: formatReportTimestamp(rfi.answered_utc) }
+        ],
+        sections: [
+            {
+                title: 'Exchange',
+                html: renderReportMetaGrid([
+                    { label: 'Question', value: rfi.question_text },
+                    { label: 'Answer', value: rfi.answer_text },
+                    { label: 'Answered By', value: rfi.answered_by_pseudonym }
+                ])
+            }
+        ]
+    }));
+    const topEventCards = [...eventTypeCounts.entries()]
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .slice(0, 6)
+        .map(([eventType, count]) => ({
+            label: humanizeReportLabel(eventType),
+            value: count,
+            detail: 'events'
+        }));
+    const sessionDisplayName = dataset.session?.name || dataset.session?.id || 'Session report';
+    const footerSessionLabel = String(sessionDisplayName)
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/[\r\n]+/g, ' ')
+        .trim();
+    const EVENT_LOG_DISPLAY_LIMIT = 200;
+    const totalEventLogRows = eventLogRows.length;
+    const eventLogTruncated = totalEventLogRows > EVENT_LOG_DISPLAY_LIMIT;
+    const displayedEventLogRows = eventLogTruncated
+        ? eventLogRows.slice(0, EVENT_LOG_DISPLAY_LIMIT)
+        : eventLogRows;
+    const teamActivityOrder = ['blue', 'red', 'green', 'whitecell', 'gamemaster'];
+    const teamActivityMap = new Map();
+    const ensureTeamActivity = (team) => {
+        const key = String(team || '').trim().toLowerCase() || 'unassigned';
+        if (!teamActivityMap.has(key)) {
+            teamActivityMap.set(key, {
+                team: key,
+                participants: 0,
+                actions: 0,
+                proposals: 0,
+                responses: 0,
+                rfis: 0,
+                notes: 0
+            });
+        }
+        return teamActivityMap.get(key);
+    };
+    safeArray(dataset.participants).forEach((participant) => { ensureTeamActivity(participant.team).participants += 1; });
+    safeArray(dataset.actionContent).forEach((action) => { ensureTeamActivity(action.author_team).actions += 1; });
+    safeArray(dataset.proposalContent).forEach((proposal) => { ensureTeamActivity(proposal.author_team).proposals += 1; });
+    safeArray(dataset.moveResponseContent).forEach((response) => { ensureTeamActivity(response.author_team).responses += 1; });
+    safeArray(dataset.rfiContent).forEach((rfi) => { ensureTeamActivity(rfi.requester_team).rfis += 1; });
+    safeArray(dataset.notes).forEach((note) => { ensureTeamActivity(note.author_team).notes += 1; });
+    const teamActivityRows = [...teamActivityMap.values()]
+        .sort((left, right) => {
+            const leftRank = teamActivityOrder.indexOf(left.team);
+            const rightRank = teamActivityOrder.indexOf(right.team);
+            return (leftRank === -1 ? 99 : leftRank) - (rightRank === -1 ? 99 : rightRank)
+                || left.team.localeCompare(right.team);
+        })
+        .map((row) => [
+            humanizeReportLabel(row.team),
+            String(row.participants),
+            String(row.actions),
+            String(row.proposals),
+            String(row.responses),
+            String(row.rfis),
+            String(row.notes)
+        ]);
+    const executiveSummaryText = `This post-game analysis reconstructs ${sessionDisplayName}${manifest.capture_mode ? `, captured in ${humanizeReportLabel(manifest.capture_mode)} mode` : ''}. The session spans ${formatReportDuration(sessionMetrics.session_duration_s, 'an unrecorded duration')} across ${formatReportValue(sessionMetrics.moves_count ?? 0, '0')} move(s), with ${formatReportValue(sessionMetrics.participants_active ?? 0, '0')} active participant seat(s) generating ${formatReportValue(sessionMetrics.total_events ?? 0, '0')} logged events. Teams submitted ${formatReportValue(sessionMetrics.actions_submitted ?? 0, '0')} action(s) (${formatReportValue(sessionMetrics.actions_adjudicated ?? 0, '0')} adjudicated) and ${formatReportValue(sessionMetrics.proposals_submitted ?? 0, '0')} proposal(s) (${formatReportValue(sessionMetrics.proposals_forwarded ?? 0, '0')} forwarded), and raised ${formatReportValue(sessionMetrics.rfis_raised ?? 0, '0')} request(s) for information.`;
+    const contentsItems = [
+        {
+            title: 'Executive Summary',
+            description: 'Narrative overview of session scale with headline indicators and per-team activity.'
+        },
+        {
+            title: 'Session Snapshot',
+            description: 'Session identity, runtime state, declared configuration, and archive-level metrics.'
+        },
+        {
+            title: 'Participants And Seat Activity',
+            description: 'De-identified participant roster, seat timing, and derived engagement metrics.'
+        },
+        {
+            title: 'Event Log Chronology',
+            description: 'Ordered event stream with actor, entity, move, state change, and payload summary.'
+        },
+        {
+            title: 'State Transition Ledger',
+            description: 'Lifecycle transitions reconstructed for actions, proposals, responses, and RFIs.'
+        },
+        {
+            title: 'Draft And Submission History',
+            description: 'Draft revision path, wizard progress, and time-to-submit evidence.'
+        },
+        {
+            title: 'Actions And Adjudications',
+            description: 'Detailed Blue-team action records paired with White Cell rulings and effects.'
+        },
+        {
+            title: 'Proposals: Content And Review',
+            description: 'Green-team proposal records, routing intent, review rationale, and recipient outcomes.'
+        },
+        {
+            title: 'Move Responses',
+            description: 'Red-team move-response records, posture, rationale, and submitted detail.'
+        },
+        {
+            title: 'Requests For Information',
+            description: 'Question-and-answer exchanges between team facilitators and White Cell.'
+        },
+        {
+            title: 'Communications And Interaction Summary',
+            description: 'Cross-team communication flows, response latency, and interaction counts.'
+        },
+        {
+            title: 'Notes And Observation Capture',
+            description: 'Structured note summary plus optional appendix of note content.'
+        },
+        {
+            title: 'Data Quality And Export Integrity',
+            description: 'Observed disconnects/gaps and the integrity fields used to verify the export.'
+        }
+    ];
 
     return `
 <!doctype html>
@@ -2021,18 +2602,66 @@ export function buildResearchReportHtml(dataset, {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${escapeHtml(dataset.session?.name || dataset.session?.id || 'Research Export Report')}</title>
+    <title>${escapeHtml(sessionDisplayName)} — Post-Game Analysis Report</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
     <style>
         @page {
             size: A4;
-            margin: 16mm;
+            margin: 20mm 18mm 18mm;
+            @top-left {
+                content: "Strategic Wargame Platform";
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 8pt;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: #97a0ac;
+            }
+            @top-right {
+                content: "Post-Game Analysis Report";
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 8pt;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: #97a0ac;
+            }
+            @bottom-left {
+                content: "${footerSessionLabel}";
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 8pt;
+                color: #97a0ac;
+            }
+            @bottom-center {
+                content: "Fractured Order on Plenum";
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 8pt;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: #b7bec7;
+            }
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 8pt;
+                color: #97a0ac;
+            }
+        }
+
+        @page :first {
+            @top-left { content: ""; }
+            @top-right { content: ""; }
         }
 
         :root {
-            --report-ink: #111111;
-            --report-rule: #333333;
-            --report-muted: #555555;
-            --report-bg: #ffffff;
+            --report-ink: #1f2933;
+            --report-muted: #52606d;
+            --report-rule: #d9dee5;
+            --report-rule-strong: #9aa5b1;
+            --report-accent: #243b53;
+            --report-surface: #f7f9fb;
+            --report-surface-strong: #eef2f6;
+            --report-success: #1f6f4a;
         }
 
         * {
@@ -2042,10 +2671,12 @@ export function buildResearchReportHtml(dataset, {
         html, body {
             margin: 0;
             padding: 0;
-            background: var(--report-bg);
+            background: #ffffff;
             color: var(--report-ink);
-            font-family: Georgia, "Times New Roman", serif;
+            font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
             line-height: 1.5;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
         }
 
         body {
@@ -2056,34 +2687,38 @@ export function buildResearchReportHtml(dataset, {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 10px 14px;
-            border: 1px solid var(--report-rule);
-            background: #f5f5f5;
-            color: var(--report-ink);
+            padding: 8px 14px;
+            border: 1px solid var(--report-accent);
+            border-radius: 0;
+            background: #ffffff;
+            color: var(--report-accent);
             cursor: pointer;
             font: inherit;
+            font-weight: 600;
         }
 
         .report-root {
-            max-width: 960px;
+            max-width: 980px;
             margin: 0 auto;
+            background: #ffffff;
         }
 
-        .report-cover,
-        .report-section {
-            page-break-inside: avoid;
+        .report-cover {
+            padding: 0 0 18px;
+            border-bottom: 2px solid var(--report-accent);
         }
 
         .report-section {
-            margin-top: 28px;
-            padding-top: 20px;
-            border-top: 1px solid var(--report-rule);
+            margin-top: 26px;
+            padding-top: 4px;
         }
 
         .report-title {
-            margin: 0 0 8px;
-            font-size: 30px;
-            line-height: 1.15;
+            margin: 8px 0 10px;
+            font-size: 34px;
+            line-height: 1.1;
+            font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            font-weight: 700;
         }
 
         .report-subtitle,
@@ -2092,35 +2727,268 @@ export function buildResearchReportHtml(dataset, {
             color: var(--report-muted);
         }
 
-        .report-grid {
+        .report-subtitle {
+            margin: 0;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--report-accent);
+        }
+
+        .report-cover-grid,
+        .report-meta-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
+            gap: 16px;
         }
 
-        .report-card {
+        .report-cover-grid {
+            grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+            align-items: end;
+            gap: 24px;
+        }
+
+        .report-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+        }
+
+        .report-summary-card,
+        .report-meta-item,
+        .report-outline,
+        .report-block,
+        .report-entity-card {
+            border-radius: 0;
+        }
+
+        .report-summary-card {
+            padding: 14px 14px 12px;
             border: 1px solid var(--report-rule);
-            padding: 12px;
+            background: #ffffff;
         }
 
-        .report-kpi {
+        .report-summary-label {
+            margin: 0;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--report-muted);
+        }
+
+        .report-summary-value {
+            margin: 8px 0 4px;
             font-size: 22px;
+            line-height: 1.15;
             font-weight: 700;
         }
 
-        .report-section-title {
+        .report-summary-detail {
+            margin: 0;
+            font-size: 12px;
+            color: var(--report-muted);
+        }
+
+        .report-outline {
+            padding: 16px 18px;
+            border: 1px solid var(--report-rule);
+            background: #ffffff;
+        }
+
+        .report-outline .report-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .report-outline-title {
             margin: 0 0 10px;
-            font-size: 22px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--report-accent);
+        }
+
+        .report-contents-list {
+            margin: 0;
+            padding-left: 18px;
+            display: grid;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .report-contents-item {
+            margin: 0;
+        }
+
+        .report-contents-row {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+        }
+
+        .report-contents-index {
+            min-width: 18px;
+            font-weight: 700;
+            color: var(--report-accent);
+        }
+
+        .report-contents-title {
+            font-weight: 600;
+        }
+
+        .report-contents-description {
+            margin: 4px 0 0 26px;
+            font-size: 12px;
+            color: var(--report-muted);
+        }
+
+        .report-badge-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .report-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border-radius: 0;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            border: 1px solid var(--report-rule);
+            background: #ffffff;
+            color: var(--report-accent);
+        }
+
+        .report-badge--accent {
+            color: var(--report-accent);
+        }
+
+        .report-badge--success {
+            color: var(--report-success);
+        }
+
+        .report-badge--muted {
+            color: var(--report-muted);
+        }
+
+        .report-section-title {
+            margin: 0;
+            font-size: 24px;
+            font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            font-weight: 700;
+        }
+
+        .report-section-intro {
+            margin: 8px 0 0;
+            font-size: 13px;
+            color: var(--report-muted);
+        }
+
+        .report-section-header {
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--report-rule-strong);
+        }
+
+        .report-meta-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .report-meta-item {
+            padding: 12px 14px;
+            background: #ffffff;
+            border: 1px solid var(--report-rule);
+        }
+
+        .report-meta-item dt {
+            margin: 0 0 6px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--report-muted);
+        }
+
+        .report-meta-item dd {
+            margin: 0;
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+
+        .report-block {
+            margin-top: 18px;
+            padding: 16px;
+            background: #ffffff;
+            border: 1px solid var(--report-rule);
+        }
+
+        .report-block-title,
+        .report-entity-section-title {
+            margin: 0 0 12px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--report-accent);
+        }
+
+        .report-entity-stack {
+            display: grid;
+            gap: 18px;
+        }
+
+        .report-entity-card {
+            padding: 18px;
+            border: 1px solid var(--report-rule);
+            background: #ffffff;
+        }
+
+        .report-entity-header {
+            display: block;
+            margin-bottom: 14px;
+        }
+
+        .report-eyebrow {
+            margin: 0 0 6px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--report-muted);
+        }
+
+        .report-entity-title {
+            margin: 0;
+            font-size: 20px;
+            line-height: 1.2;
+            font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            font-weight: 700;
+        }
+
+        .report-entity-summary {
+            margin: 8px 0 0;
+            color: var(--report-muted);
+            font-size: 13px;
+        }
+
+        .report-entity-section + .report-entity-section {
+            margin-top: 16px;
         }
 
         .report-table-wrap {
-            overflow-x: auto;
+            border: 1px solid var(--report-rule);
+            overflow: hidden;
         }
 
         .report-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 12px;
+            background: #ffffff;
+            table-layout: fixed;
         }
 
         .report-table th,
@@ -2129,151 +2997,645 @@ export function buildResearchReportHtml(dataset, {
             padding: 8px 10px;
             vertical-align: top;
             text-align: left;
-            font-size: 13px;
+            font-size: 12px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
-        .report-list {
-            margin: 12px 0 0;
-            padding-left: 18px;
+        .report-table th {
+            background: var(--report-surface-strong);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--report-accent);
         }
 
-        .report-list li + li {
-            margin-top: 8px;
+        .report-table tbody tr:nth-child(even) td {
+            background: var(--report-surface);
         }
 
-        @media print {
+        @media screen and (max-width: 820px) {
+            .report-cover-grid,
+            .report-summary-grid,
+            .report-meta-grid {
+                grid-template-columns: 1fr;
+            }
+
             body {
+                padding: 16px;
+            }
+        }
+
+        /* ============================================================
+           Professional document layer (overrides the base rules above)
+           ============================================================ */
+        :root {
+            --report-ink: #1b2430;
+            --report-muted: #5b6573;
+            --report-faint: #97a0ac;
+            --report-rule: #e2e6ea;
+            --report-rule-strong: #c5ccd4;
+            --report-accent: #16314f;
+            --report-accent-soft: #3f628a;
+            --report-surface: #f6f8fa;
+            --report-surface-strong: #edf1f5;
+            --report-success: #1f6f4a;
+        }
+
+        html, body {
+            font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            color: var(--report-ink);
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+
+        body {
+            background: #eef0f3;
+            padding: 32px 16px;
+        }
+
+        .report-root {
+            max-width: 820px;
+            margin: 0 auto;
+            background: #ffffff;
+        }
+
+        @media screen {
+            .report-root {
+                padding: 56px 60px 72px;
+                box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 18px 48px rgba(16, 24, 40, 0.10);
+            }
+        }
+
+        /* Floating print / save control (screen only) */
+        .no-print {
+            position: fixed;
+            top: 20px;
+            right: 24px;
+            z-index: 50;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--report-accent);
+            border-radius: 7px;
+            background: var(--report-accent);
+            color: #ffffff;
+            padding: 10px 16px;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 8px 22px rgba(16, 49, 79, 0.28);
+        }
+
+        /* Section auto-numbering */
+        #report-source { counter-reset: report-section; }
+        .report-section { counter-increment: report-section; }
+        .report-section > .report-section-header::before {
+            content: "Section " counter(report-section, decimal-leading-zero);
+            display: block;
+            margin-bottom: 6px;
+            font-size: 9px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--report-accent-soft);
+        }
+
+        /* Cover */
+        .report-cover {
+            position: relative;
+            padding: 6px 0 30px;
+            border-bottom: 2px solid var(--report-accent);
+        }
+        .report-cover-logos {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            padding-bottom: 22px;
+            margin-bottom: 26px;
+            border-bottom: 1px solid var(--report-rule);
+        }
+        .report-logo { width: auto; max-width: 48%; display: block; }
+        .report-logo--ssg { height: 120px; }
+        .report-logo--aiddata { height: 40px; }
+        .report-simulation {
+            margin: 0 0 4px;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--report-accent);
+        }
+        .report-cover-grid { align-items: start; gap: 28px; }
+        .report-classification {
+            margin: 0 0 16px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #9b3b2f;
+        }
+        .report-title {
+            font-size: 38px;
+            line-height: 1.07;
+            letter-spacing: -0.022em;
+            font-weight: 800;
+            margin: 6px 0 14px;
+            color: var(--report-ink);
+        }
+        .report-subtitle { font-size: 11px; letter-spacing: 0.18em; }
+        .report-muted { color: var(--report-muted); }
+        .report-cover > div > .report-muted { max-width: 56ch; font-size: 13.5px; }
+
+        /* Section headers */
+        .report-section + .report-section,
+        .report-toc { margin-top: 40px; }
+        .report-section-header {
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--report-rule-strong);
+        }
+        .report-section-title {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.012em;
+            color: var(--report-accent);
+        }
+        .report-section-intro {
+            margin-top: 8px;
+            font-size: 12.5px;
+            line-height: 1.55;
+            max-width: 80ch;
+        }
+
+        /* Table of contents */
+        .report-contents-list {
+            padding-left: 0;
+            list-style: none;
+            gap: 0;
+            font-size: 14px;
+        }
+        .report-contents-item {
+            padding: 13px 2px;
+            border-bottom: 1px solid var(--report-rule);
+        }
+        .report-contents-item:first-child { border-top: 1px solid var(--report-rule); }
+        .report-contents-index {
+            min-width: 30px;
+            font-variant-numeric: tabular-nums;
+            color: var(--report-accent);
+            font-weight: 700;
+        }
+        .report-contents-title { font-weight: 600; font-size: 14px; color: var(--report-ink); }
+        .report-contents-description { margin: 5px 0 0 38px; font-size: 12px; }
+
+        /* Narrative + notices */
+        .report-lede { font-size: 14.5px; line-height: 1.62; margin: 0 0 22px; color: var(--report-ink); }
+        .report-note {
+            margin: 16px 0;
+            padding: 11px 15px;
+            border-left: 3px solid var(--report-accent-soft);
+            background: var(--report-surface);
+            font-size: 12px;
+            color: var(--report-muted);
+        }
+
+        /* Summary cards */
+        .report-summary-grid { gap: 14px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+        .report-summary-card {
+            padding: 16px;
+            border: 1px solid var(--report-rule);
+            border-radius: 8px;
+            background: #ffffff;
+        }
+        .report-summary-label { font-size: 10px; letter-spacing: 0.07em; color: var(--report-faint); }
+        .report-summary-value {
+            font-size: 24px;
+            line-height: 1.15;
+            font-weight: 700;
+            letter-spacing: -0.015em;
+            font-variant-numeric: tabular-nums;
+            overflow-wrap: anywhere;
+            color: var(--report-accent);
+        }
+        .report-summary-detail { font-size: 11.5px; }
+
+        /* Cover outline aside */
+        .report-outline {
+            border: 1px solid var(--report-rule);
+            border-radius: 10px;
+            background: var(--report-surface);
+            padding: 18px 20px;
+        }
+        .report-outline-title { color: var(--report-accent); }
+        .report-outline .report-meta-grid { grid-template-columns: 1fr; }
+
+        /* Definition / metadata grid */
+        .report-meta-grid { gap: 0; border-top: 1px solid var(--report-rule); }
+        .report-meta-item {
+            border: none;
+            border-bottom: 1px solid var(--report-rule);
+            padding: 11px 16px 11px 0;
+            background: transparent;
+        }
+        .report-meta-item dt { font-size: 10px; letter-spacing: 0.07em; color: var(--report-faint); }
+        .report-meta-item dd { font-size: 13px; color: var(--report-ink); line-height: 1.5; }
+
+        /* Content blocks */
+        .report-block {
+            border: 1px solid var(--report-rule);
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-top: 20px;
+        }
+        .report-block-title, .report-entity-section-title {
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            color: var(--report-accent-soft);
+            margin-bottom: 14px;
+        }
+
+        /* Entity cards */
+        .report-entity-stack { gap: 20px; }
+        .report-entity-card {
+            border: 1px solid var(--report-rule);
+            border-radius: 10px;
+            padding: 22px;
+            background: #ffffff;
+        }
+        .report-entity-header {
+            border-bottom: 1px solid var(--report-rule);
+            padding-bottom: 14px;
+            margin-bottom: 16px;
+        }
+        .report-eyebrow { color: var(--report-accent-soft); }
+        .report-entity-title { font-size: 18px; font-weight: 700; letter-spacing: -0.012em; color: var(--report-ink); }
+        .report-entity-summary { font-size: 13px; line-height: 1.55; }
+
+        /* Badges */
+        .report-badge {
+            border-radius: 999px;
+            padding: 4px 11px;
+            font-size: 9.5px;
+            border: 1px solid var(--report-rule-strong);
+            background: var(--report-surface);
+        }
+        .report-badge--accent { color: var(--report-accent); border-color: #c2d2e4; background: #eef3f9; }
+        .report-badge--success { color: var(--report-success); border-color: #bfe0cd; background: #eef7f2; }
+        .report-badge--muted { color: var(--report-muted); }
+
+        /* Tables */
+        .report-table-wrap { border: 1px solid var(--report-rule); border-radius: 10px; }
+        .report-table th, .report-table td { border: none; border-bottom: 1px solid var(--report-rule); }
+        .report-table th {
+            background: var(--report-surface-strong);
+            color: var(--report-accent);
+            font-size: 10px;
+            letter-spacing: 0.06em;
+            border-bottom: 1px solid var(--report-rule-strong);
+        }
+        .report-table td { font-size: 11.5px; font-variant-numeric: tabular-nums; }
+        .report-table tbody tr:last-child td { border-bottom: none; }
+        .report-table tbody tr:nth-child(even) td { background: var(--report-surface); }
+
+        .report-empty {
+            padding: 16px;
+            border: 1px dashed var(--report-rule-strong);
+            border-radius: 8px;
+            background: var(--report-surface);
+            font-size: 13px;
+            text-align: center;
+            color: var(--report-muted);
+        }
+
+        /* ============================================================
+           Print reset — declared last so it wins the cascade for A4
+           ============================================================ */
+        @media print {
+            html, body {
+                margin: 0;
                 padding: 0;
+                background: #ffffff;
+            }
+
+            .report-root {
+                max-width: none;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
             }
 
             .no-print {
                 display: none !important;
             }
 
+            /* Start each major part on a fresh page */
+            .report-toc,
             .report-section {
                 break-before: page;
+                page-break-before: always;
             }
 
-            .report-section:first-of-type {
-                break-before: auto;
+            /* Keep self-contained blocks together, but NEVER trap a long
+               table inside an unbreakable, clipping wrapper. */
+            .report-summary-card,
+            .report-meta-item,
+            .report-block,
+            .report-entity-card,
+            .report-outline {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .report-table-wrap {
+                overflow: visible;
+                border-radius: 0;
+                break-inside: auto;
+                page-break-inside: auto;
+            }
+
+            .report-table thead { display: table-header-group; }
+            .report-table tr {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            /* Preserve fills/colors when printing */
+            * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
         }
     </style>
 </head>
 <body>
-    <div class="report-root">
-        <button type="button" class="no-print" onclick="window.print()">Print Report</button>
-
+    <button type="button" class="no-print" onclick="window.print()">Print / Save as PDF</button>
+    <div class="report-root" id="report-source">
         <section class="report-cover">
-            <p class="report-subtitle">Research Export Report</p>
-            <h1 class="report-title">${escapeHtml(dataset.session?.name || 'Session report')}</h1>
-            <p class="report-muted">Session ID: ${escapeHtml(dataset.session?.id || '')}</p>
-            <div class="report-grid">
-                <div class="report-card">
-                    <strong>Capture mode</strong><br>
-                    ${escapeHtml(dataset.manifest.capture_mode)}
-                </div>
-                <div class="report-card">
-                    <strong>Generated at (UTC)</strong><br>
-                    ${escapeHtml(dataset.manifest.generated_at_utc)}
-                </div>
-                <div class="report-card">
-                    <strong>Schema version</strong><br>
-                    ${escapeHtml(dataset.manifest.schema_version)}
-                </div>
-                <div class="report-card">
-                    <strong>Software build hash</strong><br>
-                    ${escapeHtml(dataset.manifest.software_build_hash || 'unknown')}
-                </div>
-                <div class="report-card">
-                    <strong>Generated by pseudonym</strong><br>
-                    ${escapeHtml(dataset.manifest.generated_by_pseudonym)}
-                </div>
-                <div class="report-card">
-                    <strong>Session checksum</strong><br>
-                    ${escapeHtml(dataset.manifest.event_log_chain.session_checksum)}
-                </div>
+            <div class="report-cover-logos">
+                <img class="report-logo report-logo--ssg" src="${SSG_LOGO_DATA_URI}" alt="W&M Statecraft Simulations Group">
+                <img class="report-logo report-logo--aiddata" src="${AIDDATA_LOGO_DATA_URI}" alt="AidData — A Research Lab at William & Mary">
+            </div>
+            <p class="report-classification">Confidential · For Authorized Post-Game Review</p>
+            <p class="report-simulation">${escapeHtml(SIMULATION_NAME)}</p>
+            <p class="report-subtitle">Post-Game Analysis Report</p>
+            <h1 class="report-title">${escapeHtml(sessionDisplayName)}</h1>
+            <p class="report-muted">A structured reconstruction of session activity, decisions, communications, and data-integrity evidence prepared for post-session review.</p>
+            <div style="margin-top: 18px;">
+                ${renderReportMetaGrid([
+                    { label: 'Session ID', value: dataset.session?.id || '' },
+                    { label: 'Generated UTC', value: formatReportTimestamp(manifest.generated_at_utc) },
+                    { label: 'Capture Mode', value: manifest.capture_mode || 'unknown' },
+                    { label: 'Prepared By', value: manifest.generated_by_pseudonym }
+                ])}
+            </div>
+            <h2 class="report-outline-title" style="margin-top: 24px;">Document Summary</h2>
+            <div style="margin-top: 10px;">
+                ${renderReportMetaGrid([
+                    { label: 'Events Captured', value: sessionMetrics.total_events ?? 0 },
+                    { label: 'Active Participants', value: sessionMetrics.participants_active ?? 0 },
+                    { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0 },
+                    { label: 'Session Duration', value: formatReportDuration(sessionMetrics.session_duration_s) },
+                    { label: 'Mean Proposal Latency', value: formatReportDuration(sessionMetrics.mean_proposal_response_latency_s) },
+                    { label: 'Actions Submitted', value: sessionMetrics.actions_submitted ?? 0 },
+                    { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0 },
+                    { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0 },
+                    { label: 'Communications', value: sessionMetrics.communications_sent ?? 0 },
+                    { label: 'Current Move', value: gameState.move },
+                    { label: 'Current Phase', value: gameState.phase },
+                    { label: 'Generated By', value: manifest.generated_by_pseudonym },
+                    { label: 'Session Description', value: sessionMetadata.description }
+                ])}
             </div>
         </section>
 
-        <section class="report-section">
-            <h2 class="report-section-title">Session Overview</h2>
-            <div class="report-grid">
-                <div class="report-card">
-                    <div class="report-kpi">${escapeHtml(sessionMetrics.session_duration_s ?? '0')}</div>
-                    <div class="report-muted">Session duration (seconds)</div>
-                </div>
-                <div class="report-card">
-                    <div class="report-kpi">${escapeHtml(sessionMetrics.moves_count ?? '0')}</div>
-                    <div class="report-muted">Moves captured</div>
-                </div>
-                <div class="report-card">
-                    <div class="report-kpi">${escapeHtml(sessionMetrics.participants_active ?? '0')}</div>
-                    <div class="report-muted">Active participants</div>
-                </div>
-                <div class="report-card">
-                    <div class="report-kpi">${escapeHtml(sessionMetrics.actions_submitted ?? '0')}</div>
-                    <div class="report-muted">Actions submitted</div>
-                </div>
-                <div class="report-card">
-                    <div class="report-kpi">${escapeHtml(sessionMetrics.proposals_submitted ?? '0')}</div>
-                    <div class="report-muted">Proposals submitted</div>
-                </div>
-                <div class="report-card">
-                    <div class="report-kpi">${escapeHtml(sessionMetrics.rfis_raised ?? '0')}</div>
-                    <div class="report-muted">RFIs raised</div>
+        <section class="report-toc">
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Table Of Contents</h2>
+                    <p class="report-section-intro">The report is organized into ${contentsItems.length} numbered sections. Each begins on a new page so findings can be referenced and printed independently.</p>
                 </div>
             </div>
+            ${renderReportContentsList(contentsItems)}
         </section>
 
         <section class="report-section">
-            <h2 class="report-section-title">Participant Activity</h2>
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Executive Summary</h2>
+                    <p class="report-section-intro">A narrative overview of session scale and the headline indicators that frame the detailed evidence in the sections that follow.</p>
+                </div>
+            </div>
+            <p class="report-lede">${escapeHtml(executiveSummaryText)}</p>
+            ${renderReportSummaryCards([
+                { label: 'Events Logged', value: sessionMetrics.total_events ?? 0, detail: 'captured in export' },
+                { label: 'Active Participants', value: sessionMetrics.participants_active ?? 0, detail: 'seats engaged' },
+                { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0, detail: 'max move observed' },
+                { label: 'Session Duration', value: formatReportDuration(sessionMetrics.session_duration_s), detail: 'event-log span' },
+                { label: 'Actions Submitted', value: sessionMetrics.actions_submitted ?? 0, detail: `${sessionMetrics.actions_adjudicated ?? 0} adjudicated` },
+                { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0, detail: `${sessionMetrics.proposals_forwarded ?? 0} forwarded` },
+                { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0, detail: 'team requests' },
+                { label: 'Mean Proposal Latency', value: formatReportDuration(sessionMetrics.mean_proposal_response_latency_s), detail: 'review response time' }
+            ])}
+            ${renderReportSectionBlock('Activity By Team', renderReportTable(
+                ['Team', 'Participants', 'Actions', 'Proposals', 'Responses', 'RFIs', 'Notes'],
+                teamActivityRows
+            ))}
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Session Snapshot</h2>
+                    <p class="report-section-intro">Session identity, runtime state, declared configuration, and archive-level metrics used for post-game analysis.</p>
+                </div>
+            </div>
+            ${renderReportMetaGrid([
+                { label: 'Session Name', value: sessionConfigSnapshot.session_name || dataset.session?.name },
+                { label: 'Session Code', value: sessionConfigSnapshot.session_code || sessionMetadata.session_code },
+                { label: 'Session Status', value: dataset.session?.status },
+                { label: 'Session Description', value: sessionMetadata.description },
+                { label: 'Created UTC', value: formatReportTimestamp(dataset.session?.created_at) },
+                { label: 'Updated UTC', value: formatReportTimestamp(dataset.session?.updated_at) },
+                { label: 'Current Move', value: gameState.move },
+                { label: 'Current Phase', value: gameState.phase },
+                { label: 'Timer Seconds', value: formatReportDuration(gameState.timer_seconds) },
+                { label: 'Timer Running', value: gameState.timer_running },
+                { label: 'Manifest Generated UTC', value: formatReportTimestamp(manifest.generated_at_utc) },
+                { label: 'Generated By', value: manifest.generated_by_pseudonym }
+            ])}
+            ${renderReportSectionBlock('Archive Summary', renderReportSummaryCards([
+                { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0, detail: 'max move observed' },
+                { label: 'Actions Submitted', value: sessionMetrics.actions_submitted ?? 0, detail: `${sessionMetrics.actions_adjudicated ?? 0} adjudicated` },
+                { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0, detail: `${sessionMetrics.proposals_forwarded ?? 0} forwarded` },
+                { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0, detail: 'team requests' },
+                { label: 'Communications', value: sessionMetrics.communications_sent ?? 0, detail: 'interaction edges' },
+                { label: 'Schema Version', value: manifest.schema_version || 'unknown', detail: `format rev ${manifest.export_format_revision || 'n/a'}` }
+            ]))}
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Participants And Seat Activity</h2>
+                    <p class="report-section-intro">De-identified roster data paired with the derived engagement metrics used in the research export.</p>
+                </div>
+            </div>
+            ${renderReportSectionBlock('Participant Roster', renderReportTable(
+                ['Pseudonym', 'Role', 'Team', 'Seat', 'First Seen UTC', 'Last Seen UTC', 'Active Duration', 'Rejoins'],
+                participantRosterRows
+            ))}
+            ${renderReportSectionBlock('Derived Participant Metrics', renderReportTable(
+                ['Pseudonym', 'Role', 'Team', 'Events', 'Notes', 'Note Edits', 'Drafts', 'Submissions', 'Mean Submit Time', 'Mean Response Latency', 'Active Duration', 'Disconnects'],
+                participantMetricRows
+            ))}
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Event Log Chronology</h2>
+                    <p class="report-section-intro">Full event-level chronology of the session, including payload summaries and before/after state changes.</p>
+                </div>
+            </div>
+            ${renderReportSectionBlock('Top Event Types', renderReportSummaryCards(topEventCards))}
+            ${eventLogTruncated
+                ? `<p class="report-note">Showing the first ${EVENT_LOG_DISPLAY_LIMIT} of ${totalEventLogRows} logged events for print readability. The complete, ordered event stream is preserved in event_log.csv and event_log.jsonl.</p>`
+                : ''}
+            ${renderReportSectionBlock('Event Log', renderReportTable(
+                ['Occurred UTC', 'Actor', 'Event Type', 'Entity', 'Move', 'State Change', 'Payload Summary'],
+                displayedEventLogRows
+            ))}
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">State Transition Ledger</h2>
+                    <p class="report-section-intro">Lifecycle transitions reconstructed from the export projections for actions, proposals, move responses, and RFIs.</p>
+                </div>
+            </div>
             ${renderReportTable(
-                ['Pseudonym', 'Role', 'Team', 'Events', 'Notes', 'Drafts', 'Mean submit s', 'Active s'],
-                participantRows
+                ['Transition UTC', 'Entity Type', 'Entity ID', 'From State', 'To State', 'Actor Role', 'Recipient Team', 'Move', 'Dwell'],
+                transitionRows
             )}
         </section>
 
         <section class="report-section">
-            <h2 class="report-section-title">Decision Process Timeline</h2>
-            ${renderReportTable(['UTC', 'Entity', 'State', 'Recipient', 'Move'], timelineRows)}
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Draft And Submission History</h2>
+                    <p class="report-section-intro">Draft projection data showing saved revisions, wizard progress, and submission timing.</p>
+                </div>
+            </div>
+            ${renderReportTable(
+                ['Author', 'Artifact Type', 'Artifact ID', 'Move', 'Sequence', 'Revision', 'Status', 'Wizard Page', 'Created UTC', 'Submitted UTC', 'Time To Submit', 'Snapshot Summary'],
+                draftRevisionRows
+            )}
         </section>
 
         <section class="report-section">
-            <h2 class="report-section-title">Proposals: Content and Review</h2>
-            ${renderReportTable(['Title', 'Recipient', 'Review', 'Recipient state', 'Review reason'], proposalRows)}
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Actions And Adjudications</h2>
+                    <p class="report-section-intro">Detailed Blue-team strategic action records paired with White Cell rulings and adjudication effects.</p>
+                </div>
+            </div>
+            ${renderReportEntityCollection(actionCards, 'No Blue-team action records were captured for this export.')}
         </section>
 
         <section class="report-section">
-            <h2 class="report-section-title">Actions and Adjudications</h2>
-            ${renderReportTable(['Title', 'Type', 'Intent', 'Ruling', 'Reasoning'], actionRows)}
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Proposals: Content And Review</h2>
+                    <p class="report-section-intro">Green-team proposal records, routing intent, review rationale, and recipient-state outcomes.</p>
+                </div>
+            </div>
+            ${renderReportEntityCollection(proposalCards, 'No proposal records were captured for this export.')}
         </section>
 
         <section class="report-section">
-            <h2 class="report-section-title">Move Responses</h2>
-            ${renderReportTable(['Posture', 'Response', 'Rationale', 'Review state'], moveResponseRows)}
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Move Responses</h2>
+                    <p class="report-section-intro">Red-team move-response records, posture, rationale, and submitted response detail.</p>
+                </div>
+            </div>
+            ${renderReportEntityCollection(moveResponseCards, 'No move-response records were captured for this export.')}
         </section>
 
         <section class="report-section">
-            <h2 class="report-section-title">Requests for Information</h2>
-            ${renderReportTable(['Requester team', 'Question', 'Answer', 'Status'], rfiRows)}
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Requests For Information</h2>
+                    <p class="report-section-intro">Question-and-answer exchanges between team facilitators and White Cell.</p>
+                </div>
+            </div>
+            ${renderReportEntityCollection(rfiCards, 'No RFI records were captured for this export.')}
         </section>
 
         <section class="report-section">
-            <h2 class="report-section-title">Interaction Summary</h2>
-            ${renderInteractionMatrix(dataset.interactionEdges)}
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Communications And Interaction Summary</h2>
+                    <p class="report-section-intro">Cross-team exchanges and operator communications derived from the interaction-edge projection.</p>
+                </div>
+            </div>
+            ${renderReportSectionBlock('Interaction Matrix', renderInteractionMatrix(dataset.interactionEdges))}
+            ${renderReportSectionBlock('Communication Edge Detail', renderReportTable(
+                ['Type', 'Source Team', 'Target Team', 'Direction', 'Move', 'Occurred UTC', 'Latency'],
+                communicationRows
+            ))}
         </section>
 
         <section class="report-section">
-            <h2 class="report-section-title">Data Quality</h2>
-            ${renderReportTable(['Team', 'Event', 'Occurred UTC', 'Gap seconds'], dataQualityRows)}
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Notes And Observation Capture</h2>
+                    <p class="report-section-intro">Summary of captured notetaker records and optional appendix content when enabled at export time.</p>
+                </div>
+            </div>
+            ${renderReportSectionBlock('Note Summary', renderReportTable(
+                ['Author', 'Role', 'Team', 'Scope', 'Visibility', 'Move', 'Created UTC', 'Length (chars)', 'Edits'],
+                notesSummaryRows
+            ))}
+            ${renderReportSectionBlock(
+                'Notes Appendix',
+                includeNotesAppendix
+                    ? renderReportTable(['Author', 'Role', 'Team', 'Created UTC', 'Content'], notesRows)
+                    : '<p class="report-muted">Notes appendix withheld at report-generation time. The machine-readable notes remain in notes.csv and notes.json.</p>'
+            )}
         </section>
 
         <section class="report-section">
-            <h2 class="report-section-title">Notes Appendix</h2>
-            ${includeNotesAppendix
-                ? renderReportTable(['Author', 'Role', 'Team', 'Created UTC', 'Content'], notesRows)
-                : '<p class="report-muted">Notes appendix withheld at report-generation time. The machine-readable notes remain in notes.csv and notes.json.</p>'}
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Data Quality And Export Integrity</h2>
+                    <p class="report-section-intro">Observed disconnect/gap signals plus the integrity fields needed to verify the archive payload.</p>
+                </div>
+            </div>
+            ${renderReportSectionBlock('Data Quality Events', renderReportTable(
+                ['Team', 'Event Type', 'Occurred UTC', 'Gap', 'Detail'],
+                dataQualityRows
+            ))}
+            ${renderReportSectionBlock('Manifest Integrity', renderReportMetaGrid([
+                { label: 'Schema Version', value: manifest.schema_version },
+                { label: 'Export Format Revision', value: manifest.export_format_revision },
+                { label: 'Export Version', value: manifest.export_version },
+                { label: 'Software Build Hash', value: manifest.software_build_hash || 'unknown' },
+                { label: 'Generated At UTC', value: formatReportTimestamp(manifest.generated_at_utc) },
+                { label: 'Generated By Pseudonym', value: manifest.generated_by_pseudonym },
+                { label: 'Session Checksum', value: safeObject(manifest.event_log_chain).session_checksum },
+                { label: 'First Event Hash', value: safeObject(manifest.event_log_chain).first_event_hash },
+                { label: 'Last Event Hash', value: safeObject(manifest.event_log_chain).last_event_hash },
+                { label: 'Codebook Reference', value: manifest.codebook_ref },
+                { label: 'Report Reference', value: manifest.report_ref }
+            ]))}
+            ${renderReportSectionBlock('Manifest Row Counts', renderReportTable(['Projection', 'Rows'], rowCountRows))}
         </section>
     </div>
 </body>
