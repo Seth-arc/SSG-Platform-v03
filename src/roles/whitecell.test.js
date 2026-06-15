@@ -642,6 +642,8 @@ describe('White Cell DOM contract', () => {
         controller.syncActionsFromStore();
 
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Coordinate biotech export alignment');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Deliberation Underway');
+        expect(fakeDocument.elements.proposalsList.innerHTML).not.toContain('Adjudicated');
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Outcome:</strong> SUCCESS');
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Notes:</strong> Forwarded to Blue Team for review.');
         expect(fakeDocument.elements.proposalsBadge.hidden).toBe(true);

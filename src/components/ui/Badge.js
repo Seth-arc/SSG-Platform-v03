@@ -62,7 +62,7 @@ export function createStatusBadge(status) {
     const statusConfig = {
         draft: { text: 'Draft', variant: 'default' },
         submitted: { text: 'Submitted', variant: 'primary' },
-        adjudicated: { text: 'Adjudicated', variant: 'success' },
+        adjudicated: { text: 'Deliberation Underway', variant: 'warning' },
         abandoned: { text: 'Abandoned', variant: 'error' },
         pending: { text: 'Pending', variant: 'warning' },
         answered: { text: 'Answered', variant: 'success' },

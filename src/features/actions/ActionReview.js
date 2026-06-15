@@ -80,7 +80,7 @@ export function createActionReview(options = {}) {
                 <div class="empty-state">
                     <h3 class="empty-state-title">No Actions to Review</h3>
                     <p class="empty-state-message">
-                        ${showAllActions ? 'No actions have been created yet' : 'All actions have been adjudicated'}
+                        ${showAllActions ? 'No actions have been created yet' : 'No actions are currently awaiting White Cell deliberation'}
                     </p>
                 </div>
             `;
@@ -173,7 +173,7 @@ export function createActionReview(options = {}) {
         `;
 
         showModal({
-            title: 'Adjudicate Action',
+            title: 'Record Deliberation',
             content,
             size: 'md',
             buttons: [
@@ -183,7 +183,7 @@ export function createActionReview(options = {}) {
                     onClick: (modal) => modal.close()
                 },
                 {
-                    text: 'Submit Adjudication',
+                    text: 'Record Deliberation',
                     variant: 'primary',
                     onClick: (modal) => handleAdjudication(modal, action)
                 }
@@ -212,20 +212,20 @@ export function createActionReview(options = {}) {
             // Create timeline event
             await timelineStore.create({
                 type: EVENT_TYPES.ACTION_ADJUDICATED,
-                content: `Action "${action.goal || action.title || 'Action'}" adjudicated: ${outcome}`,
+                content: `White Cell deliberation recorded for "${action.goal || action.title || 'Action'}": ${outcome}`,
                 team: 'white_cell',
                 move: action.move,
                 related_id: action.id,
                 metadata: { outcome, notes }
             });
 
-            showToast({ message: 'Action adjudicated successfully', type: 'success' });
+            showToast({ message: 'Deliberation recorded', type: 'success' });
             modal.close();
             render();
 
         } catch (err) {
             logger.error('Failed to adjudicate action:', err);
-            showToast({ message: 'Failed to adjudicate action', type: 'error' });
+            showToast({ message: 'Failed to record deliberation', type: 'error' });
         }
     }
 

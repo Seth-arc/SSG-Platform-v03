@@ -500,7 +500,7 @@ export function getWhiteCellTimelineActivityTypeLabel(activityType = null) {
         TIMER_RESET: 'Timer Reset',
         ACTION_CREATED: 'Action Created',
         ACTION_SUBMITTED: 'Action Submitted',
-        ACTION_ADJUDICATED: 'Action Adjudicated',
+        ACTION_ADJUDICATED: 'Deliberation Update',
         PROPOSAL_FORWARDED: 'Proposal Forwarded',
         PROPOSAL_RESPONSE: 'Proposal Response',
         PROPOSAL_RESPONDED: 'Proposal Responded',
@@ -1656,7 +1656,7 @@ export class WhiteCellController {
         const pendingActions = this.getPendingActions();
 
         if (pendingActions.length === 0) {
-            container.innerHTML = '<p class="text-sm text-gray-500">No actions are waiting for adjudication.</p>';
+            container.innerHTML = '<p class="text-sm text-gray-500">No actions are waiting for White Cell deliberation.</p>';
             return;
         }
 
@@ -1744,7 +1744,7 @@ export class WhiteCellController {
         }
 
         if (showAdjudicateAction) {
-            actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Adjudicate'}</button>`);
+            actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Record Deliberation'}</button>`);
         }
 
         return `
@@ -1868,7 +1868,7 @@ export class WhiteCellController {
 
     showAdjudicateModal(action) {
         if (!this.isLeadOperator()) {
-            showToast({ message: 'White Cell support cannot adjudicate actions.', type: 'warning' });
+            showToast({ message: 'White Cell support cannot record deliberation.', type: 'warning' });
             return;
         }
 
@@ -1947,7 +1947,7 @@ export class WhiteCellController {
 
         const modalRef = { current: null };
         modalRef.current = showModal({
-            title: 'Adjudicate Action',
+            title: 'Record Deliberation',
             content,
             size: 'md',
             buttons: [
@@ -1957,7 +1957,7 @@ export class WhiteCellController {
                     onClick: () => {}
                 },
                 {
-                    label: 'Submit Adjudication',
+                    label: 'Record Deliberation',
                     variant: 'primary',
                     onClick: () => {
                         this.handleAdjudicate(modalRef.current, action.id).catch((err) => {
@@ -2054,7 +2054,7 @@ export class WhiteCellController {
             return;
         }
 
-        const loader = showLoader({ message: 'Submitting adjudication...' });
+        const loader = showLoader({ message: 'Recording deliberation...' });
 
         try {
             const updatedAction = await database.adjudicateAction(actionId, {
@@ -2068,7 +2068,7 @@ export class WhiteCellController {
             const timelineEvent = await database.createTimelineEvent({
                 session_id: sessionStore.getSessionId(),
                 type: 'ACTION_ADJUDICATED',
-                content: `Action adjudicated: ${outcome}`,
+                content: `White Cell deliberation recorded: ${outcome}`,
                 metadata: {
                     related_id: actionId,
                     role: this.getTimelineActorRole()
@@ -2079,11 +2079,11 @@ export class WhiteCellController {
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
 
-            showToast({ message: 'Adjudication submitted', type: 'success' });
+            showToast({ message: 'Deliberation recorded', type: 'success' });
             modal?.close();
         } catch (err) {
             logger.error('Failed to adjudicate action:', err);
-            showToast({ message: 'Failed to submit adjudication', type: 'error' });
+            showToast({ message: 'Failed to record deliberation', type: 'error' });
         } finally {
             hideLoader();
         }

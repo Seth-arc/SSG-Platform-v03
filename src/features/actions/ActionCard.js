@@ -102,7 +102,7 @@ export function createActionCard(action, options = {}) {
 
             ${action.adjudication_notes ? `
                 <div class="action-card-adjudication">
-                    <strong>Adjudication Notes:</strong> ${escapeHtml(action.adjudication_notes)}
+                    <strong>White Cell Notes:</strong> ${escapeHtml(action.adjudication_notes)}
                 </div>
             ` : ''}
         </div>
@@ -119,7 +119,7 @@ export function createActionCard(action, options = {}) {
                         <button class="btn btn-primary btn-sm submit-btn">Submit</button>
                     ` : ''}
                     ${canAdjudicate && action.status === ENUMS.ACTION_STATUS.SUBMITTED ? `
-                        <button class="btn btn-primary btn-sm adjudicate-btn">Adjudicate</button>
+                        <button class="btn btn-primary btn-sm adjudicate-btn">Record Deliberation</button>
                     ` : ''}
                     ${canDelete && action.status === ENUMS.ACTION_STATUS.DRAFT ? `
                         <button class="btn btn-ghost btn-sm text-error delete-btn">Delete</button>

@@ -226,7 +226,7 @@ function buildActionSection(actions = [], {
     return {
         id: ACTIONS_SECTION_ID,
         label: 'Actions',
-        description: 'Live facilitator decisions and adjudication updates for the scribe seat.',
+        description: 'Live facilitator decisions and White Cell deliberation updates for the scribe seat.',
         slideCount: actionSlides.slideCount,
         slides: actionSlides.slides
     };
@@ -792,7 +792,7 @@ export class ScribeController {
                         <p class="scribe-action-slide-detail"><strong>Coordinated:</strong> ${escapeHtml(coordinated)}</p>
                         <p class="scribe-action-slide-detail"><strong>Informed:</strong> ${escapeHtml(informed)}</p>
                         ${submittedLabel ? `<p class="scribe-action-slide-detail"><strong>Submitted:</strong> ${escapeHtml(submittedLabel)}</p>` : ''}
-                        ${adjudicatedLabel ? `<p class="scribe-action-slide-detail"><strong>Adjudicated:</strong> ${escapeHtml(adjudicatedLabel)}</p>` : ''}
+                        ${adjudicatedLabel ? `<p class="scribe-action-slide-detail"><strong>Deliberation Update:</strong> ${escapeHtml(adjudicatedLabel)}</p>` : ''}
                         ${action.adjudication_notes ? `<p class="scribe-action-slide-detail scribe-action-slide-detail-full"><strong>White Cell Notes:</strong> ${escapeHtml(action.adjudication_notes)}</p>` : ''}
                         ${legacyNotes}
                     </div>

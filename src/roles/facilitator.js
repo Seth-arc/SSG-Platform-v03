@@ -321,7 +321,7 @@ export class FacilitatorController {
             } else if (isRedResponseFlow) {
                 actionsDescription.textContent = 'Respond to Blue Team moves. White Cell reviews each response before it takes effect.';
             } else {
-                actionsDescription.textContent = 'Draft actions, submit them to White Cell, and track adjudication results.';
+                actionsDescription.textContent = 'Draft actions, submit them to White Cell, and track White Cell deliberation.';
             }
         }
 
@@ -1218,7 +1218,7 @@ export class FacilitatorController {
             {
                 key: 'reviewed',
                 title: 'White Cell Reviewed',
-                description: 'Actions White Cell has already adjudicated.'
+                description: 'Actions White Cell has already reviewed.'
             },
             {
                 key: 'other',
@@ -1425,7 +1425,7 @@ export class FacilitatorController {
                         ? 'This proposal is now read-only for facilitator and scribe seats until White Cell review.'
                         : (isRedResponseFlow
                             ? 'White Cell deliberation is underway. This move response is now read-only for facilitator and scribe seats.'
-                            : 'This action is now read-only for facilitator and scribe seats until adjudication.')}
+                            : 'White Cell deliberation is underway. This action is now read-only for facilitator and scribe seats.')}
                 </p>
             `;
         } else if (isAdjudicatedAction(action)) {
@@ -1435,7 +1435,7 @@ export class FacilitatorController {
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
                         White Cell ${isGreenProposalFlow
                             ? 'reviewed this proposal'
-                            : (isRedResponseFlow ? 'reviewed this move response' : 'adjudicated this action')} ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
+                            : (isRedResponseFlow ? 'reviewed this move response' : 'reviewed this action')} ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
                     </p>
                 `;
         } else if (this.isReadOnly) {
@@ -1476,7 +1476,7 @@ export class FacilitatorController {
                     ${isGreenProposalFlow ? this.renderProposalRecipientState(action) : ''}
                     ${action.adjudication_notes && !shouldHideWhiteCellReviewDetails ? `
                         <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
-                            <strong>Adjudication Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}
+                            <strong>White Cell Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}
                         </p>
                     ` : ''}
                     ${lifecycleMessage}

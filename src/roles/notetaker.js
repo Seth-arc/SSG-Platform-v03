@@ -598,7 +598,7 @@ export class NotetakerController {
                 ` : ''}
                 ${action.adjudication_notes ? `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
-                        <strong>Adjudication Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}
+                        <strong>White Cell Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}
                     </p>
                 ` : ''}
             </div>

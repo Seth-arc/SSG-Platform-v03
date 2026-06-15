@@ -178,6 +178,9 @@ export function toTitleCase(str) {
  */
 export function formatStatus(status) {
     if (!status) return '';
+    if (String(status).trim().toLowerCase() === 'adjudicated') {
+        return 'Deliberation Underway';
+    }
     return toTitleCase(status.replace(/_/g, ' '));
 }
 

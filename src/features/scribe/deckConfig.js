@@ -2,7 +2,7 @@ export const SCRIBE_DECK_SECTIONS = Object.freeze([
     {
         id: 'actions',
         label: 'Actions',
-        description: 'Live facilitator decisions and adjudication updates for the scribe seat.',
+        description: 'Live facilitator decisions and White Cell deliberation updates for the scribe seat.',
         slideNumbers: Object.freeze([])
     },
     {
