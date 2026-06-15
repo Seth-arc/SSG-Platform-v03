@@ -100,10 +100,12 @@ async function loadFacilitatorModule() {
 }
 
 describe('Facilitator and scribe access', () => {
-    afterEach(() => {
+    afterEach(async () => {
         vi.clearAllMocks();
         delete global.document;
         delete globalThis.__ESG_DISABLE_AUTO_INIT__;
+        const { sessionStore } = await import('../stores/session.js');
+        sessionStore.clearAll();
     });
 
     it('allows facilitator seats and rejects scribe seats on the facilitator surface', async () => {
@@ -279,6 +281,62 @@ describe('Facilitator and scribe access', () => {
         expect(markup).not.toContain('Send to Red Team');
     });
 
+    it('groups Blue strategic actions by lifecycle status in the action list', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const actionsList = createFakeElement('actionsList');
+        global.document = {
+            getElementById(id) {
+                return {
+                    actionsList
+                }[id] || null;
+            }
+        };
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+        controller.isReadOnly = false;
+        controller.actions = [
+            {
+                id: 'action-draft-1',
+                team: 'blue',
+                status: 'draft',
+                goal: 'Draft action',
+                mechanism: 'Economic',
+                move: 2,
+                phase: 2
+            },
+            {
+                id: 'action-submitted-1',
+                team: 'blue',
+                status: 'submitted',
+                goal: 'Submitted action',
+                mechanism: 'Economic',
+                move: 2,
+                phase: 2,
+                submitted_at: '2026-04-09T10:10:00.000Z'
+            },
+            {
+                id: 'action-reviewed-1',
+                team: 'blue',
+                status: 'adjudicated',
+                goal: 'Reviewed action',
+                mechanism: 'Economic',
+                move: 2,
+                phase: 2,
+                adjudicated_at: '2026-04-09T10:20:00.000Z'
+            }
+        ];
+
+        controller.renderActionsList();
+
+        expect(actionsList.innerHTML).toContain('Draft Strategic Actions (1)');
+        expect(actionsList.innerHTML).toContain('Submitted to White Cell (1)');
+        expect(actionsList.innerHTML).toContain('White Cell Reviewed (1)');
+        expect(actionsList.innerHTML.indexOf('Draft action')).toBeLessThan(actionsList.innerHTML.indexOf('Submitted action'));
+        expect(actionsList.innerHTML.indexOf('Submitted action')).toBeLessThan(actionsList.innerHTML.indexOf('Reviewed action'));
+    });
+
     it('renders Blue Team wizard fields on facilitator action cards', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
@@ -304,8 +362,10 @@ describe('Facilitator and scribe access', () => {
             expected_outcomes: 'Reduce exposure before the next move.',
             ally_contingencies: serializeBlueActionDetails({
                 objective: 'Lower upstream dependency on PRC inputs.',
-                lever: 'Export Controls',
-                implementation: 'Executive Order',
+                levers: ['Export Controls', 'Sanctions'],
+                sectors: ['Biotechnology', 'Agriculture'],
+                implementation: 'Legislative',
+                legislativeOptions: ['Existing legislation/policy', 'Proposing new legislation/policy'],
                 enforcementTimeline: '6 months',
                 coordinated: ['Executive'],
                 informed: ['Allied']
@@ -314,7 +374,9 @@ describe('Facilitator and scribe access', () => {
         const markup = controller.renderActionCard(controller.actions[1]);
 
         expect(markup).toContain('Objective:</strong> Lower upstream dependency on PRC inputs.');
-        expect(markup).toContain('Lever:</strong> Export Controls');
+        expect(markup).toContain('Levers:</strong> Export Controls, Sanctions');
+        expect(markup).toContain('Sectors:</strong> Biotechnology, Agriculture');
+        expect(markup).toContain('Legislative Route:</strong> Existing legislation/policy, Proposing new legislation/policy');
         expect(markup).toContain('Coordinated:</strong> Executive');
         expect(markup).toContain('Informed:</strong> Allied');
         expect(markup).toContain('Timeline:</strong> 6 months');
@@ -329,8 +391,16 @@ describe('Facilitator and scribe access', () => {
         const blueWizardMarkup = controller.createBlueActionWizardContent().innerHTML;
         const actionFormMarkup = controller.createActionFormContent().innerHTML;
 
+        expect(blueWizardMarkup).toContain('data-blue-action-checkbox="lever"');
+        expect(blueWizardMarkup).toContain('Select one or more levers.');
+        expect(blueWizardMarkup).toContain('data-blue-action-checkbox="sector"');
+        expect(blueWizardMarkup).toContain('Select one or more sectors.');
         expect(blueWizardMarkup).toContain('data-blue-action-checkbox="country"');
+        expect(blueWizardMarkup).toContain('value="BRICS+"');
         expect(blueWizardMarkup).toContain('Select one or more countries.');
+        expect(blueWizardMarkup).toContain('data-blue-action-checkbox="legislative"');
+        expect(blueWizardMarkup).toContain('Select all legislative routes that apply.');
+        expect(blueWizardMarkup).toContain('actionEnforcementTimelineOther');
         expect(blueWizardMarkup).not.toContain('Hold Ctrl');
 
         expect(actionFormMarkup).toContain('data-action-checkbox="target"');
@@ -353,8 +423,6 @@ describe('Facilitator and scribe access', () => {
             '#actionTitle': 'Secure corridor access',
             '#actionInstrument': 'Economic',
             '#actionObjective': 'Stabilize trade flows.',
-            '#actionLever': 'Export Controls',
-            '#actionBlueSector': 'Biotechnology',
             '#actionSupplyChainFocus': 'Critical Minerals',
             '#actionImplementation': 'Executive Order',
             '#actionEnforcementTimeline': '6 months',
@@ -372,8 +440,16 @@ describe('Facilitator and scribe access', () => {
                 return { value: blueWizardFieldValues[selector] };
             },
             querySelectorAll(selector) {
+                if (selector === '[data-blue-action-checkbox="lever"]:checked') {
+                    return [{ value: 'Export Controls' }, { value: 'Sanctions' }];
+                }
+
+                if (selector === '[data-blue-action-checkbox="sector"]:checked') {
+                    return [{ value: 'Biotechnology' }, { value: 'Agriculture' }];
+                }
+
                 if (selector === '[data-blue-action-checkbox="country"]:checked') {
-                    return [{ value: 'Kenya' }, { value: 'Ghana' }];
+                    return [{ value: 'Kenya' }, { value: 'BRICS+' }];
                 }
 
                 if (selector === '[data-blue-action-checkbox="coordinated"]:checked') {
@@ -388,7 +464,9 @@ describe('Facilitator and scribe access', () => {
             }
         });
 
-        expect(wizardData.focusCountries).toEqual(['Kenya', 'Ghana']);
+        expect(wizardData.levers).toEqual(['Export Controls', 'Sanctions']);
+        expect(wizardData.sectors).toEqual(['Biotechnology', 'Agriculture']);
+        expect(wizardData.focusCountries).toEqual(['Kenya', 'BRICS+']);
         expect(wizardData.coordinated).toEqual(['Executive']);
         expect(wizardData.informed).toEqual(['Allied']);
 
@@ -415,6 +493,222 @@ describe('Facilitator and scribe access', () => {
 
         const formData = controller.getActionFormData();
         expect(formData.targets).toEqual(['PRC', 'RUS']);
+    });
+
+    it('captures and validates a custom enforcement timeline in the Blue wizard', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+
+        const wizardData = controller.getBlueActionWizardData({
+            querySelector(selector) {
+                return {
+                    '#actionTitle': { value: 'Secure corridor access' },
+                    '#actionInstrument': { value: 'Economic' },
+                    '#actionObjective': { value: 'Stabilize trade flows.' },
+                    '#actionSupplyChainFocus': { value: 'Critical Minerals' },
+                    '#actionImplementation': { value: 'Executive Order' },
+                    '#actionEnforcementTimeline': { value: 'Other' },
+                    '#actionEnforcementTimelineOther': { value: '18 months with quarterly checkpoints' },
+                    '#actionExpectedOutcomes': { value: 'Reduce dependency on vulnerable routes.' },
+                    '#actionBlueSectorOther': { value: '' },
+                    '#actionImplementationOther': { value: '' }
+                }[selector] || null;
+            },
+            querySelectorAll(selector) {
+                if (selector === '[data-blue-action-checkbox="lever"]:checked') {
+                    return [{ value: 'Export Controls' }];
+                }
+
+                if (selector === '[data-blue-action-checkbox="sector"]:checked') {
+                    return [{ value: 'Biotechnology' }];
+                }
+
+                if (selector === '[data-blue-action-checkbox="country"]:checked') {
+                    return [{ value: 'Kenya' }];
+                }
+
+                return [];
+            }
+        });
+
+        expect(wizardData.enforcementTimeline).toBe('18 months with quarterly checkpoints');
+        expect(wizardData.enforcementTimelineSelectValue).toBe('Other');
+        expect(wizardData.enforcementTimelineOther).toBe('18 months with quarterly checkpoints');
+        expect(controller.validateBlueActionWizardPage(wizardData, 1)).toBeNull();
+        expect(controller.validateBlueActionWizardPage({
+            ...wizardData,
+            enforcementTimelineOther: '',
+            enforcementTimeline: ''
+        }, 1)).toBe('Please enter the custom enforcement timeline.');
+    });
+
+    it('allows Blue drafts to be saved before the final summary page', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        const pageZeroDraft = {
+            actionTitle: 'Secure corridor access',
+            objective: 'Stabilize trade flows.',
+            instrumentOfPower: 'Economic',
+            levers: ['Export Controls'],
+            sectors: [],
+            selectedSectorValues: [],
+            sectorOther: '',
+            supplyChainFocus: '',
+            implementation: '',
+            implementationSelectValue: '',
+            implementationOther: '',
+            legislativeOptions: [],
+            focusCountries: [],
+            enforcementTimeline: '',
+            enforcementTimelineSelectValue: '',
+            enforcementTimelineOther: '',
+            expectedOutcomes: '',
+            coordinated: [],
+            informed: []
+        };
+
+        expect(controller.getBlueActionDraftSaveValidationError({
+            ...pageZeroDraft,
+            actionTitle: '',
+            objective: '',
+            instrumentOfPower: '',
+            levers: []
+        }, 0)).toBe('Add at least one action detail before saving a draft.');
+        expect(controller.getBlueActionDraftSaveValidationError(pageZeroDraft, 0)).toBeNull();
+        expect(controller.getBlueActionDraftSaveValidationError(pageZeroDraft, 1)).toBeNull();
+        expect(controller.getBlueActionDraftSaveValidationError(pageZeroDraft, 2)).toBe('Select at least one sector.');
+    });
+
+    it('saves a Blue draft from the first wizard page without requiring later pages', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { sessionStore } = await import('../stores/session.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-blue-draft');
+        vi.spyOn(sessionStore, 'getClientId').mockReturnValue('client-blue-draft');
+
+        createAction.mockResolvedValue({
+            id: 'action-blue-draft-1',
+            session_id: 'session-blue-draft',
+            team: 'blue',
+            goal: 'Secure corridor access',
+            move: 2,
+            phase: 3,
+            status: 'draft'
+        });
+        createTimelineEvent.mockResolvedValue({
+            id: 'timeline-blue-draft-1',
+            session_id: 'session-blue-draft',
+            type: 'ACTION_CREATED',
+            content: 'Draft action created: Secure corridor access',
+            team: 'blue',
+            move: 2,
+            phase: 3,
+            created_at: '2026-06-15T10:00:00.000Z'
+        });
+        const actionsStoreSpy = vi.spyOn(actionsStore, 'updateFromServer');
+        const timelineStoreSpy = vi.spyOn(timelineStore, 'updateFromServer');
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+        controller.role = 'blue_facilitator';
+        controller.isReadOnly = false;
+        vi.spyOn(controller, 'getCurrentGameState').mockReturnValue({
+            move: 2,
+            phase: 3
+        });
+        const modal = {
+            close: vi.fn()
+        };
+
+        await controller.saveBlueActionDraft(modal, {
+            querySelector(selector) {
+                return {
+                    '#actionTitle': { value: 'Secure corridor access' },
+                    '#actionInstrument': { value: '' },
+                    '#actionObjective': { value: 'Stabilize trade flows.' },
+                    '#actionSupplyChainFocus': { value: '' },
+                    '#actionImplementation': { value: '' },
+                    '#actionEnforcementTimeline': { value: '' },
+                    '#actionExpectedOutcomes': { value: '' },
+                    '#actionBlueSectorOther': { value: '' },
+                    '#actionImplementationOther': { value: '' },
+                    '#actionEnforcementTimelineOther': { value: '' }
+                }[selector] || null;
+            },
+            querySelectorAll() {
+                return [];
+            }
+        }, 0);
+
+        expect(createAction).toHaveBeenCalledWith(expect.objectContaining({
+            session_id: 'session-blue-draft',
+            team: 'blue',
+            status: 'draft',
+            move: 2,
+            phase: 3,
+            goal: 'Secure corridor access',
+            mechanism: '',
+            sector: '',
+            expected_outcomes: ''
+        }));
+        expect(createAction.mock.calls[0][0].ally_contingencies).toContain('Objective: Stabilize trade flows.');
+        expect(actionsStoreSpy).toHaveBeenCalledWith('INSERT', expect.objectContaining({
+            id: 'action-blue-draft-1'
+        }));
+        expect(timelineStoreSpy).toHaveBeenCalledWith('INSERT', expect.objectContaining({
+            id: 'timeline-blue-draft-1'
+        }));
+        expect(showToast).toHaveBeenCalledWith({ message: 'Draft action saved', type: 'success' });
+        expect(modal.close).toHaveBeenCalled();
+    });
+
+    it('collects legislative route selections when implementation is Legislative', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+
+        const wizardData = controller.getBlueActionWizardData({
+            querySelector(selector) {
+                return {
+                    '#actionTitle': { value: 'Secure corridor access' },
+                    '#actionInstrument': { value: 'Economic' },
+                    '#actionObjective': { value: 'Stabilize trade flows.' },
+                    '#actionSupplyChainFocus': { value: 'Critical Minerals' },
+                    '#actionImplementation': { value: 'Legislative' },
+                    '#actionEnforcementTimeline': { value: '6 months' },
+                    '#actionExpectedOutcomes': { value: 'Reduce dependency on vulnerable routes.' },
+                    '#actionBlueSectorOther': { value: '' },
+                    '#actionImplementationOther': { value: '' },
+                    '#actionEnforcementTimelineOther': { value: '' }
+                }[selector] || null;
+            },
+            querySelectorAll(selector) {
+                if (selector === '[data-blue-action-checkbox="lever"]:checked') {
+                    return [{ value: 'Export Controls' }];
+                }
+
+                if (selector === '[data-blue-action-checkbox="sector"]:checked') {
+                    return [{ value: 'Biotechnology' }];
+                }
+
+                if (selector === '[data-blue-action-checkbox="legislative"]:checked') {
+                    return [{ value: 'Existing legislation/policy' }, { value: 'Proposing new legislation/policy' }];
+                }
+
+                if (selector === '[data-blue-action-checkbox="country"]:checked') {
+                    return [{ value: 'BRICS+' }];
+                }
+
+                return [];
+            }
+        });
+
+        expect(wizardData.implementation).toBe('Legislative');
+        expect(wizardData.legislativeOptions).toEqual([
+            'Existing legislation/policy',
+            'Proposing new legislation/policy'
+        ]);
     });
 
     it('builds Green proposals with a concrete persisted mechanism label', async () => {

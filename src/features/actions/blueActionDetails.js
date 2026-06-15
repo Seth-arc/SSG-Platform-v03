@@ -37,12 +37,18 @@ export const BLUE_ACTION_IMPLEMENTATIONS = Object.freeze([
     'Other'
 ]);
 
+export const BLUE_ACTION_LEGISLATIVE_OPTIONS = Object.freeze([
+    'Existing legislation/policy',
+    'Proposing new legislation/policy'
+]);
+
 export const BLUE_ACTION_COUNTRIES = Object.freeze([
     'PRC',
     'Russia',
     'EU',
     'France',
     'UK',
+    'BRICS+',
     'ROK',
     'ASEAN',
     'Japan'
@@ -51,7 +57,8 @@ export const BLUE_ACTION_COUNTRIES = Object.freeze([
 export const BLUE_ACTION_ENFORCEMENT_TIMELINES = Object.freeze([
     '3 months',
     '6 months',
-    '12 months'
+    '12 months',
+    'Other'
 ]);
 
 export const BLUE_ACTION_COORDINATED_OPTIONS = Object.freeze([
@@ -80,6 +87,32 @@ function normalizeStringList(values = []) {
         .filter(Boolean);
 }
 
+function serializeStringList(values = [], emptyLabel = 'None selected') {
+    const normalizedValues = normalizeStringList(values);
+
+    return normalizedValues.length
+        ? JSON.stringify(normalizedValues)
+        : emptyLabel;
+}
+
+function parseStringList(value = '', emptyLabel = 'None selected') {
+    const normalizedValue = normalizeString(value);
+    if (!normalizedValue || normalizedValue === emptyLabel) {
+        return [];
+    }
+
+    try {
+        const parsedValue = JSON.parse(normalizedValue);
+        if (Array.isArray(parsedValue)) {
+            return normalizeStringList(parsedValue);
+        }
+    } catch (_error) {
+        // Fall through to the legacy comma-separated parser.
+    }
+
+    return normalizeStringList(normalizedValue.split(','));
+}
+
 function getActionTargets(action = {}) {
     return Array.isArray(action.targets)
         ? action.targets
@@ -87,17 +120,30 @@ function getActionTargets(action = {}) {
 }
 
 export function serializeBlueActionDetails(details = {}) {
+    const levers = normalizeStringList(
+        Array.isArray(details.levers)
+            ? details.levers
+            : (details.lever ? [details.lever] : [])
+    );
+    const sectors = normalizeStringList(
+        Array.isArray(details.sectors)
+            ? details.sectors
+            : (details.sector ? [details.sector] : [])
+    );
+    const legislativeOptions = normalizeStringList(details.legislativeOptions);
     const coordinated = normalizeStringList(details.coordinated);
     const informed = normalizeStringList(details.informed);
 
     return [
         BLUE_ACTION_DETAILS_PREFIX,
         `Objective: ${normalizeString(details.objective)}`,
-        `Lever: ${normalizeString(details.lever)}`,
+        `Levers: ${serializeStringList(levers)}`,
+        `Sectors: ${serializeStringList(sectors)}`,
         `Implementation: ${normalizeString(details.implementation)}`,
+        `Legislative Options: ${serializeStringList(legislativeOptions)}`,
         `Enforcement Timeline: ${normalizeString(details.enforcementTimeline)}`,
-        `Coordinated: ${coordinated.length ? coordinated.join(', ') : 'None selected'}`,
-        `Informed: ${informed.length ? informed.join(', ') : 'None selected'}`
+        `Coordinated: ${serializeStringList(coordinated)}`,
+        `Informed: ${serializeStringList(informed)}`
     ].join('\n');
 }
 
@@ -127,16 +173,23 @@ export function parseBlueActionDetails(value = '') {
                 })
                 .filter(Boolean)
         );
-        const coordinatedValue = parsed.Coordinated === 'None selected' ? '' : parsed.Coordinated;
-        const informedValue = parsed.Informed === 'None selected' ? '' : parsed.Informed;
+        const levers = parseStringList(parsed.Levers || parsed.Lever);
+        const sectors = parseStringList(parsed.Sectors || parsed.Sector);
+        const legislativeOptions = parseStringList(parsed['Legislative Options']);
+        const coordinated = parseStringList(parsed.Coordinated);
+        const informed = parseStringList(parsed.Informed);
 
         return {
             objective: normalizeString(parsed.Objective),
-            lever: normalizeString(parsed.Lever),
+            lever: levers[0] || '',
+            levers,
+            sector: sectors[0] || '',
+            sectors,
             implementation: normalizeString(parsed.Implementation),
+            legislativeOptions,
             enforcementTimeline: normalizeString(parsed['Enforcement Timeline']),
-            coordinated: normalizeStringList(coordinatedValue ? coordinatedValue.split(',') : []),
-            informed: normalizeStringList(informedValue ? informedValue.split(',') : [])
+            coordinated,
+            informed
         };
     } catch (_error) {
         return null;
@@ -145,16 +198,26 @@ export function parseBlueActionDetails(value = '') {
 
 export function getBlueActionViewModel(action = {}) {
     const details = parseBlueActionDetails(action.ally_contingencies);
+    const levers = details?.levers?.length
+        ? details.levers
+        : normalizeStringList(details?.lever ? [details.lever] : []);
+    const sector = normalizeString(action.sector) || details?.sector || '';
+    const sectors = details?.sectors?.length
+        ? details.sectors
+        : normalizeStringList(sector ? [sector] : []);
 
     return {
         hasBlueActionDetails: Boolean(details),
         title: action.goal || action.title || 'Untitled action',
         objective: details?.objective || normalizeString(action.description),
         instrumentOfPower: action.mechanism || '',
-        lever: details?.lever || '',
-        sector: action.sector || '',
+        lever: levers[0] || '',
+        levers,
+        sector,
+        sectors,
         supplyChainFocus: action.exposure_type || '',
         implementation: details?.implementation || '',
+        legislativeOptions: details?.legislativeOptions || [],
         focusCountries: getActionTargets(action),
         enforcementTimeline: details?.enforcementTimeline || '',
         expectedOutcomes: action.expected_outcomes || action.description || '',

@@ -28,6 +28,7 @@ import {
     BLUE_ACTION_IMPLEMENTATIONS,
     BLUE_ACTION_INFORMED_OPTIONS,
     BLUE_ACTION_INSTRUMENTS,
+    BLUE_ACTION_LEGISLATIVE_OPTIONS,
     BLUE_ACTION_LEVERS,
     BLUE_ACTION_SECTORS,
     BLUE_ACTION_SUPPLY_CHAIN_FOCUS,
@@ -1122,7 +1123,7 @@ export class FacilitatorController {
             return;
         }
 
-        actionsList.innerHTML = this.actions.map((action) => this.renderActionCard(action)).join('');
+        actionsList.innerHTML = this.renderGroupedActionList();
 
         actionsList.querySelectorAll('.edit-action-btn').forEach((button) => {
             button.addEventListener('click', () => {
@@ -1152,6 +1153,150 @@ export class FacilitatorController {
         });
     }
 
+    getActionStatusGroupDefinitions() {
+        if (this.teamId === 'green') {
+            return [
+                {
+                    key: 'draft',
+                    title: 'Draft Proposals',
+                    description: 'Editable proposals that have not yet been sent to White Cell.'
+                },
+                {
+                    key: 'submitted',
+                    title: 'Sent to White Cell',
+                    description: 'Read-only proposals currently awaiting White Cell review.'
+                },
+                {
+                    key: 'reviewed',
+                    title: 'White Cell Reviewed',
+                    description: 'Proposals White Cell has already reviewed.'
+                },
+                {
+                    key: 'other',
+                    title: 'Other Proposal Statuses',
+                    description: 'Proposals outside the standard draft and review flow.'
+                }
+            ];
+        }
+
+        if (this.teamId === 'red') {
+            return [
+                {
+                    key: 'draft',
+                    title: 'Draft Move Responses',
+                    description: 'Editable move responses that have not yet been submitted to White Cell.'
+                },
+                {
+                    key: 'submitted',
+                    title: 'Submitted to White Cell',
+                    description: 'Read-only move responses currently under White Cell deliberation.'
+                },
+                {
+                    key: 'reviewed',
+                    title: 'White Cell Reviewed',
+                    description: 'Move responses White Cell has already reviewed.'
+                },
+                {
+                    key: 'other',
+                    title: 'Other Response Statuses',
+                    description: 'Move responses outside the standard draft and review flow.'
+                }
+            ];
+        }
+
+        return [
+            {
+                key: 'draft',
+                title: 'Draft Strategic Actions',
+                description: 'Editable actions that have not yet been submitted to White Cell.'
+            },
+            {
+                key: 'submitted',
+                title: 'Submitted to White Cell',
+                description: 'Read-only actions currently awaiting White Cell review.'
+            },
+            {
+                key: 'reviewed',
+                title: 'White Cell Reviewed',
+                description: 'Actions White Cell has already adjudicated.'
+            },
+            {
+                key: 'other',
+                title: 'Other Action Statuses',
+                description: 'Actions outside the standard draft and review flow.'
+            }
+        ];
+    }
+
+    getActionStatusGroupKey(action = {}) {
+        const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
+
+        if (isSubmittedAction(status)) {
+            return 'submitted';
+        }
+
+        if (isAdjudicatedAction(status)) {
+            return 'reviewed';
+        }
+
+        if (canEditAction(status)) {
+            return 'draft';
+        }
+
+        return 'other';
+    }
+
+    renderGroupedActionList() {
+        const groupDefinitions = this.getActionStatusGroupDefinitions();
+        const groupedActions = new Map(
+            groupDefinitions.map((group) => [group.key, []])
+        );
+
+        this.actions.forEach((action) => {
+            const groupKey = this.getActionStatusGroupKey(action);
+            if (!groupedActions.has(groupKey)) {
+                groupedActions.set(groupKey, []);
+            }
+            groupedActions.get(groupKey).push(action);
+        });
+
+        return groupDefinitions
+            .map((group) => {
+                const groupActions = groupedActions.get(group.key) || [];
+                if (!groupActions.length) {
+                    return '';
+                }
+
+                return `
+                    <section
+                        data-action-status-group="${group.key}"
+                        aria-labelledby="actions-group-${group.key}"
+                        style="display: grid; gap: var(--space-3); margin-bottom: var(--space-4);"
+                    >
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border-default);"
+                        >
+                            <div>
+                                <h3
+                                    id="actions-group-${group.key}"
+                                    class="font-semibold text-sm"
+                                    style="margin: 0;"
+                                >${this.escapeHtml(`${group.title} (${groupActions.length})`)}</h3>
+                                <p class="text-xs text-gray-500" style="margin: var(--space-1) 0 0;">
+                                    ${this.escapeHtml(group.description)}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="card-list" aria-labelledby="actions-group-${group.key}">
+                            ${groupActions.map((action) => this.renderActionCard(action)).join('')}
+                        </div>
+                    </section>
+                `;
+            })
+            .filter(Boolean)
+            .join('');
+    }
+
     renderActionCard(action) {
         const blueAction = getBlueActionViewModel(action);
         const isGreenProposalFlow = this.teamId === 'green';
@@ -1162,6 +1307,9 @@ export class FacilitatorController {
             ? (moveResponse.expectedEffect || 'No expected effect recorded')
             : (blueAction.expectedOutcomes || 'No expected outcomes');
         const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
+        const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
+        const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
+        const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
         const sequenceLabel = this.isBlueTeamActionWizardEnabled(action)
             ? this.getBlueActionSequenceContext(action).label
             : `Move ${action.move || 1} | Phase ${action.phase || 1}`;
@@ -1225,15 +1373,20 @@ export class FacilitatorController {
                     </p>
                 ` : ''}
                 <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
-                    <strong>Lever:</strong> ${this.escapeHtml(blueAction.lever || 'Not specified')} |
+                    <strong>Levers:</strong> ${this.escapeHtml(leverLabel)} |
                     <strong>Implementation:</strong> ${this.escapeHtml(blueAction.implementation || 'Not specified')} |
                     <strong>Supply Chain Focus:</strong> ${this.escapeHtml(blueAction.supplyChainFocus || 'Not specified')}
                 </p>
                 <p class="text-xs text-gray-500">
                     <strong>Focus Countries:</strong> ${this.escapeHtml(targetLabel)} |
-                    <strong>Sector:</strong> ${this.escapeHtml(blueAction.sector || 'Not specified')} |
+                    <strong>Sectors:</strong> ${this.escapeHtml(sectorLabel)} |
                     <strong>Timeline:</strong> ${this.escapeHtml(blueAction.enforcementTimeline || 'Not specified')}
                 </p>
+                ${blueAction.implementation === 'Legislative' ? `
+                    <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
+                        <strong>Legislative Route:</strong> ${this.escapeHtml(legislativeOptionsLabel)}
+                    </p>
+                ` : ''}
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                     <strong>Coordinated:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.coordinated, 'None selected'))} |
                     <strong>Informed:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.informed, 'None selected'))}
@@ -2106,13 +2259,29 @@ export class FacilitatorController {
         const content = document.createElement('div');
         const blueAction = getBlueActionViewModel(action);
         const actionTitle = action.goal || action.title || '';
-        const sectorIsCustom = Boolean(action.sector) && !BLUE_ACTION_SECTORS.includes(action.sector);
+        const selectedLeverValues = blueAction.levers.length
+            ? blueAction.levers
+            : (blueAction.lever ? [blueAction.lever] : []);
+        const blueActionSectors = blueAction.sectors.length
+            ? blueAction.sectors
+            : (blueAction.sector ? [blueAction.sector] : []);
+        const builtInSectorValues = BLUE_ACTION_SECTORS.filter((value) => value !== 'Other');
+        const customSectorValue = blueActionSectors.find((value) => value && !builtInSectorValues.includes(value) && value !== 'Other') || '';
+        const selectedSectorValues = [
+            ...blueActionSectors.filter((value) => builtInSectorValues.includes(value)),
+            ...(customSectorValue || blueActionSectors.includes('Other') ? ['Other'] : [])
+        ];
         const implementationIsCustom = Boolean(blueAction.implementation)
             && !BLUE_ACTION_IMPLEMENTATIONS.includes(blueAction.implementation);
-        const sectorValue = sectorIsCustom ? 'Other' : (action.sector || '');
+        const builtInTimelineValues = BLUE_ACTION_ENFORCEMENT_TIMELINES.filter((value) => value !== 'Other');
+        const enforcementTimelineIsCustom = Boolean(blueAction.enforcementTimeline)
+            && !builtInTimelineValues.includes(blueAction.enforcementTimeline);
         const implementationValue = implementationIsCustom
             ? 'Other'
             : (blueAction.implementation || '');
+        const enforcementTimelineValue = enforcementTimelineIsCustom
+            ? 'Other'
+            : (blueAction.enforcementTimeline || '');
         const sequenceLabel = sequenceContext?.label || formatActionSequenceLabel({
             teamLabel: this.teamLabel,
             move: action?.move || this.getCurrentGameState().move || 1,
@@ -2176,21 +2345,46 @@ export class FacilitatorController {
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="actionLever">Lever *</label>
-                        <select id="actionLever" class="form-select">
-                            ${renderOptions(BLUE_ACTION_LEVERS, blueAction.lever || '', 'Select lever')}
-                        </select>
+                        <span class="form-label" id="actionLeversLabel">Levers *</span>
+                        <div
+                            class="form-check-grid"
+                            role="group"
+                            aria-labelledby="actionLeversLabel"
+                            aria-describedby="actionLeversHint"
+                        >
+                            ${renderCheckboxOptions({
+                                values: BLUE_ACTION_LEVERS,
+                                selectedValues: selectedLeverValues,
+                                dataAttribute: 'data-blue-action-checkbox',
+                                group: 'lever',
+                                idPrefix: 'actionLever'
+                            })}
+                        </div>
+                        <p class="form-hint" id="actionLeversHint">Select one or more levers.</p>
                     </div>
                 </section>
 
                 <section data-blue-action-page="1" hidden>
-                    <div class="section-grid section-grid-2">
-                        <div class="form-group">
-                            <label class="form-label" for="actionBlueSector">Sector *</label>
-                            <select id="actionBlueSector" class="form-select" data-blue-action-other-target="actionBlueSectorOther">
-                                ${renderOptions(BLUE_ACTION_SECTORS, sectorValue, 'Select sector')}
-                            </select>
+                    <div class="form-group">
+                        <span class="form-label" id="actionSectorsLabel">Sectors *</span>
+                        <div
+                            class="form-check-grid"
+                            role="group"
+                            aria-labelledby="actionSectorsLabel"
+                            aria-describedby="actionSectorsHint"
+                        >
+                            ${renderCheckboxOptions({
+                                values: BLUE_ACTION_SECTORS,
+                                selectedValues: selectedSectorValues,
+                                dataAttribute: 'data-blue-action-checkbox',
+                                group: 'sector',
+                                idPrefix: 'actionBlueSector'
+                            })}
                         </div>
+                        <p class="form-hint" id="actionSectorsHint">Select one or more sectors.</p>
+                    </div>
+
+                    <div class="section-grid section-grid-2">
                         <div class="form-group">
                             <label class="form-label" for="actionSupplyChainFocus">Supply Chain Focus *</label>
                             <select id="actionSupplyChainFocus" class="form-select">
@@ -2202,14 +2396,14 @@ export class FacilitatorController {
                     <div
                         class="form-group"
                         id="actionBlueSectorOtherGroup"
-                        ${sectorValue === 'Other' ? '' : 'hidden'}
+                        ${selectedSectorValues.includes('Other') ? '' : 'hidden'}
                     >
                         <label class="form-label" for="actionBlueSectorOther">Other Sector *</label>
                         <input
                             id="actionBlueSectorOther"
                             class="form-input"
                             type="text"
-                            value="${this.escapeHtml(sectorIsCustom ? action.sector : '')}"
+                            value="${this.escapeHtml(customSectorValue)}"
                             maxlength="120"
                         >
                     </div>
@@ -2223,8 +2417,12 @@ export class FacilitatorController {
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="actionEnforcementTimeline">Enforcement Timeline *</label>
-                            <select id="actionEnforcementTimeline" class="form-select">
-                                ${renderOptions(BLUE_ACTION_ENFORCEMENT_TIMELINES, blueAction.enforcementTimeline || '', 'Select timeline')}
+                            <select
+                                id="actionEnforcementTimeline"
+                                class="form-select"
+                                data-blue-action-other-target="actionEnforcementTimelineOther"
+                            >
+                                ${renderOptions(BLUE_ACTION_ENFORCEMENT_TIMELINES, enforcementTimelineValue, 'Select timeline')}
                             </select>
                         </div>
                     </div>
@@ -2240,6 +2438,44 @@ export class FacilitatorController {
                             class="form-input"
                             type="text"
                             value="${this.escapeHtml(implementationIsCustom ? blueAction.implementation : '')}"
+                            maxlength="120"
+                        >
+                    </div>
+
+                    <div
+                        class="form-group"
+                        id="actionLegislativeOptionsGroup"
+                        ${implementationValue === 'Legislative' ? '' : 'hidden'}
+                    >
+                        <span class="form-label" id="actionLegislativeOptionsLabel">Legislative Route</span>
+                        <div
+                            class="form-check-grid"
+                            role="group"
+                            aria-labelledby="actionLegislativeOptionsLabel"
+                            aria-describedby="actionLegislativeOptionsHint"
+                        >
+                            ${renderCheckboxOptions({
+                                values: BLUE_ACTION_LEGISLATIVE_OPTIONS,
+                                selectedValues: blueAction.legislativeOptions,
+                                dataAttribute: 'data-blue-action-checkbox',
+                                group: 'legislative',
+                                idPrefix: 'actionLegislativeOption'
+                            })}
+                        </div>
+                        <p class="form-hint" id="actionLegislativeOptionsHint">Select all legislative routes that apply.</p>
+                    </div>
+
+                    <div
+                        class="form-group"
+                        id="actionEnforcementTimelineOtherGroup"
+                        ${enforcementTimelineValue === 'Other' ? '' : 'hidden'}
+                    >
+                        <label class="form-label" for="actionEnforcementTimelineOther">Other Enforcement Timeline *</label>
+                        <input
+                            id="actionEnforcementTimelineOther"
+                            class="form-input"
+                            type="text"
+                            value="${this.escapeHtml(enforcementTimelineIsCustom ? blueAction.enforcementTimeline : '')}"
                             maxlength="120"
                         >
                     </div>
@@ -2363,9 +2599,12 @@ export class FacilitatorController {
                 <p><strong>Sequence:</strong> ${this.escapeHtml(sequenceContext?.label || '')}</p>
                 <p><strong>Title:</strong> ${this.escapeHtml(wizardData.actionTitle || 'Not specified')}</p>
                 <p><strong>Objective:</strong> ${this.escapeHtml(wizardData.objective || 'Not specified')}</p>
-                <p><strong>Instrument:</strong> ${this.escapeHtml(wizardData.instrumentOfPower || 'Not specified')} | <strong>Lever:</strong> ${this.escapeHtml(wizardData.lever || 'Not specified')}</p>
-                <p><strong>Sector:</strong> ${this.escapeHtml(wizardData.sector || 'Not specified')} | <strong>Supply Chain Focus:</strong> ${this.escapeHtml(wizardData.supplyChainFocus || 'Not specified')}</p>
+                <p><strong>Instrument:</strong> ${this.escapeHtml(wizardData.instrumentOfPower || 'Not specified')} | <strong>Levers:</strong> ${this.escapeHtml(formatBlueActionSelection(wizardData.levers, 'Not specified'))}</p>
+                <p><strong>Sectors:</strong> ${this.escapeHtml(formatBlueActionSelection(wizardData.sectors, 'Not specified'))} | <strong>Supply Chain Focus:</strong> ${this.escapeHtml(wizardData.supplyChainFocus || 'Not specified')}</p>
                 <p><strong>Implementation:</strong> ${this.escapeHtml(wizardData.implementation || 'Not specified')} | <strong>Timeline:</strong> ${this.escapeHtml(wizardData.enforcementTimeline || 'Not specified')}</p>
+                ${wizardData.implementationSelectValue === 'Legislative' ? `
+                    <p><strong>Legislative Route:</strong> ${this.escapeHtml(formatBlueActionSelection(wizardData.legislativeOptions, 'None selected'))}</p>
+                ` : ''}
                 <p><strong>Focus Countries:</strong> ${this.escapeHtml(formatBlueActionSelection(wizardData.focusCountries))}</p>
                 <p><strong>Expected Outcomes:</strong> ${this.escapeHtml(wizardData.expectedOutcomes || 'Not specified')}</p>
             `;
@@ -2404,7 +2643,7 @@ export class FacilitatorController {
             }
 
             if (saveDraftButton) {
-                saveDraftButton.hidden = currentPage !== BLUE_ACTION_WIZARD_PAGE_TOTAL - 1;
+                saveDraftButton.hidden = false;
             }
 
             if (submitButton) {
@@ -2412,7 +2651,7 @@ export class FacilitatorController {
             }
 
             if (saveChangesButton) {
-                saveChangesButton.hidden = currentPage !== BLUE_ACTION_WIZARD_PAGE_TOTAL - 1;
+                saveChangesButton.hidden = false;
             }
 
             if (currentPage === BLUE_ACTION_WIZARD_PAGE_TOTAL - 1) {
@@ -2422,11 +2661,45 @@ export class FacilitatorController {
             focusCurrentPage();
         };
 
-        form.querySelector('#actionBlueSector')?.addEventListener('change', () => {
-            updateOtherField('actionBlueSector', 'actionBlueSectorOther', 'actionBlueSectorOtherGroup');
+        const updateSectorOtherField = () => {
+            const input = form.querySelector('#actionBlueSectorOther');
+            const group = form.querySelector('#actionBlueSectorOtherGroup');
+            const showOther = getCheckedValues(form, '[data-blue-action-checkbox="sector"]').includes('Other');
+
+            if (group) {
+                group.hidden = !showOther;
+            }
+
+            if (input && !showOther) {
+                input.value = '';
+            }
+        };
+
+        const updateImplementationDependentFields = () => {
+            updateOtherField('actionImplementation', 'actionImplementationOther', 'actionImplementationOtherGroup');
+
+            const legislativeGroup = form.querySelector('#actionLegislativeOptionsGroup');
+            const showLegislativeOptions = form.querySelector('#actionImplementation')?.value === 'Legislative';
+
+            if (legislativeGroup) {
+                legislativeGroup.hidden = !showLegislativeOptions;
+            }
+
+            if (!showLegislativeOptions) {
+                form.querySelectorAll('[data-blue-action-checkbox="legislative"]').forEach((checkbox) => {
+                    checkbox.checked = false;
+                });
+            }
+        };
+
+        form.querySelectorAll('[data-blue-action-checkbox="sector"]').forEach((checkbox) => {
+            checkbox.addEventListener('change', updateSectorOtherField);
         });
         form.querySelector('#actionImplementation')?.addEventListener('change', () => {
-            updateOtherField('actionImplementation', 'actionImplementationOther', 'actionImplementationOtherGroup');
+            updateImplementationDependentFields();
+        });
+        form.querySelector('#actionEnforcementTimeline')?.addEventListener('change', () => {
+            updateOtherField('actionEnforcementTimeline', 'actionEnforcementTimelineOther', 'actionEnforcementTimelineOtherGroup');
         });
 
         content.querySelector('[data-blue-action-nav="cancel"]')?.addEventListener('click', () => {
@@ -2451,7 +2724,7 @@ export class FacilitatorController {
         });
 
         saveDraftButton?.addEventListener('click', () => {
-            this.saveBlueActionDraft(modal, form).catch((error) => {
+            this.saveBlueActionDraft(modal, form, currentPage).catch((error) => {
                 logger.error('Failed to save Blue team draft action:', error);
             });
         });
@@ -2463,7 +2736,7 @@ export class FacilitatorController {
         });
 
         saveChangesButton?.addEventListener('click', () => {
-            this.saveBlueActionChanges(modal, form, actionId).catch((error) => {
+            this.saveBlueActionChanges(modal, form, actionId, currentPage).catch((error) => {
                 logger.error('Failed to update Blue team draft action:', error);
             });
         });
@@ -2472,33 +2745,91 @@ export class FacilitatorController {
     }
 
     getBlueActionWizardData(form) {
+        const levers = getCheckedValues(form, '[data-blue-action-checkbox="lever"]');
+        const selectedSectorValues = getCheckedValues(form, '[data-blue-action-checkbox="sector"]');
+        const selectedLegislativeOptions = getCheckedValues(form, '[data-blue-action-checkbox="legislative"]');
         const focusCountries = getCheckedValues(form, '[data-blue-action-checkbox="country"]');
         const coordinated = getCheckedValues(form, '[data-blue-action-checkbox="coordinated"]');
         const informed = getCheckedValues(form, '[data-blue-action-checkbox="informed"]');
 
-        const sectorSelectValue = form.querySelector('#actionBlueSector')?.value || '';
         const implementationSelectValue = form.querySelector('#actionImplementation')?.value || '';
+        const enforcementTimelineSelectValue = form.querySelector('#actionEnforcementTimeline')?.value || '';
         const sectorOther = form.querySelector('#actionBlueSectorOther')?.value?.trim() || '';
         const implementationOther = form.querySelector('#actionImplementationOther')?.value?.trim() || '';
+        const enforcementTimelineOther = form.querySelector('#actionEnforcementTimelineOther')?.value?.trim() || '';
+        const sectors = [
+            ...selectedSectorValues.filter((value) => value !== 'Other'),
+            ...(selectedSectorValues.includes('Other') && sectorOther ? [sectorOther] : [])
+        ];
 
         return {
             actionTitle: form.querySelector('#actionTitle')?.value?.trim() || '',
             objective: form.querySelector('#actionObjective')?.value?.trim() || '',
             instrumentOfPower: form.querySelector('#actionInstrument')?.value || '',
-            lever: form.querySelector('#actionLever')?.value || '',
-            sector: sectorSelectValue === 'Other' ? sectorOther : sectorSelectValue,
-            sectorSelectValue,
+            lever: levers[0] || '',
+            levers,
+            sector: sectors[0] || '',
+            sectors,
+            selectedSectorValues,
             sectorOther,
             supplyChainFocus: form.querySelector('#actionSupplyChainFocus')?.value || '',
             implementation: implementationSelectValue === 'Other' ? implementationOther : implementationSelectValue,
             implementationSelectValue,
             implementationOther,
+            legislativeOptions: implementationSelectValue === 'Legislative' ? selectedLegislativeOptions : [],
             focusCountries,
-            enforcementTimeline: form.querySelector('#actionEnforcementTimeline')?.value || '',
+            enforcementTimeline: enforcementTimelineSelectValue === 'Other'
+                ? enforcementTimelineOther
+                : enforcementTimelineSelectValue,
+            enforcementTimelineSelectValue,
+            enforcementTimelineOther,
             expectedOutcomes: form.querySelector('#actionExpectedOutcomes')?.value?.trim() || '',
             coordinated,
             informed
         };
+    }
+
+    hasBlueActionDraftContent(wizardData) {
+        return Boolean(
+            wizardData.actionTitle
+            || wizardData.objective
+            || wizardData.instrumentOfPower
+            || wizardData.levers.length
+            || wizardData.sectors.length
+            || wizardData.sectorOther
+            || wizardData.supplyChainFocus
+            || wizardData.implementation
+            || wizardData.implementationOther
+            || wizardData.legislativeOptions.length
+            || wizardData.focusCountries.length
+            || wizardData.enforcementTimeline
+            || wizardData.enforcementTimelineOther
+            || wizardData.expectedOutcomes
+            || wizardData.coordinated.length
+            || wizardData.informed.length
+        );
+    }
+
+    getBlueActionDraftSaveValidationError(wizardData, currentPage = BLUE_ACTION_WIZARD_PAGE_TOTAL - 1) {
+        if (!this.hasBlueActionDraftContent(wizardData)) {
+            return 'Add at least one action detail before saving a draft.';
+        }
+
+        if (currentPage <= 0) {
+            return null;
+        }
+
+        // Mid-wizard saves should only enforce pages the facilitator has already completed.
+        const lastCompletedPage = Math.min(currentPage - 1, BLUE_ACTION_WIZARD_PAGE_TOTAL - 2);
+
+        for (let pageIndex = 0; pageIndex <= lastCompletedPage; pageIndex += 1) {
+            const error = this.validateBlueActionWizardPage(wizardData, pageIndex);
+            if (error) {
+                return error;
+            }
+        }
+
+        return null;
     }
 
     validateBlueActionWizardPage(wizardData, pageIndex) {
@@ -2506,12 +2837,12 @@ export class FacilitatorController {
             if (!wizardData.actionTitle) return 'Action Title is required.';
             if (!wizardData.objective) return 'Objective is required.';
             if (!wizardData.instrumentOfPower) return 'Instrument of Power is required.';
-            if (!wizardData.lever) return 'Lever is required.';
+            if (!wizardData.levers.length) return 'Select at least one lever.';
         }
 
         if (pageIndex === 1) {
-            if (!wizardData.sectorSelectValue) return 'Sector is required.';
-            if (wizardData.sectorSelectValue === 'Other' && !wizardData.sectorOther) {
+            if (!wizardData.selectedSectorValues.length) return 'Select at least one sector.';
+            if (wizardData.selectedSectorValues.includes('Other') && !wizardData.sectorOther) {
                 return 'Please enter the custom sector.';
             }
             if (!wizardData.supplyChainFocus) return 'Supply Chain Focus is required.';
@@ -2520,7 +2851,10 @@ export class FacilitatorController {
                 return 'Please enter the custom implementation.';
             }
             if (!wizardData.focusCountries.length) return 'Select at least one focus country.';
-            if (!wizardData.enforcementTimeline) return 'Enforcement Timeline is required.';
+            if (!wizardData.enforcementTimelineSelectValue) return 'Enforcement Timeline is required.';
+            if (wizardData.enforcementTimelineSelectValue === 'Other' && !wizardData.enforcementTimelineOther) {
+                return 'Please enter the custom enforcement timeline.';
+            }
             if (!wizardData.expectedOutcomes) return 'Expected Outcomes is required.';
         }
 
@@ -2538,8 +2872,10 @@ export class FacilitatorController {
             expected_outcomes: wizardData.expectedOutcomes,
             ally_contingencies: serializeBlueActionDetails({
                 objective: wizardData.objective,
-                lever: wizardData.lever,
+                levers: wizardData.levers,
+                sectors: wizardData.sectors,
                 implementation: wizardData.implementation,
+                legislativeOptions: wizardData.legislativeOptions,
                 enforcementTimeline: wizardData.enforcementTimeline,
                 coordinated: wizardData.coordinated,
                 informed: wizardData.informed
@@ -2547,16 +2883,15 @@ export class FacilitatorController {
         };
     }
 
-    async saveBlueActionDraft(modal, form) {
+    async saveBlueActionDraft(modal, form, currentPage = BLUE_ACTION_WIZARD_PAGE_TOTAL - 1) {
         if (!this.requireWriteAccess()) return;
 
         const wizardData = this.getBlueActionWizardData(form);
-        const pageZeroError = this.validateBlueActionWizardPage(wizardData, 0);
-        const pageOneError = this.validateBlueActionWizardPage(wizardData, 1);
+        const draftSaveError = this.getBlueActionDraftSaveValidationError(wizardData, currentPage);
         const sessionId = sessionStore.getSessionId();
 
-        if (pageZeroError || pageOneError) {
-            showToast({ message: pageZeroError || pageOneError, type: 'error' });
+        if (draftSaveError) {
+            showToast({ message: draftSaveError, type: 'error' });
             return;
         }
 
@@ -2604,15 +2939,14 @@ export class FacilitatorController {
         }
     }
 
-    async saveBlueActionChanges(modal, form, actionId) {
+    async saveBlueActionChanges(modal, form, actionId, currentPage = BLUE_ACTION_WIZARD_PAGE_TOTAL - 1) {
         if (!this.requireWriteAccess()) return;
 
         const wizardData = this.getBlueActionWizardData(form);
-        const pageZeroError = this.validateBlueActionWizardPage(wizardData, 0);
-        const pageOneError = this.validateBlueActionWizardPage(wizardData, 1);
+        const draftSaveError = this.getBlueActionDraftSaveValidationError(wizardData, currentPage);
 
-        if (pageZeroError || pageOneError) {
-            showToast({ message: pageZeroError || pageOneError, type: 'error' });
+        if (draftSaveError) {
+            showToast({ message: draftSaveError, type: 'error' });
             return;
         }
 

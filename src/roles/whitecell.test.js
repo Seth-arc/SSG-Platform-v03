@@ -743,8 +743,10 @@ describe('White Cell DOM contract', () => {
             expected_outcomes: 'Reduce leverage over critical production nodes.',
             ally_contingencies: serializeBlueActionDetails({
                 objective: 'Constrain upstream dependency before the next move.',
-                lever: 'Investment Screening',
+                levers: ['Investment Screening', 'Industrial Policy'],
+                sectors: ['Biotechnology', 'Agriculture'],
                 implementation: 'Legislative',
+                legislativeOptions: ['Existing legislation/policy', 'Proposing new legislation/policy'],
                 enforcementTimeline: '12 months',
                 coordinated: ['Legislative'],
                 informed: ['Allied']
@@ -757,12 +759,16 @@ describe('White Cell DOM contract', () => {
         });
 
         expect(markup).toContain('Objective:</strong> Constrain upstream dependency before the next move.');
-        expect(markup).toContain('Lever:</strong> Investment Screening');
+        expect(markup).toContain('Levers:</strong> Investment Screening, Industrial Policy');
+        expect(markup).toContain('Sectors:</strong> Biotechnology, Agriculture');
+        expect(markup).toContain('Legislative Route:</strong> Existing legislation/policy, Proposing new legislation/policy');
         expect(markup).toContain('Focus Countries:</strong> PRC, Japan');
         expect(markup).toContain('Timeline:</strong> 12 months');
         expect(markup).toContain('Coordinated:</strong> Legislative');
         expect(markup).toContain('Blue Team | Move 2 | Action 2 | Phase 2');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Objective: Constrain upstream dependency before the next move.');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Levers: Investment Screening, Industrial Policy');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Legislative Route: Existing legislation/policy, Proposing new legislation/policy');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Enforcement Timeline: 12 months');
     });
 

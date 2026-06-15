@@ -161,7 +161,53 @@ describe('database action write contracts', () => {
         }));
     });
 
-    it('fails fast when a non-special action write omits a mechanism', async () => {
+    it('allows incomplete draft rows to persist with an empty mechanism', async () => {
+        const { database } = await import('./database.js');
+        const { insert } = mockInsertChain();
+
+        await database.createAction({
+            session_id: 'session-1',
+            client_id: 'client-action-write-test',
+            move: 1,
+            phase: 1,
+            team: 'blue',
+            mechanism: '',
+            sector: '',
+            exposure_type: '',
+            targets: [],
+            goal: 'Secure corridor access',
+            expected_outcomes: '',
+            ally_contingencies: 'Blue Team Action Details\nObjective: Stabilize trade flows.',
+            priority: 'NORMAL',
+            status: 'draft'
+        });
+
+        expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+            mechanism: '',
+            status: 'draft'
+        }));
+    });
+
+    it('allows draft-only updates to clear the mechanism while the wizard is still in progress', async () => {
+        const { database } = await import('./database.js');
+        const { update } = mockUpdateChain();
+        vi.spyOn(database, 'getAction').mockResolvedValue({
+            id: 'action-draft-1',
+            status: 'draft'
+        });
+
+        await database.updateDraftAction('action-draft-1', {
+            mechanism: '',
+            goal: 'Secure corridor access'
+        });
+
+        expect(update).toHaveBeenCalledWith(expect.objectContaining({
+            mechanism: '',
+            goal: 'Secure corridor access'
+        }));
+    });
+
+    it('fails fast when a submitted non-special action write omits a mechanism', async () => {
         const { database } = await import('./database.js');
         mockInsertChain();
 
@@ -178,7 +224,8 @@ describe('database action write contracts', () => {
             goal: 'Generic action without a mechanism',
             expected_outcomes: 'Should not persist.',
             ally_contingencies: 'Coordinate quietly.',
-            priority: 'NORMAL'
+            priority: 'NORMAL',
+            status: 'submitted'
         })).rejects.toMatchObject({
             name: 'DatabaseError',
             message: 'Action mechanism is required.'

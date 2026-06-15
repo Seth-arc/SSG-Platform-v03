@@ -732,6 +732,9 @@ export class ScribeController {
             action.outcome ? createOutcomeBadge(action.outcome).outerHTML : ''
         ].filter(Boolean).join('');
         const targets = formatBlueActionSelection(actionViewModel.focusCountries);
+        const levers = formatBlueActionSelection(actionViewModel.levers, actionViewModel.lever || 'Not specified');
+        const sectors = formatBlueActionSelection(actionViewModel.sectors, actionViewModel.sector || action.sector || 'Not specified');
+        const legislativeOptions = formatBlueActionSelection(actionViewModel.legislativeOptions, 'None selected');
         const coordinated = formatBlueActionSelection(actionViewModel.coordinated, 'None selected');
         const informed = formatBlueActionSelection(actionViewModel.informed, 'None selected');
         const sequenceLabel = slide.sidebarKicker || formatActionSequenceLabel({
@@ -777,10 +780,13 @@ export class ScribeController {
                     <div class="scribe-action-slide-details">
                         <p class="scribe-action-slide-detail"><strong>Objective:</strong> ${escapeHtml(actionViewModel.objective || 'Not specified')}</p>
                         <p class="scribe-action-slide-detail"><strong>Instrument:</strong> ${escapeHtml(actionViewModel.instrumentOfPower || action.mechanism || 'Not specified')}</p>
-                        <p class="scribe-action-slide-detail"><strong>Lever:</strong> ${escapeHtml(actionViewModel.lever || 'Not specified')}</p>
+                        <p class="scribe-action-slide-detail"><strong>Levers:</strong> ${escapeHtml(levers)}</p>
                         <p class="scribe-action-slide-detail"><strong>Implementation:</strong> ${escapeHtml(actionViewModel.implementation || 'Not specified')}</p>
+                        ${actionViewModel.implementation === 'Legislative'
+                ? `<p class="scribe-action-slide-detail"><strong>Legislative Route:</strong> ${escapeHtml(legislativeOptions)}</p>`
+                : ''}
                         <p class="scribe-action-slide-detail"><strong>Focus Countries:</strong> ${escapeHtml(targets)}</p>
-                        <p class="scribe-action-slide-detail"><strong>Sector:</strong> ${escapeHtml(actionViewModel.sector || action.sector || 'Not specified')}</p>
+                        <p class="scribe-action-slide-detail"><strong>Sectors:</strong> ${escapeHtml(sectors)}</p>
                         <p class="scribe-action-slide-detail"><strong>Supply Chain Focus:</strong> ${escapeHtml(actionViewModel.supplyChainFocus || action.exposure_type || 'Not specified')}</p>
                         <p class="scribe-action-slide-detail"><strong>Timeline:</strong> ${escapeHtml(actionViewModel.enforcementTimeline || 'Not specified')}</p>
                         <p class="scribe-action-slide-detail"><strong>Coordinated:</strong> ${escapeHtml(coordinated)}</p>

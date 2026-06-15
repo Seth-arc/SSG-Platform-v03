@@ -1,5 +1,6 @@
 import { CONFIG } from '../../core/config.js';
 import {
+    formatBlueActionSelection,
     getActionSequenceNumber,
     getBlueActionViewModel,
     parseBlueActionDetails
@@ -1217,7 +1218,7 @@ function buildActionContent(bundle = {}, participantRegistry) {
                 move_number: action?.move ?? null,
                 action_sequence: getActionSequenceNumber(bundle.actions, action),
                 title: viewModel.title,
-                action_type: viewModel.lever || action?.mechanism || null,
+                action_type: formatBlueActionSelection(viewModel.levers, viewModel.lever || action?.mechanism || null),
                 intent_text: viewModel.objective || action?.goal || null,
                 targets: safeArray(action?.targets),
                 instruments: viewModel.instrumentOfPower ? [viewModel.instrumentOfPower] : [],

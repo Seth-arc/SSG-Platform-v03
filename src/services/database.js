@@ -137,7 +137,10 @@ function encodeDebugString(value = '') {
         .join(' ');
 }
 
-function resolvePersistedActionMechanism(actionData = {}) {
+function resolvePersistedActionMechanism(actionData = {}, {
+    allowEmptyMechanism = false
+} = {}) {
+    const hasExplicitMechanism = 'mechanism' in actionData;
     const explicitMechanism = typeof actionData.mechanism === 'string'
         ? actionData.mechanism.trim()
         : '';
@@ -153,16 +156,32 @@ function resolvePersistedActionMechanism(actionData = {}) {
         return MOVE_RESPONSE_ACTION_MECHANISM;
     }
 
+    if (allowEmptyMechanism && hasExplicitMechanism) {
+        // Draft rows keep the column non-null while the facilitator is still working.
+        return '';
+    }
+
     return null;
 }
 
 function resolveActionWritePayload(actionData = {}, operation = 'actionWrite', {
-    requireMechanism = false
+    requireMechanism = false,
+    allowEmptyMechanism = false
 } = {}) {
-    const mechanism = resolvePersistedActionMechanism(actionData);
-    const shouldWriteMechanism = requireMechanism || 'mechanism' in actionData || Boolean(mechanism);
+    const hasExplicitMechanism = 'mechanism' in actionData;
+    const mechanism = resolvePersistedActionMechanism(actionData, {
+        allowEmptyMechanism
+    });
+    const shouldWriteMechanism = requireMechanism || hasExplicitMechanism || Boolean(mechanism);
 
-    if (shouldWriteMechanism && !mechanism) {
+    if (shouldWriteMechanism && mechanism == null) {
+        if (allowEmptyMechanism && hasExplicitMechanism) {
+            return {
+                ...actionData,
+                mechanism: ''
+            };
+        }
+
         throw new DatabaseError('Action mechanism is required.', operation);
     }
 
@@ -863,7 +882,8 @@ export const database = {
             throw new DatabaseError(`Invalid action status: ${status}`, 'createAction');
         }
         const resolvedActionData = resolveActionWritePayload(actionData, 'createAction', {
-            requireMechanism: true
+            requireMechanism: true,
+            allowEmptyMechanism: status === ENUMS.ACTION_STATUS.DRAFT
         });
         const submittedAt = status === ENUMS.ACTION_STATUS.SUBMITTED
             ? (resolvedActionData.submitted_at || new Date().toISOString())
@@ -968,12 +988,16 @@ export const database = {
      * @param {Object} updates - Updates to apply
      * @returns {Promise<Object>} Updated action
      */
-    async updateAction(actionId, updates) {
+    async updateAction(actionId, updates, {
+        allowEmptyMechanism = false
+    } = {}) {
         await ensureAuthenticatedBrowser();
         if ('status' in updates && !isValidActionStatus(updates.status)) {
             throw new DatabaseError(`Invalid action status: ${updates.status}`, 'updateAction');
         }
-        const resolvedUpdates = resolveActionWritePayload(updates, 'updateAction');
+        const resolvedUpdates = resolveActionWritePayload(updates, 'updateAction', {
+            allowEmptyMechanism
+        });
 
         const { data, error } = await supabase
             .from('actions')
@@ -1014,7 +1038,9 @@ export const database = {
             ...draftUpdates
         } = updates;
 
-        return this.updateAction(actionId, draftUpdates);
+        return this.updateAction(actionId, draftUpdates, {
+            allowEmptyMechanism: true
+        });
     },
 
     /**

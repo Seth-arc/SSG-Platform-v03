@@ -71,7 +71,8 @@ function buildBundleFixture() {
                 expected_outcomes: 'Tighten partner alignment',
                 ally_contingencies: serializeBlueActionDetails({
                     objective: 'Coordinate export posture',
-                    lever: 'Export Controls',
+                    levers: ['Export Controls', 'Sanctions'],
+                    sectors: ['Biotechnology', 'Agriculture'],
                     implementation: 'Executive Order',
                     enforcementTimeline: '6 months',
                     coordinated: ['Executive'],
@@ -271,7 +272,14 @@ describe('research export builder', () => {
         });
         expect(exportBundle.actionContent[0]).toMatchObject({
             action_id: 'action-blue-1',
-            final_status: 'adjudicated'
+            action_type: 'Export Controls, Sanctions',
+            final_status: 'adjudicated',
+            full_content: {
+                details: {
+                    levers: ['Export Controls', 'Sanctions'],
+                    sectors: ['Biotechnology', 'Agriculture']
+                }
+            }
         });
         expect(exportBundle.proposalContent[0]).toMatchObject({
             proposal_id: 'proposal-green-1',

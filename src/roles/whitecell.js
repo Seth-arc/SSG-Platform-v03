@@ -526,6 +526,9 @@ export function canShareActionToRedTeam(action = {}) {
 export function buildSharedActionCommunicationContent(action = {}) {
     const blueAction = getBlueActionViewModel(action);
     const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
+    const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
+    const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
+    const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
     const expectedOutcomes = blueAction.expectedOutcomes || 'No expected outcomes recorded.';
     const contentParts = [
         'Blue Team action shared by White Cell',
@@ -534,7 +537,7 @@ export function buildSharedActionCommunicationContent(action = {}) {
         `Move: ${action.move || 1}`,
         `Phase: ${action.phase || 1}`,
         `${blueAction.hasBlueActionDetails ? 'Focus Countries' : 'Targets'}: ${targetLabel}`,
-        `Sector: ${blueAction.sector || 'Not specified'}`,
+        `${blueAction.hasBlueActionDetails ? 'Sectors' : 'Sector'}: ${sectorLabel}`,
         `${blueAction.hasBlueActionDetails ? 'Supply Chain Focus' : 'Exposure'}: ${blueAction.supplyChainFocus || 'Not specified'}`,
         `Expected Outcomes: ${expectedOutcomes}`
     ];
@@ -543,11 +546,14 @@ export function buildSharedActionCommunicationContent(action = {}) {
         if (blueAction.objective) {
             contentParts.push(`Objective: ${blueAction.objective}`);
         }
-        if (blueAction.lever) {
-            contentParts.push(`Lever: ${blueAction.lever}`);
+        if (blueAction.levers.length) {
+            contentParts.push(`Levers: ${leverLabel}`);
         }
         if (blueAction.implementation) {
             contentParts.push(`Implementation: ${blueAction.implementation}`);
+        }
+        if (blueAction.implementation === 'Legislative') {
+            contentParts.push(`Legislative Route: ${legislativeOptionsLabel}`);
         }
         if (blueAction.enforcementTimeline) {
             contentParts.push(`Enforcement Timeline: ${blueAction.enforcementTimeline}`);
@@ -1670,6 +1676,9 @@ export class WhiteCellController {
         const proposalViewModel = getProposalViewModel(action);
         const expectedOutcomes = blueAction.expectedOutcomes || '';
         const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
+        const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
+        const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
+        const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
         const sequenceLabel = this.getBlueTeamActionSequenceLabel(action);
         const submittedMarkup = action.submitted_at
             ? `
@@ -1697,15 +1706,20 @@ export class WhiteCellController {
                     </p>
                 ` : ''}
                 <p class="text-xs text-gray-500" style="margin-bottom: var(--space-2);">
-                    <strong>Lever:</strong> ${this.escapeHtml(blueAction.lever || 'Not specified')} |
+                    <strong>Levers:</strong> ${this.escapeHtml(leverLabel)} |
                     <strong>Implementation:</strong> ${this.escapeHtml(blueAction.implementation || 'Not specified')} |
                     <strong>Supply Chain Focus:</strong> ${this.escapeHtml(blueAction.supplyChainFocus || 'Not specified')}
                 </p>
                 <p class="text-xs text-gray-500">
                     <strong>Focus Countries:</strong> ${this.escapeHtml(targetLabel)} |
-                    <strong>Sector:</strong> ${this.escapeHtml(blueAction.sector || 'Not specified')} |
+                    <strong>Sectors:</strong> ${this.escapeHtml(sectorLabel)} |
                     <strong>Timeline:</strong> ${this.escapeHtml(blueAction.enforcementTimeline || 'Not specified')}
                 </p>
+                ${blueAction.implementation === 'Legislative' ? `
+                    <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
+                        <strong>Legislative Route:</strong> ${this.escapeHtml(legislativeOptionsLabel)}
+                    </p>
+                ` : ''}
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                     <strong>Coordinated:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.coordinated, 'None selected'))} |
                     <strong>Informed:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.informed, 'None selected'))}
@@ -1869,6 +1883,9 @@ export class WhiteCellController {
 
         const content = document.createElement('div');
         const blueAction = getBlueActionViewModel(action);
+        const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
+        const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
+        const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
         const sequenceLabel = this.getBlueTeamActionSequenceLabel(action);
         content.innerHTML = `
             <div class="mb-4">
@@ -1876,7 +1893,7 @@ export class WhiteCellController {
                 <p class="text-sm text-gray-500">${this.escapeHtml(blueAction.instrumentOfPower || 'No mechanism')} | ${this.escapeHtml(sequenceLabel)} | Phase ${action.phase || 1}</p>
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                     <strong>${blueAction.hasBlueActionDetails ? 'Focus Countries' : 'Targets'}:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.focusCountries))} |
-                    <strong>Sector:</strong> ${this.escapeHtml(blueAction.sector || 'Not specified')} |
+                    <strong>${blueAction.hasBlueActionDetails ? 'Sectors' : 'Sector'}:</strong> ${this.escapeHtml(sectorLabel)} |
                     <strong>${blueAction.hasBlueActionDetails ? 'Supply Chain Focus' : 'Exposure'}:</strong> ${this.escapeHtml(blueAction.supplyChainFocus || 'Not specified')}
                 </p>
                 ${action.submitted_at ? `
@@ -1891,10 +1908,15 @@ export class WhiteCellController {
                         </p>
                     ` : ''}
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
-                        <strong>Lever:</strong> ${this.escapeHtml(blueAction.lever || 'Not specified')} |
+                        <strong>Levers:</strong> ${this.escapeHtml(leverLabel)} |
                         <strong>Implementation:</strong> ${this.escapeHtml(blueAction.implementation || 'Not specified')} |
                         <strong>Timeline:</strong> ${this.escapeHtml(blueAction.enforcementTimeline || 'Not specified')}
                     </p>
+                    ${blueAction.implementation === 'Legislative' ? `
+                        <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
+                            <strong>Legislative Route:</strong> ${this.escapeHtml(legislativeOptionsLabel)}
+                        </p>
+                    ` : ''}
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                         <strong>Coordinated:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.coordinated, 'None selected'))} |
                         <strong>Informed:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.informed, 'None selected'))}

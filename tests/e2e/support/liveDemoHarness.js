@@ -19,6 +19,7 @@ export const DEFAULT_ACTION_PAYLOAD = Object.freeze({
     sector: 'Biotechnology',
     supplyChainFocus: 'Advanced Manufacturing',
     implementation: 'Executive Order',
+    legislativeOptions: [],
     focusCountries: ['PRC', 'Japan'],
     enforcementTimeline: '6 months',
     expectedOutcomes: 'Reduce allied dependence and build leverage before the next move begins.',
@@ -272,28 +273,47 @@ export async function createDraftAction(page, {
     sector = DEFAULT_ACTION_PAYLOAD.sector,
     supplyChainFocus = DEFAULT_ACTION_PAYLOAD.supplyChainFocus,
     implementation = DEFAULT_ACTION_PAYLOAD.implementation,
+    legislativeOptions = DEFAULT_ACTION_PAYLOAD.legislativeOptions,
     focusCountries = DEFAULT_ACTION_PAYLOAD.focusCountries,
     enforcementTimeline = DEFAULT_ACTION_PAYLOAD.enforcementTimeline,
     expectedOutcomes = DEFAULT_ACTION_PAYLOAD.expectedOutcomes,
     coordinated = DEFAULT_ACTION_PAYLOAD.coordinated,
     informed = DEFAULT_ACTION_PAYLOAD.informed
 } = {}) {
+    const builtInTimelines = new Set(['3 months', '6 months', '12 months', 'Other']);
+    const levers = Array.isArray(lever) ? lever : [lever];
+    const sectors = Array.isArray(sector) ? sector : [sector];
+
     await page.locator('#newActionBtn').click();
 
     const modal = page.locator('.modal-overlay');
     await modal.locator('#actionTitle').fill(goal);
     await modal.locator('#actionObjective').fill(objective);
     await modal.locator('#actionInstrument').selectOption(instrumentOfPower);
-    await modal.locator('#actionLever').selectOption(lever);
+    for (const leverValue of levers) {
+        await modal.locator(`[data-blue-action-checkbox="lever"][value="${leverValue}"]`).check();
+    }
     await modal.getByRole('button', { name: 'Next' }).click();
 
-    await modal.locator('#actionBlueSector').selectOption(sector);
+    for (const sectorValue of sectors) {
+        await modal.locator(`[data-blue-action-checkbox="sector"][value="${sectorValue}"]`).check();
+    }
     await modal.locator('#actionSupplyChainFocus').selectOption(supplyChainFocus);
     await modal.locator('#actionImplementation').selectOption(implementation);
+    if (implementation === 'Legislative') {
+        for (const legislativeOption of legislativeOptions) {
+            await modal.locator(`[data-blue-action-checkbox="legislative"][value="${legislativeOption}"]`).check();
+        }
+    }
     for (const focusCountry of focusCountries) {
         await modal.locator(`[data-blue-action-checkbox="country"][value="${focusCountry}"]`).check();
     }
-    await modal.locator('#actionEnforcementTimeline').selectOption(enforcementTimeline);
+    if (builtInTimelines.has(enforcementTimeline)) {
+        await modal.locator('#actionEnforcementTimeline').selectOption(enforcementTimeline);
+    } else {
+        await modal.locator('#actionEnforcementTimeline').selectOption('Other');
+        await modal.locator('#actionEnforcementTimelineOther').fill(enforcementTimeline);
+    }
     await modal.locator('#actionExpectedOutcomes').fill(expectedOutcomes);
     await modal.getByRole('button', { name: 'Next' }).click();
 
