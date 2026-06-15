@@ -38,6 +38,22 @@ async function loadGameStateModule() {
     return import('./gameState.js');
 }
 
+function buildGameState(overrides = {}) {
+    return {
+        id: 'game-state-1',
+        session_id: 'session-live-1',
+        move: 1,
+        phase: 1,
+        timer_seconds: 5400,
+        timer_running: false,
+        timer_last_update: null,
+        status: 'active',
+        updated_at: new Date().toISOString(),
+        last_updated: new Date().toISOString(),
+        ...overrides
+    };
+}
+
 describe('GameStateStore resilience', () => {
     beforeEach(() => {
         vi.useFakeTimers();
@@ -89,5 +105,97 @@ describe('GameStateStore resilience', () => {
 
         await expect(gameStateStore.initialize('session-live-2')).rejects.toThrow('backend unavailable');
         expect(gameStateStore.initialized).toBe(false);
+    });
+
+    it('preserves a finished timer at zero seconds instead of reverting to the default duration', async () => {
+        mockDatabase.getGameState.mockResolvedValue(buildGameState({
+            session_id: 'session-live-zero',
+            timer_seconds: 0,
+            timer_running: false
+        }));
+
+        const { gameStateStore } = await loadGameStateModule();
+
+        await gameStateStore.initialize('session-live-zero');
+
+        expect(gameStateStore.getTimerSeconds()).toBe(0);
+        expect(gameStateStore.isTimerRunning()).toBe(false);
+
+        gameStateStore.reset();
+    });
+
+    it('persists the current countdown when pausing a running timer', async () => {
+        let persistedState = buildGameState({
+            session_id: 'session-live-3'
+        });
+
+        mockDatabase.getGameState.mockResolvedValue(persistedState);
+        mockDatabase.updateGameState.mockImplementation(async (_sessionId, updates) => {
+            persistedState = buildGameState({
+                ...persistedState,
+                ...updates,
+                updated_at: new Date().toISOString(),
+                last_updated: new Date().toISOString()
+            });
+            return persistedState;
+        });
+
+        const { gameStateStore } = await loadGameStateModule();
+
+        await gameStateStore.initialize('session-live-3');
+        await gameStateStore.startTimer();
+        vi.advanceTimersByTime(5000);
+
+        expect(gameStateStore.getTimerSeconds()).toBe(5395);
+
+        await gameStateStore.pauseTimer();
+
+        expect(mockDatabase.updateGameState).toHaveBeenLastCalledWith('session-live-3', {
+            timer_seconds: 5395,
+            timer_running: false,
+            timer_last_update: '2026-04-08T16:30:05.000Z'
+        });
+        expect(gameStateStore.getTimerSeconds()).toBe(5395);
+        expect(gameStateStore.isTimerRunning()).toBe(false);
+
+        gameStateStore.reset();
+    });
+
+    it('syncs a running timer without double-counting elapsed time', async () => {
+        let persistedState = buildGameState({
+            session_id: 'session-live-4'
+        });
+
+        mockDatabase.getGameState.mockResolvedValue(persistedState);
+        mockDatabase.updateGameState.mockImplementation(async (_sessionId, updates) => {
+            persistedState = buildGameState({
+                ...persistedState,
+                ...updates,
+                updated_at: new Date().toISOString(),
+                last_updated: new Date().toISOString()
+            });
+            return persistedState;
+        });
+
+        const { gameStateStore } = await loadGameStateModule();
+
+        await gameStateStore.initialize('session-live-4');
+        await gameStateStore.startTimer();
+        vi.advanceTimersByTime(5000);
+
+        await gameStateStore.syncToServer();
+
+        expect(mockDatabase.updateGameState).toHaveBeenLastCalledWith('session-live-4', {
+            move: 1,
+            phase: 1,
+            timer_seconds: 5395,
+            timer_running: true,
+            timer_last_update: '2026-04-08T16:30:05.000Z',
+            status: 'active'
+        });
+        expect(gameStateStore.getTimerSeconds()).toBe(5395);
+        expect(gameStateStore.isTimerRunning()).toBe(true);
+
+        gameStateStore.reset();
     });
 });

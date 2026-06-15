@@ -29,6 +29,13 @@ import {
     formatProposalSelection
 } from '../features/actions/proposalDetails.js';
 import {
+    PROPOSAL_RECIPIENT_STATUSES,
+    formatProposalRecipientStatus,
+    getProposalRecipientEntry,
+    getProposalRecipientStatus,
+    getProposalResponseEntry
+} from '../features/actions/proposalRecipientState.js';
+import {
     buildJsonExportPayload,
     buildResearchExportBundle,
     downloadJsonData,
@@ -818,6 +825,20 @@ export class WhiteCellController {
         this.operatorRole = WHITE_CELL_OPERATOR_ROLES.LEAD;
         this.researchCaptureMode = 'research';
         this.researchBuildHash = null;
+        this.seenBlueActionIds = new Set();
+        this.newBlueActionIds = new Set();
+        this.seenGreenProposalIds = new Set();
+        this.newGreenProposalIds = new Set();
+        this.seenRedResponseIds = new Set();
+        this.newRedResponseIds = new Set();
+        this.pendingQueueArrivalSummary = {
+            actions: new Set(),
+            proposals: new Set(),
+            responses: new Set()
+        };
+        this.hasHydratedBlueActionQueue = false;
+        this.hasHydratedGreenProposalQueue = false;
+        this.hasHydratedRedResponseQueue = false;
     }
 
     async init() {
@@ -1075,6 +1096,22 @@ export class WhiteCellController {
                 sourceMetadata: {}
             });
         });
+
+        document.querySelectorAll?.('.sidebar-link[data-section]')?.forEach((link) => {
+            link.addEventListener('click', () => {
+                if (link.dataset.section === 'actions') {
+                    this.clearQueueArrivalHighlights('actions');
+                }
+
+                if (link.dataset.section === 'proposals') {
+                    this.clearQueueArrivalHighlights('proposals');
+                }
+
+                if (link.dataset.section === 'responses') {
+                    this.clearQueueArrivalHighlights('responses');
+                }
+            });
+        });
     }
 
     subscribeToLiveData() {
@@ -1085,8 +1122,11 @@ export class WhiteCellController {
         );
 
         this.storeUnsubscribers.push(
-            actionsStore.subscribe(() => {
-                this.syncActionsFromStore();
+            actionsStore.subscribe((event) => {
+                this.syncActionsFromStore({
+                    announce: event === 'created' || event === 'updated'
+                });
+                this.flushQueueArrivalAnnouncement();
             })
         );
 
@@ -1098,6 +1138,7 @@ export class WhiteCellController {
 
         this.storeUnsubscribers.push(
             communicationsStore.subscribe(() => {
+                this.syncActionsFromStore();
                 this.syncCommunicationsFromStore();
             })
         );
@@ -1135,6 +1176,7 @@ export class WhiteCellController {
         });
         this.updateTimerDisplay();
         this.updateTimerStatusDisplay();
+        this.updateTimerControlButtons();
     }
 
     updateTimerDisplay() {
@@ -1160,6 +1202,40 @@ export class WhiteCellController {
             element.textContent = statusText;
             element.classList.toggle('timer-running', this.timerRunning);
         });
+    }
+
+    updateTimerControlButtons() {
+        const startTimerBtn = document.getElementById('startTimerBtn');
+        const pauseTimerBtn = document.getElementById('pauseTimerBtn');
+
+        if (!startTimerBtn && !pauseTimerBtn) {
+            return;
+        }
+
+        const canControl = this.isLeadOperator();
+        const hasRemainingTime = this.currentTimerSeconds > 0;
+        const shouldShowResume = !this.timerRunning
+            && hasRemainingTime
+            && this.currentTimerSeconds < CONFIG.DEFAULT_TIMER_SECONDS;
+
+        if (startTimerBtn) {
+            startTimerBtn.textContent = shouldShowResume ? 'Resume' : 'Start';
+            startTimerBtn.disabled = !canControl || this.timerRunning || !hasRemainingTime;
+            startTimerBtn.setAttribute?.('aria-disabled', startTimerBtn.disabled ? 'true' : 'false');
+            startTimerBtn.title = !canControl
+                ? 'White Cell support is read-only for game controls.'
+                : (!hasRemainingTime
+                    ? 'Reset the timer before starting again.'
+                    : (this.timerRunning ? 'Timer is already running.' : 'Start the timer.'));
+        }
+
+        if (pauseTimerBtn) {
+            pauseTimerBtn.disabled = !canControl || !this.timerRunning;
+            pauseTimerBtn.setAttribute?.('aria-disabled', pauseTimerBtn.disabled ? 'true' : 'false');
+            pauseTimerBtn.title = !canControl
+                ? 'White Cell support is read-only for game controls.'
+                : (this.timerRunning ? 'Pause the timer.' : 'Timer is already paused.');
+        }
     }
 
     updateGameStateDisplay(gameState = {}) {
@@ -1441,7 +1517,9 @@ export class WhiteCellController {
         }
     }
 
-    syncActionsFromStore() {
+    syncActionsFromStore({
+        announce = false
+    } = {}) {
         const allActions = actionsStore.getAll();
         this.actions = actionsStore.getPending();
         this.blueTeamActions = this.actions.filter((action) => action?.team === 'blue');
@@ -1452,6 +1530,13 @@ export class WhiteCellController {
         ));
         this.redTeamResponses = this.actions.filter((action) => action?.team === 'red');
         const pendingGreenTeamProposals = this.greenTeamProposals.filter((action) => canAdjudicateAction(action));
+        this.captureQueueArrivals({
+            blueTeamActions: this.blueTeamActions,
+            greenTeamProposals: this.greenTeamProposals,
+            redTeamResponses: this.redTeamResponses
+        }, {
+            announce
+        });
 
         this.renderActionReview();
         this.renderMoveResponses();
@@ -1473,6 +1558,146 @@ export class WhiteCellController {
 
         badge.textContent = String(count);
         badge.hidden = count <= 0;
+    }
+
+    captureQueueArrivals({
+        blueTeamActions = [],
+        greenTeamProposals = [],
+        redTeamResponses = []
+    } = {}, {
+        announce = false
+    } = {}) {
+        this.captureQueueArrivalSet({
+            queueName: 'actions',
+            nextItems: blueTeamActions,
+            seenSet: this.seenBlueActionIds,
+            newSet: this.newBlueActionIds,
+            hydratedFlag: 'hasHydratedBlueActionQueue',
+            announce
+        });
+
+        this.captureQueueArrivalSet({
+            queueName: 'proposals',
+            nextItems: greenTeamProposals,
+            seenSet: this.seenGreenProposalIds,
+            newSet: this.newGreenProposalIds,
+            hydratedFlag: 'hasHydratedGreenProposalQueue',
+            announce
+        });
+
+        this.captureQueueArrivalSet({
+            queueName: 'responses',
+            nextItems: redTeamResponses,
+            seenSet: this.seenRedResponseIds,
+            newSet: this.newRedResponseIds,
+            hydratedFlag: 'hasHydratedRedResponseQueue',
+            announce
+        });
+    }
+
+    captureQueueArrivalSet({
+        queueName,
+        nextItems = [],
+        seenSet,
+        newSet,
+        hydratedFlag,
+        announce = false
+    } = {}) {
+        const nextIds = new Set(
+            nextItems
+                .map((item) => item?.id)
+                .filter(Boolean)
+        );
+
+        if (!this[hydratedFlag]) {
+            seenSet.clear();
+            nextIds.forEach((itemId) => seenSet.add(itemId));
+            newSet.clear();
+            this[hydratedFlag] = true;
+            return;
+        }
+
+        nextItems.forEach((item) => {
+            if (!item?.id || seenSet.has(item.id)) {
+                return;
+            }
+
+            seenSet.add(item.id);
+            newSet.add(item.id);
+            if (announce) {
+                this.pendingQueueArrivalSummary[queueName].add(item.id);
+            }
+        });
+
+        newSet.forEach((itemId) => {
+            if (!nextIds.has(itemId)) {
+                newSet.delete(itemId);
+            }
+        });
+    }
+
+    clearQueueArrivalHighlights(queueName = '') {
+        const queueMap = {
+            actions: {
+                newSet: this.newBlueActionIds,
+                rerender: () => {
+                    this.renderActionReview();
+                    this.renderAdjudicationQueue();
+                }
+            },
+            proposals: {
+                newSet: this.newGreenProposalIds,
+                rerender: () => {
+                    this.renderProposals();
+                    this.renderAdjudicationQueue();
+                }
+            },
+            responses: {
+                newSet: this.newRedResponseIds,
+                rerender: () => {
+                    this.renderMoveResponses();
+                    this.renderAdjudicationQueue();
+                }
+            }
+        };
+        const queueState = queueMap[queueName];
+        if (!queueState || queueState.newSet.size === 0) {
+            return;
+        }
+
+        queueState.newSet.clear();
+        queueState.rerender();
+    }
+
+    flushQueueArrivalAnnouncement() {
+        const actionCount = this.pendingQueueArrivalSummary.actions.size;
+        const proposalCount = this.pendingQueueArrivalSummary.proposals.size;
+        const responseCount = this.pendingQueueArrivalSummary.responses.size;
+
+        if (actionCount === 0 && proposalCount === 0 && responseCount === 0) {
+            return;
+        }
+
+        const summaryParts = [];
+        if (actionCount > 0) {
+            summaryParts.push(`${actionCount} Blue action${actionCount === 1 ? '' : 's'}`);
+        }
+        if (proposalCount > 0) {
+            summaryParts.push(`${proposalCount} Green proposal${proposalCount === 1 ? '' : 's'}`);
+        }
+        if (responseCount > 0) {
+            summaryParts.push(`${responseCount} Red move response${responseCount === 1 ? '' : 's'}`);
+        }
+
+        showToast({
+            message: `New team submissions arrived: ${summaryParts.join(', ')}.`,
+            type: 'warning',
+            duration: 10000
+        });
+
+        this.pendingQueueArrivalSummary.actions.clear();
+        this.pendingQueueArrivalSummary.proposals.clear();
+        this.pendingQueueArrivalSummary.responses.clear();
     }
 
     isProposalAction(action = {}) {
@@ -1531,6 +1756,102 @@ export class WhiteCellController {
                     { label: 'Delivery', value: proposalViewModel.delivery || 'Not specified' },
                     { label: 'Timing & Conditions', value: proposalViewModel.timingAndConditions || 'Not specified' }
                 ])}
+            </div>
+        `;
+    }
+
+    getForwardedProposalCommunication(action = null) {
+        if (!action?.id) {
+            return null;
+        }
+
+        return communicationsStore.getAll()
+            .filter((communication) => (
+                communication?.type === 'PROPOSAL_FORWARDED'
+                && communication?.metadata?.source_proposal_id === action.id
+            ))
+            .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))[0] || null;
+    }
+
+    formatProposalRecipientTeamLabel(team = '') {
+        const normalizedTeam = typeof team === 'string' ? team.trim().toLowerCase() : '';
+        switch (normalizedTeam) {
+            case 'blue':
+                return 'Blue Team';
+            case 'red':
+                return 'Red Team';
+            case 'green':
+                return 'Green Team';
+            default:
+                return team || 'Recipient team';
+        }
+    }
+
+    getProposalResponseAudienceLabel(responseEntry = null, fallbackTeam = '') {
+        return this.formatProposalRecipientTeamLabel(
+            responseEntry?.responseFromTeam || fallbackTeam || ''
+        );
+    }
+
+    renderProposalRecipientState(action = null) {
+        const forwardedCommunication = this.getForwardedProposalCommunication(action);
+        if (!forwardedCommunication) {
+            return '';
+        }
+
+        const proposalViewModel = getProposalViewModel(action);
+        const recipientEntry = getProposalRecipientEntry(forwardedCommunication);
+        const recipientTeam = forwardedCommunication?.metadata?.recipient_team
+            || proposalViewModel.recipientTeam
+            || '';
+        const recipientLabel = this.formatProposalRecipientTeamLabel(recipientTeam);
+        const status = getProposalRecipientStatus(forwardedCommunication);
+        const statusLabel = formatProposalRecipientStatus(status);
+        const actionedAt = recipientEntry?.actioned_at || null;
+        const responseEntry = getProposalResponseEntry(forwardedCommunication);
+        const responseAudienceLabel = this.getProposalResponseAudienceLabel(responseEntry, recipientTeam);
+        const responseSentAt = responseEntry?.responseSentAt || actionedAt || null;
+        const timestampLabel = responseSentAt ? formatRelativeTime(responseSentAt) : '';
+        const statusMessage = {
+            [PROPOSAL_RECIPIENT_STATUSES.UNREAD]: `Awaiting recipient confirmation from ${recipientLabel}.`,
+            [PROPOSAL_RECIPIENT_STATUSES.ACKNOWLEDGED]: `${recipientLabel} opened this proposal and is reviewing it.`,
+            [PROPOSAL_RECIPIENT_STATUSES.RESPONDED]: `Response received from ${responseAudienceLabel}.`,
+            [PROPOSAL_RECIPIENT_STATUSES.DECLINED]: `${recipientLabel} declined this proposal.`,
+            [PROPOSAL_RECIPIENT_STATUSES.IGNORED]: `${recipientLabel} marked this proposal as ignored.`
+        }[status] || `Awaiting recipient confirmation from ${recipientLabel}.`;
+        const accentColor = {
+            [PROPOSAL_RECIPIENT_STATUSES.UNREAD]: 'var(--color-info-600)',
+            [PROPOSAL_RECIPIENT_STATUSES.ACKNOWLEDGED]: 'var(--color-warning)',
+            [PROPOSAL_RECIPIENT_STATUSES.RESPONDED]: 'var(--color-success)',
+            [PROPOSAL_RECIPIENT_STATUSES.DECLINED]: 'var(--color-error)',
+            [PROPOSAL_RECIPIENT_STATUSES.IGNORED]: 'var(--color-text-muted)'
+        }[status] || 'var(--color-info-600)';
+        const responseContentMarkup = responseEntry?.responseContent ? `
+            <div
+                style="margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);"
+            >
+                <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
+                    <strong>${this.escapeHtml(responseAudienceLabel)} Response</strong>
+                </p>
+                <p class="text-sm" style="margin: 0;">${this.escapeHtml(responseEntry.responseContent)}</p>
+            </div>
+        ` : '';
+
+        return `
+            <div
+                class="card card-bordered"
+                style="margin-top: var(--space-3); padding: var(--space-3); background: var(--color-surface-alt); border-left: 4px solid ${accentColor};"
+            >
+                <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
+                    <strong>Recipient Team:</strong> ${this.escapeHtml(recipientLabel)}
+                </p>
+                <p class="text-sm font-semibold" style="margin: 0 0 var(--space-1);">
+                    ${this.escapeHtml(statusMessage)}
+                </p>
+                <p class="text-xs text-gray-500" style="margin: 0;">
+                    <strong>Recipient Status:</strong> ${this.escapeHtml(statusLabel)}${timestampLabel ? ` | ${this.escapeHtml(timestampLabel)}` : ''}
+                </p>
+                ${responseContentMarkup}
             </div>
         `;
     }
@@ -1604,7 +1925,8 @@ export class WhiteCellController {
         container.innerHTML = this.blueTeamActions.map((action) =>
             this.renderActionCard(action, {
                 showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
-                includeOutcome: true
+                includeOutcome: true,
+                isNew: this.newBlueActionIds.has(action.id)
             })
         ).join('');
 
@@ -1623,7 +1945,8 @@ export class WhiteCellController {
         container.innerHTML = this.redTeamResponses.map((action) =>
             this.renderActionCard(action, {
                 showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
-                includeOutcome: true
+                includeOutcome: true,
+                isNew: this.newRedResponseIds.has(action.id)
             })
         ).join('');
 
@@ -1642,7 +1965,8 @@ export class WhiteCellController {
         container.innerHTML = this.greenTeamProposals.map((action) =>
             this.renderActionCard(action, {
                 showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
-                includeOutcome: true
+                includeOutcome: true,
+                isNew: this.newGreenProposalIds.has(action.id)
             })
         ).join('');
 
@@ -1663,14 +1987,21 @@ export class WhiteCellController {
         container.innerHTML = pendingActions.map((action) =>
             this.renderActionCard(action, {
                 showAdjudicateAction: this.isLeadOperator(),
-                includeOutcome: false
+                includeOutcome: false,
+                isNew: this.newBlueActionIds.has(action.id)
+                    || this.newGreenProposalIds.has(action.id)
+                    || this.newRedResponseIds.has(action.id)
             })
         ).join('');
 
         this.bindActionCardButtons(container);
     }
 
-    renderActionCard(action, { showAdjudicateAction = false, includeOutcome = false } = {}) {
+    renderActionCard(action, {
+        showAdjudicateAction = false,
+        includeOutcome = false,
+        isNew = false
+    } = {}) {
         const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
         const blueAction = getBlueActionViewModel(action);
         const proposalViewModel = getProposalViewModel(action);
@@ -1737,6 +2068,12 @@ export class WhiteCellController {
                     <strong>Exposure:</strong> ${this.escapeHtml(action.exposure_type || 'Not specified')}
                 </p>
             `;
+        const proposalRecipientStateMarkup = proposalViewModel.hasProposalDetails
+            ? this.renderProposalRecipientState(action)
+            : '';
+        const arrivalBadgeMarkup = isNew
+            ? createBadge({ text: 'NEW', variant: 'warning', size: 'sm', rounded: true }).outerHTML
+            : '';
         const actionButtons = [];
 
         if (canShareActionToRedTeam(action)) {
@@ -1748,19 +2085,21 @@ export class WhiteCellController {
         }
 
         return `
-            <div class="card card-bordered" data-action-id="${action.id}" style="padding: var(--space-4); margin-bottom: var(--space-3);">
+            <div class="card card-bordered" data-action-id="${action.id}" style="padding: var(--space-4); margin-bottom: var(--space-3); ${isNew ? 'border-left: 4px solid var(--color-primary-500); background: var(--color-surface-alt);' : ''}">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-3);">
                     <div>
                         <h3 class="font-semibold">${this.escapeHtml(blueAction.title)}</h3>
                         <p class="text-xs text-gray-500">${this.escapeHtml(blueAction.instrumentOfPower || 'No mechanism')} | ${this.escapeHtml(sequenceLabel)} | Phase ${action.phase || 1}</p>
                     </div>
                     <div style="display: flex; gap: var(--space-2);">
+                        ${arrivalBadgeMarkup}
                         ${createStatusBadge(status).outerHTML}
                         ${secondaryBadge}
                     </div>
                 </div>
                 ${proposalViewModel.hasProposalDetails ? '' : `<p class="text-sm mb-3">${this.escapeHtml(expectedOutcomes || 'No expected outcomes recorded.')}</p>`}
                 ${detailsMarkup}
+                ${proposalRecipientStateMarkup}
                 ${submittedMarkup}
                 ${outcomeMarkup}
                 ${notesMarkup}

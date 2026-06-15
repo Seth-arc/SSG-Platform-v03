@@ -162,7 +162,7 @@ class GameStateStore {
      * @returns {number}
      */
     getTimerSeconds() {
-        return this.state?.timer_seconds || CONFIG.DEFAULT_TIMER_SECONDS;
+        return this.state?.timer_seconds ?? CONFIG.DEFAULT_TIMER_SECONDS;
     }
 
     /**
@@ -171,6 +171,20 @@ class GameStateStore {
      */
     isTimerRunning() {
         return this.state?.timer_running || false;
+    }
+
+    /**
+     * Build a timer snapshot that can be persisted without losing elapsed time.
+     * The timestamp represents when the accompanying timer_seconds value was measured.
+     * @private
+     * @param {string} timestamp
+     * @returns {{timer_seconds:number,timer_last_update:string}}
+     */
+    buildTimerPersistenceFields(timestamp = new Date().toISOString()) {
+        return {
+            timer_seconds: this.state?.timer_seconds ?? CONFIG.DEFAULT_TIMER_SECONDS,
+            timer_last_update: timestamp
+        };
     }
 
     /**
@@ -184,9 +198,11 @@ class GameStateStore {
 
         logger.info('Starting timer');
 
+        const timestamp = new Date().toISOString();
+
         return this.persistState({
+            ...this.buildTimerPersistenceFields(timestamp),
             timer_running: true,
-            timer_last_update: new Date().toISOString()
         }, 'timer_started');
     }
 
@@ -201,9 +217,11 @@ class GameStateStore {
 
         logger.info('Pausing timer');
 
+        const timestamp = new Date().toISOString();
+
         return this.persistState({
+            ...this.buildTimerPersistenceFields(timestamp),
             timer_running: false,
-            timer_last_update: new Date().toISOString()
         }, 'timer_paused');
     }
 
@@ -424,12 +442,15 @@ class GameStateStore {
         }
 
         try {
+            const timestamp = this.state.timer_running
+                ? new Date().toISOString()
+                : (this.state.timer_last_update || new Date().toISOString());
             const data = await database.updateGameState(this.state.session_id, {
                 move: this.state.move,
                 phase: this.state.phase,
                 timer_seconds: this.state.timer_seconds,
                 timer_running: this.state.timer_running,
-                timer_last_update: this.state.timer_last_update,
+                timer_last_update: timestamp,
                 status: this.state.status
             });
 

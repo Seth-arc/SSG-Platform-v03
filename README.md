@@ -117,6 +117,7 @@ Suggested rehearsal order:
 2. Enter the session code and operator access code. White Cell no longer uses team selection.
 3. Click `Open White Cell Lead` or `Open White Cell Support`.
 4. Game Master uses only `Open Game Master`.
+5. On the White Cell lead timer card, `Pause` now freezes the live countdown at its current value, `Resume` restarts that paused countdown, and `Reset to 90:00` is the only control that returns the clock to the default duration.
 
 ### Proposal Review
 
@@ -125,7 +126,7 @@ Suggested rehearsal order:
    - `Forward to Blue Team` or `Forward to Red Team`, based on the proposal's intended recipient
    - `Request Changes`
    - `Reject Proposal`
-3. Forwarding creates the White Cell communication for the addressed team immediately. The reviewed proposal remains visible in the White Cell `Proposals` queue, and it appears for the recipient facilitator in both `Received Proposals` and the general White Cell responses feed.
+3. Forwarding creates the White Cell communication for the addressed team immediately. The reviewed proposal remains visible in the White Cell `Proposals` queue, the queue card now refreshes from recipient-state communication updates, and it appears for the recipient facilitator in both `Received Proposals` and the general White Cell responses feed.
 4. `Request Changes` and `Reject Proposal` record the White Cell review without forwarding the current proposal. If Green Team wants to continue that line, they must submit a new proposal revision.
 5. Sidebar badges are queue-specific: `Actions` counts Blue Team actions, `Proposals` counts Green Team proposals, `Move Responses` counts Red Team move responses, and `RFI` counts pending requests only.
 6. Once White Cell forwards a Green proposal, the originating Green facilitator proposal card continues to reflect the recipient team's latest status, including `Acknowledged`, `Declined`, `Ignored`, and `Responded`.
@@ -133,7 +134,9 @@ Suggested rehearsal order:
 ### Participant Update Feeds
 
 - Facilitator surfaces now show direct White Cell communications and White Cell content updates explicitly inside `White Cell Responses`, instead of relying on generic response cards alone.
-- Sidebar badges on facilitator surfaces now track visible items in `Responses`, `Received Proposals`, `Tribe Street Journal`, and `Verba AI`, so operators can confirm the recipient team has explicit update notifications.
+- New White Cell arrivals now raise a long-lived toast and a `NEW` card marker on facilitator `White Cell Responses` or `Received Proposals`, instead of relying on the team noticing a quiet rerender.
+- Sidebar badges on facilitator surfaces still track visible items in `Responses`, `Received Proposals`, `Tribe Street Journal`, and `Verba AI`, so operators can confirm the recipient team has explicit update notifications without the counts drifting from the visible lists.
+- Notetaker `White Cell Inbox` now mirrors that arrival treatment with a live inbox badge plus `NEW` card markers for fresh White Cell traffic.
 - Scribe surfaces now open the dedicated support deck at `teams/<team>/scribe.html`; the `Actions` section is a live facilitator-decision feed that turns team actions into individual decision slides, while the remaining sections stay tied to the support deck. The slide stage stays centered, vertically pinned, and visually flat with no raised frame chrome while sidebar scrolling stays isolated to the section rail, horizontal overflow is suppressed, and `Present` switches into a deck-only layout that hides the sidebar chrome while keeping the shared navbar visible.
 - `Tribe Street Journal` and `Verba AI` still keep their dedicated sections for reading the update content in context; the `White Cell Responses` section now acts as the inbox-style notification feed.
 

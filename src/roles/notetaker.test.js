@@ -388,6 +388,7 @@ describe('Notetaker move-scoped view state', () => {
         const html = readFileSync(BLUE_NOTETAKER_HTML_PATH, 'utf8');
 
         expect(html).toContain('data-section="inbox"');
+        expect(html).toContain('id="inboxBadge"');
         expect(html).toContain('id="inboxSection"');
         expect(html).toContain('id="inboxList"');
         expect(html).toContain('White Cell Inbox');

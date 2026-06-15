@@ -237,6 +237,50 @@ describe('White Cell DOM contract', () => {
         expect(controller.renderTimeline).toHaveBeenCalledTimes(4);
     });
 
+    it('updates White Cell timer controls to expose pause and resume states clearly', async () => {
+        const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
+        global.document = fakeDocument;
+
+        const controller = new WhiteCellController();
+
+        controller.syncGameStateFromStore({
+            move: 1,
+            phase: 1,
+            timer_seconds: 5400,
+            timer_running: false
+        });
+
+        expect(fakeDocument.elements.startTimerBtn.textContent).toBe('Start');
+        expect(fakeDocument.elements.startTimerBtn.disabled).toBe(false);
+        expect(fakeDocument.elements.pauseTimerBtn.disabled).toBe(true);
+        expect(fakeDocument.elements.timerStatus.textContent).toBe('Paused');
+
+        controller.syncGameStateFromStore({
+            move: 1,
+            phase: 1,
+            timer_seconds: 5395,
+            timer_running: true
+        });
+
+        expect(fakeDocument.elements.startTimerBtn.disabled).toBe(true);
+        expect(fakeDocument.elements.pauseTimerBtn.disabled).toBe(false);
+        expect(fakeDocument.elements.timerStatus.textContent).toBe('Running');
+        expect(fakeDocument.elements.controlTimerDisplay.textContent).toBe('89:55');
+
+        controller.syncGameStateFromStore({
+            move: 1,
+            phase: 1,
+            timer_seconds: 5395,
+            timer_running: false
+        });
+
+        expect(fakeDocument.elements.startTimerBtn.textContent).toBe('Resume');
+        expect(fakeDocument.elements.startTimerBtn.disabled).toBe(false);
+        expect(fakeDocument.elements.pauseTimerBtn.disabled).toBe(true);
+        expect(fakeDocument.elements.timerStatus.textContent).toBe('Paused');
+    });
+
     it('blocks access without a matching operator grant and enforces team/session scope', async () => {
         const { getWhiteCellAccessState } = await loadWhiteCellModule();
         const teamContext = {
@@ -600,6 +644,47 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.actionsBadge.textContent).not.toBe('3');
     });
 
+    it('raises a visible arrival cue when a new Blue action reaches the White Cell queue', async () => {
+        const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
+        global.document = fakeDocument;
+
+        let pendingItems = [];
+        let allItems = [];
+        vi.spyOn(actionsStore, 'getPending').mockImplementation(() => pendingItems);
+        vi.spyOn(actionsStore, 'getAll').mockImplementation(() => allItems);
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        controller.syncActionsFromStore();
+
+        pendingItems = [{
+            id: 'action-arrival-1',
+            team: 'blue',
+            move: 2,
+            phase: 1,
+            goal: 'Stabilize port access',
+            mechanism: 'Diplomatic pressure',
+            status: 'submitted',
+            created_at: '2026-04-08T09:00:00.000Z',
+            submitted_at: '2026-04-08T09:05:00.000Z',
+            expected_outcomes: 'Keep the corridor open for the next move.'
+        }];
+        allItems = pendingItems;
+
+        controller.syncActionsFromStore({ announce: true });
+        controller.flushQueueArrivalAnnouncement();
+
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'New team submissions arrived: 1 Blue action.',
+            type: 'warning',
+            duration: 10000
+        });
+        expect(fakeDocument.elements.actionsList.innerHTML).toContain('NEW');
+        expect(fakeDocument.elements.actionsList.innerHTML).toContain('Stabilize port access');
+    });
+
     it('keeps reviewed Green proposals visible in the White Cell proposals queue', async () => {
         const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
         const { actionsStore } = await import('../stores/actions.js');
@@ -647,6 +732,85 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Outcome:</strong> SUCCESS');
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Notes:</strong> Forwarded to Blue Team for review.');
         expect(fakeDocument.elements.proposalsBadge.hidden).toBe(true);
+    });
+
+    it('shows recipient-state updates for forwarded proposals in the White Cell proposals queue', async () => {
+        const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
+        global.document = fakeDocument;
+
+        vi.spyOn(actionsStore, 'getPending').mockReturnValue([]);
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([{
+            id: 'action-105',
+            team: 'green',
+            move: 2,
+            phase: 1,
+            goal: 'Coordinate biotech export alignment',
+            mechanism: 'Proposal',
+            status: 'adjudicated',
+            outcome: 'SUCCESS',
+            adjudication_notes: 'Forwarded to Blue Team for review.',
+            created_at: '2026-04-08T09:10:00.000Z',
+            submitted_at: '2026-04-08T09:15:00.000Z',
+            adjudicated_at: '2026-04-08T09:20:00.000Z',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Reduce arbitrage across allied export controls.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'Japan'],
+                objective: 'Align licensing posture before the next move.',
+                category: 'Alignment',
+                intendedPartners: 'Blue Team',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Immediately after White Cell review.',
+                recipientTeam: 'blue'
+            })
+        }]);
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([{
+            id: 'comm-forwarded-queue-1',
+            type: 'PROPOSAL_FORWARDED',
+            created_at: '2026-04-08T09:21:00.000Z',
+            metadata: {
+                source_proposal_id: 'action-105',
+                recipient_team: 'blue',
+                proposal_recipient_state: {
+                    status: 'responded',
+                    response_content: 'Blue Team can support this with customs coordination.',
+                    response_from_team: 'blue',
+                    response_sent_at: '2026-04-08T09:25:00.000Z'
+                }
+            }
+        }]);
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        controller.syncActionsFromStore();
+
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Recipient Team:</strong> Blue Team');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Recipient Status:</strong> Responded');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Blue Team Response');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Blue Team can support this with customs coordination.');
+    });
+
+    it('rerenders White Cell queues when proposal communications change', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+
+        const controller = new WhiteCellController();
+        const syncActionsFromStore = vi.spyOn(controller, 'syncActionsFromStore').mockImplementation(() => {});
+        vi.spyOn(controller, 'syncCommunicationsFromStore').mockImplementation(() => {});
+
+        controller.subscribeToLiveData();
+        communicationsStore.notify('updated', {
+            id: 'comm-forwarded-queue-2',
+            type: 'PROPOSAL_FORWARDED'
+        });
+
+        expect(syncActionsFromStore).toHaveBeenCalled();
+
+        controller.destroy();
     });
 
     it('renders facilitator action details needed for White Cell adjudication', async () => {

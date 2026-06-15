@@ -285,6 +285,7 @@ describe('Facilitator and scribe access', () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const actionsList = createFakeElement('actionsList');
         global.document = {
+            ...createFakeDocument(),
             getElementById(id) {
                 return {
                     actionsList
@@ -868,6 +869,84 @@ describe('Facilitator and scribe access', () => {
         expect(journalBadge.hidden).toBe(false);
         expect(verbaAiBadge.textContent).toBe('0');
         expect(verbaAiBadge.hidden).toBe(true);
+    });
+
+    it('raises a visible arrival cue for new White Cell responses and forwarded proposals', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        const {
+            WHITE_CELL_UPDATE_KINDS,
+            buildWhiteCellRecipientMetadata
+        } = await import('../features/communications/targeting.js');
+
+        const responsesList = createFakeElement('responsesList');
+        const responsesBadge = createFakeElement('responsesBadge');
+        const proposalsList = createFakeElement('receivedProposalsList');
+        const proposalsBadge = createFakeElement('receivedProposalsBadge');
+
+        global.document = {
+            createElement(tagName) {
+                return createFakeElement(null, tagName);
+            },
+            getElementById(id) {
+                return {
+                    responsesList,
+                    responsesBadge,
+                    receivedProposalsList: proposalsList,
+                    receivedProposalsBadge: proposalsBadge
+                }[id] || null;
+            }
+        };
+
+        const getAll = vi.spyOn(communicationsStore, 'getAll');
+        getAll.mockReturnValue([]);
+
+        const controller = new FacilitatorController();
+        controller.syncResponsesFromStores();
+        controller.syncReceivedProposalsFromStore();
+
+        getAll.mockReturnValue([
+            {
+                id: 'comm-update-arrival-1',
+                from_role: 'whitecell_lead',
+                to_role: 'blue',
+                type: 'GUIDANCE',
+                content: 'Shift the team brief to the new trade corridor headline.',
+                created_at: '2026-04-09T10:11:00.000Z',
+                metadata: buildWhiteCellRecipientMetadata('blue', {
+                    content_kind: WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL
+                })
+            },
+            {
+                id: 'comm-forwarded-arrival-1',
+                from_role: 'whitecell_lead',
+                to_role: 'blue',
+                type: 'PROPOSAL_FORWARDED',
+                content: 'Forwarded Green Team proposal (sent by White Cell after review).',
+                created_at: '2026-04-09T10:12:00.000Z',
+                metadata: buildWhiteCellRecipientMetadata('blue', {
+                    source_team: 'green',
+                    outcome: 'SUCCESS',
+                    proposal: {
+                        title: 'Joint Port Proposal'
+                    }
+                })
+            }
+        ]);
+
+        controller.syncResponsesFromStores({ announce: true });
+        controller.syncReceivedProposalsFromStore({ announce: true });
+        controller.flushWhiteCellArrivalAnnouncement();
+
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'New White Cell items arrived: 1 response and 1 forwarded proposal.',
+            type: 'warning',
+            duration: 10000
+        });
+        expect(responsesList.innerHTML).toContain('NEW');
+        expect(responsesList.innerHTML).toContain('White Cell Update: Tribe Street Journal');
+        expect(proposalsList.innerHTML).toContain('NEW');
+        expect(proposalsList.innerHTML).toContain('Joint Port Proposal');
     });
 
     it('locks a received proposal after the team has already responded', async () => {

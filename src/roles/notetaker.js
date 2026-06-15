@@ -208,6 +208,10 @@ export class NotetakerController {
             clientId: null,
             participantLabel: null
         };
+        this.seenInboxCommunicationIds = new Set();
+        this.newInboxCommunicationIds = new Set();
+        this.pendingInboxArrivalIds = new Set();
+        this.hasHydratedInbox = false;
     }
 
     /**
@@ -351,6 +355,14 @@ export class NotetakerController {
                 void this.handleAllianceSubmit(e);
             });
         }
+
+        document.querySelectorAll?.('.sidebar-link[data-section]')?.forEach((link) => {
+            link.addEventListener('click', () => {
+                if (link.dataset.section === 'inbox') {
+                    this.clearInboxArrivals();
+                }
+            });
+        });
     }
 
     /**
@@ -389,8 +401,11 @@ export class NotetakerController {
         );
 
         this.storeUnsubscribers.push(
-            communicationsStore.subscribe(() => {
-                this.syncInboxFromStore();
+            communicationsStore.subscribe((event) => {
+                this.syncInboxFromStore({
+                    announce: event === 'created'
+                });
+                this.flushInboxArrivalAnnouncement();
             })
         );
 
@@ -437,12 +452,79 @@ export class NotetakerController {
         this.renderTimeline(relevantEvents);
     }
 
-    syncInboxFromStore() {
-        this.inboxCommunications = communicationsStore.getAll()
+    syncInboxFromStore({
+        announce = false
+    } = {}) {
+        const nextInboxCommunications = communicationsStore.getAll()
             .filter((communication) => isNotetakerScopedWhiteCellCommunication(communication, this.teamContext))
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        this.captureInboxArrivals(nextInboxCommunications, { announce });
+        this.inboxCommunications = nextInboxCommunications;
 
         this.renderInbox();
+    }
+
+    captureInboxArrivals(nextInboxCommunications = [], {
+        announce = false
+    } = {}) {
+        const nextIds = new Set(
+            nextInboxCommunications
+                .map((communication) => communication?.id)
+                .filter(Boolean)
+        );
+
+        if (!this.hasHydratedInbox) {
+            this.seenInboxCommunicationIds = nextIds;
+            this.newInboxCommunicationIds.clear();
+            this.hasHydratedInbox = true;
+            return;
+        }
+
+        nextInboxCommunications.forEach((communication) => {
+            if (!communication?.id || this.seenInboxCommunicationIds.has(communication.id)) {
+                return;
+            }
+
+            this.seenInboxCommunicationIds.add(communication.id);
+            this.newInboxCommunicationIds.add(communication.id);
+            if (announce) {
+                this.pendingInboxArrivalIds.add(communication.id);
+            }
+        });
+
+        this.newInboxCommunicationIds.forEach((communicationId) => {
+            if (!nextIds.has(communicationId)) {
+                this.newInboxCommunicationIds.delete(communicationId);
+            }
+        });
+    }
+
+    clearInboxArrivals() {
+        if (this.newInboxCommunicationIds.size === 0) {
+            return;
+        }
+
+        this.newInboxCommunicationIds.clear();
+        this.renderInbox();
+    }
+
+    flushInboxArrivalAnnouncement() {
+        const arrivalCount = this.pendingInboxArrivalIds.size;
+        if (arrivalCount === 0) {
+            return;
+        }
+
+        showToast(
+            arrivalCount === 1
+                ? 'A new White Cell inbox item has arrived.'
+                : `${arrivalCount} new White Cell inbox items have arrived.`,
+            {
+                type: 'info',
+                duration: 10000
+            }
+        );
+
+        this.pendingInboxArrivalIds.clear();
     }
 
     /**
@@ -973,6 +1055,11 @@ export class NotetakerController {
 
     renderInbox() {
         const container = document.getElementById('inboxList');
+        const inboxBadge = document.getElementById('inboxBadge');
+        if (inboxBadge) {
+            inboxBadge.textContent = String(this.inboxCommunications.length);
+            inboxBadge.hidden = this.inboxCommunications.length === 0;
+        }
         if (!container) return;
 
         if (this.inboxCommunications.length === 0) {
@@ -992,9 +1079,12 @@ export class NotetakerController {
         };
 
         container.innerHTML = this.inboxCommunications.map((communication) => `
-            <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3);">
+            <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3); ${this.newInboxCommunicationIds.has(communication.id) ? 'border-left: 4px solid var(--color-primary-500); background: var(--color-surface-alt);' : ''}">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
                     <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                        ${this.newInboxCommunicationIds.has(communication.id)
+        ? createBadge({ text: 'NEW', variant: 'warning', size: 'sm', rounded: true }).outerHTML
+        : ''}
                         ${createBadge({ text: updateLabelForCommunication(communication), size: 'sm', rounded: true }).outerHTML}
                         <span class="text-xs text-gray-500">White Cell</span>
                     </div>

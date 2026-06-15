@@ -178,6 +178,16 @@ export class FacilitatorController {
         this.teamContext = resolveTeamContext();
         this.teamId = this.teamContext.teamId;
         this.teamLabel = this.teamContext.teamLabel;
+        this.seenResponseIds = new Set();
+        this.newResponseIds = new Set();
+        this.seenReceivedProposalIds = new Set();
+        this.newReceivedProposalIds = new Set();
+        this.pendingWhiteCellArrivalSummary = {
+            responses: new Set(),
+            proposals: new Set()
+        };
+        this.hasHydratedResponses = false;
+        this.hasHydratedReceivedProposals = false;
     }
 
     async init() {
@@ -408,6 +418,18 @@ export class FacilitatorController {
                 });
             }
         });
+
+        document.querySelectorAll?.('.sidebar-link[data-section]')?.forEach((link) => {
+            link.addEventListener('click', () => {
+                if (link.dataset.section === 'responses') {
+                    this.clearNewResponseArrivals();
+                }
+
+                if (link.dataset.section === 'receivedProposals') {
+                    this.clearNewReceivedProposalArrivals();
+                }
+            });
+        });
     }
 
     requireWriteAccess() {
@@ -455,18 +477,26 @@ export class FacilitatorController {
         );
 
         this.storeUnsubscribers.push(
-            requestsStore.subscribe(() => {
+            requestsStore.subscribe((event) => {
                 this.syncRfisFromStore();
-                this.syncResponsesFromStores();
+                this.syncResponsesFromStores({
+                    announce: event === 'created' || event === 'updated'
+                });
+                this.flushWhiteCellArrivalAnnouncement();
             })
         );
 
         this.storeUnsubscribers.push(
-            communicationsStore.subscribe(() => {
+            communicationsStore.subscribe((event) => {
                 this.renderActionsList();
-                this.syncResponsesFromStores();
-                this.syncReceivedProposalsFromStore();
+                this.syncResponsesFromStores({
+                    announce: event === 'created'
+                });
+                this.syncReceivedProposalsFromStore({
+                    announce: event === 'created'
+                });
                 this.syncWhiteCellUpdateSectionsFromStore();
+                this.flushWhiteCellArrivalAnnouncement();
             })
         );
 
@@ -497,7 +527,9 @@ export class FacilitatorController {
         }
     }
 
-    syncResponsesFromStores() {
+    syncResponsesFromStores({
+        announce = false
+    } = {}) {
         const answeredRfis = requestsStore.getByTeam(this.teamId)
             .filter((request) => request.status === 'answered' && request.response)
             .map((request) => ({
@@ -533,20 +565,26 @@ export class FacilitatorController {
                 badgeVariant: 'warning'
             }));
 
-        this.responses = [...answeredRfis, ...directResponses, ...forwardedProposals].sort(
+        const nextResponses = [...answeredRfis, ...directResponses, ...forwardedProposals].sort(
             (a, b) => new Date(b.created_at) - new Date(a.created_at)
         );
+        this.captureWhiteCellResponseArrivals(nextResponses, { announce });
+        this.responses = nextResponses;
 
         this.renderResponsesList();
     }
 
-    syncReceivedProposalsFromStore() {
-        this.receivedProposals = communicationsStore.getAll()
+    syncReceivedProposalsFromStore({
+        announce = false
+    } = {}) {
+        const nextReceivedProposals = communicationsStore.getAll()
             .filter((communication) => (
                 communication?.type === 'PROPOSAL_FORWARDED'
                 && isWhiteCellCommunicationVisibleToLead(communication, this.teamContext)
             ))
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        this.captureReceivedProposalArrivals(nextReceivedProposals, { announce });
+        this.receivedProposals = nextReceivedProposals;
 
         this.renderReceivedProposals();
     }
@@ -573,6 +611,134 @@ export class FacilitatorController {
 
         badge.textContent = String(count);
         badge.hidden = count === 0;
+    }
+
+    captureWhiteCellResponseArrivals(nextResponses = [], {
+        announce = false
+    } = {}) {
+        const nextIds = new Set(
+            nextResponses
+                .map((response) => response?.id)
+                .filter(Boolean)
+        );
+
+        if (!this.hasHydratedResponses) {
+            this.seenResponseIds = nextIds;
+            this.newResponseIds.clear();
+            this.hasHydratedResponses = true;
+            return;
+        }
+
+        nextResponses.forEach((response) => {
+            if (!response?.id || this.seenResponseIds.has(response.id)) {
+                return;
+            }
+
+            this.seenResponseIds.add(response.id);
+
+            if (response.kind === 'proposal') {
+                return;
+            }
+
+            this.newResponseIds.add(response.id);
+            if (announce) {
+                this.pendingWhiteCellArrivalSummary.responses.add(response.id);
+            }
+        });
+
+        this.newResponseIds.forEach((responseId) => {
+            if (!nextIds.has(responseId)) {
+                this.newResponseIds.delete(responseId);
+            }
+        });
+    }
+
+    captureReceivedProposalArrivals(nextReceivedProposals = [], {
+        announce = false
+    } = {}) {
+        const nextIds = new Set(
+            nextReceivedProposals
+                .map((communication) => communication?.id)
+                .filter(Boolean)
+        );
+
+        if (!this.hasHydratedReceivedProposals) {
+            this.seenReceivedProposalIds = nextIds;
+            this.newReceivedProposalIds.clear();
+            this.hasHydratedReceivedProposals = true;
+            return;
+        }
+
+        nextReceivedProposals.forEach((communication) => {
+            if (!communication?.id || this.seenReceivedProposalIds.has(communication.id)) {
+                return;
+            }
+
+            this.seenReceivedProposalIds.add(communication.id);
+            this.newReceivedProposalIds.add(communication.id);
+            if (announce) {
+                this.pendingWhiteCellArrivalSummary.proposals.add(communication.id);
+            }
+        });
+
+        this.newReceivedProposalIds.forEach((communicationId) => {
+            if (!nextIds.has(communicationId)) {
+                this.newReceivedProposalIds.delete(communicationId);
+            }
+        });
+    }
+
+    clearNewResponseArrivals() {
+        if (this.newResponseIds.size === 0) {
+            return;
+        }
+
+        this.newResponseIds.clear();
+        this.renderResponsesList();
+    }
+
+    clearNewReceivedProposalArrivals() {
+        if (this.newReceivedProposalIds.size === 0) {
+            return;
+        }
+
+        this.newReceivedProposalIds.clear();
+        this.renderReceivedProposals();
+    }
+
+    flushWhiteCellArrivalAnnouncement() {
+        const responseCount = this.pendingWhiteCellArrivalSummary.responses.size;
+        const proposalCount = this.pendingWhiteCellArrivalSummary.proposals.size;
+
+        if (responseCount === 0 && proposalCount === 0) {
+            return;
+        }
+
+        let message = '';
+        let type = 'info';
+
+        if (responseCount > 0 && proposalCount > 0) {
+            message = `New White Cell items arrived: ${responseCount} response${responseCount === 1 ? '' : 's'} and ${proposalCount} forwarded proposal${proposalCount === 1 ? '' : 's'}.`;
+            type = 'warning';
+        } else if (proposalCount > 0) {
+            message = proposalCount === 1
+                ? 'A new forwarded proposal has arrived from White Cell. Open Received Proposals.'
+                : `${proposalCount} forwarded proposals have arrived from White Cell. Open Received Proposals.`;
+            type = 'warning';
+        } else {
+            message = responseCount === 1
+                ? 'A new White Cell response has arrived. Open White Cell Responses.'
+                : `${responseCount} new White Cell responses have arrived. Open White Cell Responses.`;
+        }
+
+        showToast({
+            message,
+            type,
+            duration: 10000
+        });
+
+        this.pendingWhiteCellArrivalSummary.responses.clear();
+        this.pendingWhiteCellArrivalSummary.proposals.clear();
     }
 
     getWhiteCellUpdateResponseTitle(updateKind = null) {
@@ -770,6 +936,7 @@ export class FacilitatorController {
             const status = getProposalRecipientStatus(communication);
             const statusLabel = formatProposalRecipientStatus(status);
             const isUnread = status === PROPOSAL_RECIPIENT_STATUSES.UNREAD;
+            const isNewArrival = this.newReceivedProposalIds.has(communication.id);
             const cardId = escape(communication.id);
             const responseEntry = getProposalResponseEntry(communication);
             const showAcknowledge = status === PROPOSAL_RECIPIENT_STATUSES.UNREAD;
@@ -803,15 +970,24 @@ export class FacilitatorController {
                     </p>
                 `
                 : '';
+            const arrivalBadgeMarkup = isNewArrival
+                ? createBadge({
+                    text: 'NEW',
+                    variant: 'warning',
+                    size: 'sm',
+                    rounded: true
+                }).outerHTML
+                : '';
 
             return `
-                <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3); ${isUnread ? 'border-left: 3px solid var(--color-info-600);' : ''}">
+                <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3); ${(isUnread || isNewArrival) ? 'border-left: 3px solid var(--color-info-600);' : ''}${isNewArrival ? ' background: var(--color-surface-alt);' : ''}">
                     <div style="display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; margin-bottom: var(--space-2);">
                         <div>
                             <p class="text-xs text-gray-500" style="margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.05em;">Forwarded from ${escape(sourceLabel)} | ${escape(outcome)}</p>
                             <h3 class="font-semibold" style="margin: 0;">${escape(title)}</h3>
                         </div>
                         <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0;">
+                            ${arrivalBadgeMarkup}
                             <span style="font-size: var(--text-xs); font-weight: var(--font-semibold); text-transform: uppercase; letter-spacing: 0.05em; color: ${statusChipColor(status)};">${escape(statusLabel)}</span>
                             <span class="text-xs text-gray-400">${escape(formatRelativeTime(receivedAt))}</span>
                         </div>
@@ -3524,22 +3700,34 @@ export class FacilitatorController {
         }
 
         container.innerHTML = this.responses.map((response) => {
+            const isNewArrival = this.newResponseIds.has(response.id);
             const responseBadge = createBadge({
                 text: response.badgeText || 'MESSAGE',
                 variant: response.badgeVariant || 'info',
                 size: 'sm',
                 rounded: true
             }).outerHTML;
+            const arrivalBadge = isNewArrival
+                ? createBadge({
+                    text: 'NEW',
+                    variant: 'warning',
+                    size: 'sm',
+                    rounded: true
+                }).outerHTML
+                : '';
 
             return `
-                <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3);">
+                <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3); ${isNewArrival ? 'border-left: 4px solid var(--color-primary-500); background: var(--color-surface-alt);' : ''}">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-2);">
                         <div>
                             <h3 class="font-semibold">${this.escapeHtml(response.title)}</h3>
                             ${response.subtitle ? `<p class="text-xs text-gray-500">${this.escapeHtml(response.subtitle)}</p>` : ''}
                             <p class="text-xs text-gray-400">${formatDateTime(response.created_at)}</p>
                         </div>
-                        ${responseBadge}
+                        <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end;">
+                            ${arrivalBadge}
+                            ${responseBadge}
+                        </div>
                     </div>
                     <p class="text-sm">${this.escapeHtml(response.content || '')}</p>
                 </div>
@@ -3770,9 +3958,12 @@ export class FacilitatorController {
 
     escapeHtml(value) {
         if (typeof value !== 'string') return '';
-        const div = document.createElement('div');
-        div.textContent = value;
-        return div.innerHTML;
+        return value
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll('\'', '&#39;');
     }
 
     destroy() {

@@ -74,9 +74,15 @@ describe('database action lifecycle transitions', () => {
             adjudication_notes: 'Should be stripped'
         });
 
-        expect(database.updateAction).toHaveBeenCalledWith('action-3', {
-            goal: 'Updated goal'
-        });
+        expect(database.updateAction).toHaveBeenCalledWith(
+            'action-3',
+            {
+                goal: 'Updated goal'
+            },
+            {
+                allowEmptyMechanism: true
+            }
+        );
     });
 
     it('rejects draft updates for already submitted actions', async () => {
