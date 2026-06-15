@@ -94,6 +94,14 @@ function buildLeadRecipientSet(teamContext = {}) {
     ].filter(Boolean));
 }
 
+function buildScribeRecipientSet(teamContext = {}) {
+    return new Set([
+        'all',
+        teamContext.teamId,
+        teamContext.scribeRole
+    ].filter(Boolean));
+}
+
 function buildNotetakerRecipientSet(teamContext = {}) {
     return new Set([
         'all',
@@ -106,6 +114,14 @@ export function isWhiteCellCommunicationVisibleToLead(communication = {}, teamCo
     return isVisibleWhiteCellCommunication(
         communication,
         buildLeadRecipientSet(teamContext),
+        teamContext.teamId
+    );
+}
+
+export function isWhiteCellCommunicationVisibleToScribe(communication = {}, teamContext = {}) {
+    return isVisibleWhiteCellCommunication(
+        communication,
+        buildScribeRecipientSet(teamContext),
         teamContext.teamId
     );
 }

@@ -160,6 +160,7 @@ describe('White Cell DOM contract', () => {
         vi.clearAllMocks();
         vi.resetModules();
         delete global.document;
+        delete global.fetch;
         delete global.window;
         delete globalThis.__ESG_DISABLE_AUTO_INIT__;
     });
@@ -394,6 +395,138 @@ describe('White Cell DOM contract', () => {
             { value: 'red_notetaker', label: 'Red Team Notetaker' },
             { value: 'green_facilitator', label: 'Green Team Facilitator' }
         ]));
+    });
+
+    it('loads a validated deck into the requested team scribe seat through shared communications', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+
+        global.document = createFakeDocument([
+            'scribeDeckPath-blue',
+            'scribeDeckLabel-blue'
+        ]);
+        global.document.elements['scribeDeckPath-blue'].value = 'custom-scribe-deck.html';
+        global.document.elements['scribeDeckLabel-blue'].value = 'Blue Crisis Deck';
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: () => Promise.resolve(`
+                <script>
+                    const SLIDES = [{"n":1,"title":"Briefing","src":"data:image/png;base64,AAA="}];
+                    const SECTIONS = [];
+                </script>
+            `)
+        });
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-42');
+        vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_lead');
+        const createCommunication = vi.spyOn(database, 'createCommunication').mockResolvedValue({
+            id: 'comm-scribe-1'
+        });
+        const createTimelineEvent = vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({
+            id: 'timeline-scribe-1'
+        });
+        const communicationsUpdate = vi.spyOn(communicationsStore, 'updateFromServer').mockImplementation(() => {});
+        const timelineUpdate = vi.spyOn(timelineStore, 'updateFromServer').mockImplementation(() => {});
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        controller.getCurrentGameState = vi.fn(() => ({ move: 2, phase: 1 }));
+
+        await controller.handleScribeDeckAssignmentSubmit('blue');
+
+        expect(global.fetch).toHaveBeenCalledWith('/custom-scribe-deck.html', {
+            credentials: 'same-origin'
+        });
+        expect(createCommunication).toHaveBeenCalledWith(expect.objectContaining({
+            session_id: 'session-42',
+            from_role: 'white_cell',
+            to_role: 'blue_scribe',
+            type: 'GUIDANCE',
+            content: 'White Cell loaded "Blue Crisis Deck" into Blue Team Scribe (custom-scribe-deck.html).',
+            metadata: expect.objectContaining({
+                content_kind: 'SCRIBE_DECK_ASSIGNMENT',
+                deck_path: 'custom-scribe-deck.html',
+                deck_label: 'Blue Crisis Deck',
+                recipient: 'blue_scribe',
+                recipient_scope: 'role',
+                recipient_team: 'blue',
+                recipient_role: 'blue_scribe',
+                source: 'scribe_deck_assignment',
+                actor_role: 'whitecell_lead'
+            })
+        }));
+        expect(communicationsUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'comm-scribe-1' }));
+        expect(createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            session_id: 'session-42',
+            type: 'GUIDANCE',
+            content: 'White Cell loaded Blue Crisis Deck into Blue Team Scribe',
+            team: 'white_cell',
+            move: 2,
+            phase: 1,
+            metadata: expect.objectContaining({
+                role: 'whitecell_lead',
+                content_kind: 'SCRIBE_DECK_ASSIGNMENT',
+                deck_path: 'custom-scribe-deck.html',
+                deck_label: 'Blue Crisis Deck',
+                recipient_role: 'blue_scribe'
+            })
+        }));
+        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-scribe-1' }));
+        expect(showToast).toHaveBeenCalledWith({ message: 'Blue Team scribe deck updated.', type: 'success' });
+    });
+
+    it('keeps the latest scribe deck assignment for each team in White Cell settings', async () => {
+        const { buildWhiteCellScribeDeckAssignments } = await loadWhiteCellModule();
+
+        const assignments = buildWhiteCellScribeDeckAssignments([
+            {
+                id: 'comm-blue-new',
+                created_at: '2026-06-15T11:05:00.000Z',
+                metadata: {
+                    content_kind: 'SCRIBE_DECK_ASSIGNMENT',
+                    recipient_team: 'blue',
+                    deck_path: 'blue-new-deck.html',
+                    deck_label: 'Blue New Deck'
+                }
+            },
+            {
+                id: 'comm-blue-old',
+                created_at: '2026-06-15T11:00:00.000Z',
+                metadata: {
+                    content_kind: 'SCRIBE_DECK_ASSIGNMENT',
+                    recipient_team: 'blue',
+                    deck_path: 'blue-old-deck.html',
+                    deck_label: 'Blue Old Deck'
+                }
+            },
+            {
+                id: 'comm-red-new',
+                created_at: '2026-06-15T11:10:00.000Z',
+                metadata: {
+                    content_kind: 'SCRIBE_DECK_ASSIGNMENT',
+                    recipient_team: 'red',
+                    deck_path: 'red-deck.html',
+                    deck_label: 'Red Deck'
+                }
+            }
+        ]);
+
+        expect(assignments.blue).toMatchObject({
+            communicationId: 'comm-blue-new',
+            deckPath: 'blue-new-deck.html',
+            deckLabel: 'Blue New Deck'
+        });
+        expect(assignments.red).toMatchObject({
+            communicationId: 'comm-red-new',
+            deckPath: 'red-deck.html',
+            deckLabel: 'Red Deck'
+        });
+        expect(assignments.green).toMatchObject({
+            communicationId: null
+        });
     });
 
     it('builds participant team and role filters from the live roster', async () => {

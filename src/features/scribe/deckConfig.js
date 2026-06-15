@@ -1,3 +1,7 @@
+export const DEFAULT_SCRIBE_DECK_PATH = 'fractured-order-facilitator-deck.html';
+export const DEFAULT_SCRIBE_DECK_LABEL = 'Fractured Order Facilitator Deck';
+export const SCRIBE_DECK_ASSIGNMENT_CONTENT_KIND = 'SCRIBE_DECK_ASSIGNMENT';
+
 export const SCRIBE_DECK_SECTIONS = Object.freeze([
     {
         id: 'actions',
@@ -60,6 +64,100 @@ export const SCRIBE_DECK_SECTIONS = Object.freeze([
         slideNumbers: Object.freeze([40, 53, 54, 55, 56, 57])
     }
 ]);
+
+export function parseScribeDeckHtml(html = '') {
+    const slidesMatch = html.match(/const\s+SLIDES\s*=\s*(\[[\s\S]*?\]);\s*const\s+SECTIONS\s*=/);
+    if (!slidesMatch?.[1]) {
+        throw new Error('Scribe deck payload is missing slide data.');
+    }
+
+    const slides = JSON.parse(slidesMatch[1]);
+    if (!Array.isArray(slides) || !slides.length) {
+        throw new Error('Scribe deck payload did not contain any slides.');
+    }
+
+    return slides;
+}
+
+export function normalizeScribeDeckPath(deckPath = DEFAULT_SCRIBE_DECK_PATH) {
+    const rawPath = String(deckPath || '').trim();
+    if (!rawPath) {
+        return DEFAULT_SCRIBE_DECK_PATH;
+    }
+
+    if (/^[a-z]+:/i.test(rawPath) || rawPath.startsWith('//')) {
+        throw new Error('Scribe deck paths must stay inside this app.');
+    }
+
+    const normalizedPath = rawPath
+        .replace(/\\/g, '/')
+        .replace(/^\.\//, '')
+        .replace(/^\/+/, '');
+
+    if (normalizedPath.includes('..')) {
+        throw new Error('Scribe deck paths cannot traverse outside the app bundle.');
+    }
+
+    if (!/\.html(?:[?#].*)?$/i.test(normalizedPath)) {
+        throw new Error('Scribe deck paths must point to an HTML deck file.');
+    }
+
+    return normalizedPath;
+}
+
+export function normalizeScribeDeckLabel(
+    deckLabel = '',
+    deckPath = DEFAULT_SCRIBE_DECK_PATH
+) {
+    const trimmedLabel = typeof deckLabel === 'string' ? deckLabel.trim() : '';
+    if (trimmedLabel) {
+        return trimmedLabel;
+    }
+
+    const normalizedPath = normalizeScribeDeckPath(deckPath);
+    if (normalizedPath === DEFAULT_SCRIBE_DECK_PATH) {
+        return DEFAULT_SCRIBE_DECK_LABEL;
+    }
+
+    const pathWithoutSuffix = normalizedPath.split(/[?#]/, 1)[0];
+    const fileName = pathWithoutSuffix.split('/').pop() || normalizedPath;
+    const label = fileName
+        .replace(/\.html$/i, '')
+        .replace(/[-_]+/g, ' ')
+        .trim();
+
+    return label || DEFAULT_SCRIBE_DECK_LABEL;
+}
+
+export function getScribeDeckAssignmentDetails(communication = {}) {
+    const metadata = communication?.metadata && typeof communication.metadata === 'object'
+        ? communication.metadata
+        : null;
+
+    if (!metadata || metadata.content_kind !== SCRIBE_DECK_ASSIGNMENT_CONTENT_KIND) {
+        return null;
+    }
+
+    const recipientTeam = typeof metadata.recipient_team === 'string'
+        ? metadata.recipient_team.trim().toLowerCase()
+        : '';
+    if (!recipientTeam) {
+        return null;
+    }
+
+    try {
+        const deckPath = normalizeScribeDeckPath(metadata.deck_path || DEFAULT_SCRIBE_DECK_PATH);
+        return {
+            communicationId: communication?.id || null,
+            recipientTeam,
+            deckPath,
+            deckLabel: normalizeScribeDeckLabel(metadata.deck_label, deckPath),
+            assignedAt: communication?.created_at || communication?.updated_at || null
+        };
+    } catch (_error) {
+        return null;
+    }
+}
 
 export function expandScribeDeckSections(slides = []) {
     const slideMap = new Map(

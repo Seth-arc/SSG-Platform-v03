@@ -1,5 +1,6 @@
 import { sessionStore } from '../stores/session.js';
 import { actionsStore } from '../stores/actions.js';
+import { communicationsStore } from '../stores/communications.js';
 import { createLogger } from '../utils/logger.js';
 import { formatDateTime, formatStatus } from '../utils/formatting.js';
 import { showToast } from '../components/ui/Toast.js';
@@ -7,6 +8,7 @@ import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import { createOutcomeBadge, createPriorityBadge, createStatusBadge } from '../components/ui/Badge.js';
 import { ENUMS, getPhaseLabel } from '../core/enums.js';
+import { isWhiteCellCommunicationVisibleToScribe } from '../features/communications/targeting.js';
 import {
     formatActionSequenceLabel,
     formatBlueActionSelection,
@@ -14,27 +16,20 @@ import {
     getBlueActionViewModel
 } from '../features/actions/blueActionDetails.js';
 import {
+    DEFAULT_SCRIBE_DECK_LABEL,
+    DEFAULT_SCRIBE_DECK_PATH,
     expandScribeDeckSections,
     flattenScribeDeckSlides,
-    getSectionIndexForSlideKey
+    getScribeDeckAssignmentDetails,
+    getSectionIndexForSlideKey,
+    parseScribeDeckHtml
 } from '../features/scribe/deckConfig.js';
 
 const logger = createLogger('Scribe');
-const FACILITATOR_DECK_PATH = 'fractured-order-facilitator-deck.html';
 const ACTIONS_SECTION_ID = 'actions';
 
 export function parseFacilitatorDeckHtml(html = '') {
-    const slidesMatch = html.match(/const\s+SLIDES\s*=\s*(\[[\s\S]*?\]);\s*const\s+SECTIONS\s*=/);
-    if (!slidesMatch?.[1]) {
-        throw new Error('Facilitator deck payload is missing slide data.');
-    }
-
-    const slides = JSON.parse(slidesMatch[1]);
-    if (!Array.isArray(slides) || !slides.length) {
-        throw new Error('Facilitator deck payload did not contain any slides.');
-    }
-
-    return slides;
+    return parseScribeDeckHtml(html);
 }
 
 export function getScribeAccessState({
@@ -83,8 +78,8 @@ export function getScribeAccessState({
     };
 }
 
-async function fetchFacilitatorDeckSlides() {
-    const response = await fetch(buildAppPath(FACILITATOR_DECK_PATH), {
+async function fetchScribeDeckSlides(deckPath = DEFAULT_SCRIBE_DECK_PATH) {
+    const response = await fetch(buildAppPath(deckPath), {
         credentials: 'same-origin'
     });
 
@@ -93,6 +88,33 @@ async function fetchFacilitatorDeckSlides() {
     }
 
     return parseFacilitatorDeckHtml(await response.text());
+}
+
+export function resolveAssignedScribeDeck(
+    communications = [],
+    teamContext = resolveTeamContext()
+) {
+    const defaultAssignment = {
+        communicationId: null,
+        deckPath: DEFAULT_SCRIBE_DECK_PATH,
+        deckLabel: DEFAULT_SCRIBE_DECK_LABEL,
+        assignedAt: null
+    };
+
+    for (const communication of communications) {
+        if (!isWhiteCellCommunicationVisibleToScribe(communication, teamContext)) {
+            continue;
+        }
+
+        const assignment = getScribeDeckAssignmentDetails(communication);
+        if (!assignment || assignment.recipientTeam !== teamContext.teamId) {
+            continue;
+        }
+
+        return assignment;
+    }
+
+    return defaultAssignment;
 }
 
 function isEditableTarget(element) {
@@ -266,6 +288,9 @@ export class ScribeController {
         this.teamActions = [];
         this.sections = [];
         this.deckSlides = [];
+        this.activeDeckPath = DEFAULT_SCRIBE_DECK_PATH;
+        this.activeDeckLabel = DEFAULT_SCRIBE_DECK_LABEL;
+        this.activeDeckAssignmentId = null;
         this.currentSlideIndex = 0;
         this.activeSectionIndex = 0;
         this.storeUnsubscribers = [];
@@ -311,6 +336,7 @@ export class ScribeController {
         this.configureShell();
         this.bindEventListeners();
         this.subscribeToLiveData();
+        this.syncDeckAssignmentFromStore({ reload: false });
         await this.loadDeck();
         this.syncActionsFromStore();
 
@@ -418,6 +444,13 @@ export class ScribeController {
                 this.syncActionsFromStore();
             })
         );
+        this.storeUnsubscribers.push(
+            communicationsStore.subscribe((event) => {
+                this.syncDeckAssignmentFromStore({
+                    reload: event === 'created' || event === 'updated' || event === 'initialized' || event === 'loaded'
+                });
+            })
+        );
     }
 
     syncActionsFromStore() {
@@ -442,6 +475,28 @@ export class ScribeController {
 
     isPresentationModeActive() {
         return document.body?.dataset?.scribePresentation === 'active';
+    }
+
+    syncDeckAssignmentFromStore({
+        reload = true
+    } = {}) {
+        const nextAssignment = resolveAssignedScribeDeck(
+            communicationsStore.getAll(),
+            this.teamContext
+        );
+        const hasDeckChanged = nextAssignment.deckPath !== this.activeDeckPath
+            || nextAssignment.communicationId !== this.activeDeckAssignmentId;
+
+        this.activeDeckPath = nextAssignment.deckPath;
+        this.activeDeckLabel = nextAssignment.deckLabel;
+        this.activeDeckAssignmentId = nextAssignment.communicationId;
+
+        if (reload && hasDeckChanged) {
+            void this.loadDeck({
+                deckPath: this.activeDeckPath,
+                deckLabel: this.activeDeckLabel
+            });
+        }
     }
 
     async togglePresentationMode() {
@@ -469,15 +524,18 @@ export class ScribeController {
         }
     }
 
-    async loadDeck() {
+    async loadDeck({
+        deckPath = this.activeDeckPath,
+        deckLabel = this.activeDeckLabel
+    } = {}) {
         this.setDeckState('loading');
         this.renderDeckState({
-            title: 'Loading support deck',
-            message: 'Pulling the facilitator deck and live team decisions into the scribe surface.'
+            title: `Loading ${deckLabel || 'support deck'}`,
+            message: `Pulling ${deckLabel || 'the assigned support deck'} and live team decisions into the scribe surface.`
         });
 
         try {
-            this.facilitatorDeckSlides = await fetchFacilitatorDeckSlides();
+            this.facilitatorDeckSlides = await fetchScribeDeckSlides(deckPath);
             this.rebuildDeck();
 
             this.renderSections();
@@ -487,7 +545,7 @@ export class ScribeController {
             this.setDeckState('error');
             this.renderDeckState({
                 title: 'Support deck unavailable',
-                message: error.message || 'The facilitator support deck could not be loaded for this seat.'
+                message: error.message || 'The assigned support deck could not be loaded for this seat.'
             });
             showToast({
                 message: 'The scribe support deck could not be loaded.',

@@ -4,6 +4,7 @@ import {
     buildWhiteCellRecipientMetadata,
     isNotetakerScopedWhiteCellCommunication,
     isWhiteCellCommunicationVisibleToLead,
+    isWhiteCellCommunicationVisibleToScribe,
     isWhiteCellTimelineEventVisibleToLead,
     isWhiteCellTimelineEventVisibleToNotetaker
 } from './targeting.js';
@@ -69,6 +70,23 @@ describe('white cell targeting helpers', () => {
         }, BLUE_TEAM_CONTEXT)).toBe(true);
 
         expect(isNotetakerScopedWhiteCellCommunication({
+            from_role: 'white_cell',
+            to_role: 'blue_facilitator'
+        }, BLUE_TEAM_CONTEXT)).toBe(false);
+    });
+
+    it('shows scribe communications only when they are addressed to the team, all teams, or the scribe seat', () => {
+        expect(isWhiteCellCommunicationVisibleToScribe({
+            from_role: 'white_cell',
+            to_role: 'all'
+        }, BLUE_TEAM_CONTEXT)).toBe(true);
+
+        expect(isWhiteCellCommunicationVisibleToScribe({
+            from_role: 'white_cell',
+            to_role: 'blue_scribe'
+        }, BLUE_TEAM_CONTEXT)).toBe(true);
+
+        expect(isWhiteCellCommunicationVisibleToScribe({
             from_role: 'white_cell',
             to_role: 'blue_facilitator'
         }, BLUE_TEAM_CONTEXT)).toBe(false);

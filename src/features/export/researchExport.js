@@ -2611,7 +2611,7 @@ export function buildResearchReportHtml(dataset, {
             size: A4;
             margin: 20mm 18mm 18mm;
             @top-left {
-                content: "Strategic Wargame Platform";
+                content: "Fractured Order";
                 font-family: "Inter", "Segoe UI", Arial, sans-serif;
                 font-size: 8pt;
                 letter-spacing: 0.1em;

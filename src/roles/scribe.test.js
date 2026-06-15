@@ -180,6 +180,53 @@ describe('scribe surface', () => {
         });
     });
 
+    it('resolves the latest visible White Cell deck assignment for the active scribe team', async () => {
+        const { resolveAssignedScribeDeck } = await loadScribeModule();
+
+        const teamContext = {
+            teamId: 'blue',
+            scribeRole: 'blue_scribe'
+        };
+        const assignment = resolveAssignedScribeDeck([
+            {
+                id: 'comm-scribe-new',
+                from_role: 'white_cell',
+                to_role: 'blue_scribe',
+                created_at: '2026-06-15T11:05:00.000Z',
+                metadata: {
+                    content_kind: 'SCRIBE_DECK_ASSIGNMENT',
+                    recipient: 'blue_scribe',
+                    recipient_scope: 'role',
+                    recipient_team: 'blue',
+                    recipient_role: 'blue_scribe',
+                    deck_path: 'custom-scribe-deck.html',
+                    deck_label: 'Blue Crisis Deck'
+                }
+            },
+            {
+                id: 'comm-facilitator',
+                from_role: 'white_cell',
+                to_role: 'blue_facilitator',
+                created_at: '2026-06-15T11:00:00.000Z',
+                metadata: {
+                    content_kind: 'SCRIBE_DECK_ASSIGNMENT',
+                    recipient: 'blue_facilitator',
+                    recipient_scope: 'role',
+                    recipient_team: 'blue',
+                    recipient_role: 'blue_facilitator',
+                    deck_path: 'ignored-facilitator-deck.html',
+                    deck_label: 'Ignore Me'
+                }
+            }
+        ], teamContext);
+
+        expect(assignment).toMatchObject({
+            communicationId: 'comm-scribe-new',
+            deckPath: 'custom-scribe-deck.html',
+            deckLabel: 'Blue Crisis Deck'
+        });
+    });
+
     it('keeps the requested sidebar sections while reserving Actions for live facilitator decisions', () => {
         const slides = Array.from({ length: 61 }, (_entry, index) => ({
             n: index + 1,

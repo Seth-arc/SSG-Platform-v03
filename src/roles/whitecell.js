@@ -50,7 +50,7 @@ import {
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { CONFIG } from '../core/config.js';
 import { ENUMS, canAdjudicateAction, getPhaseLabel, isDraftAction } from '../core/enums.js';
-import { navigateToApp } from '../core/navigation.js';
+import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import {
     OPERATOR_SURFACES,
     ROLE_SURFACES,
@@ -68,6 +68,15 @@ import {
     isTeamCaptureTimelineEvent
 } from '../features/communications/targeting.js';
 import {
+    DEFAULT_SCRIBE_DECK_LABEL,
+    DEFAULT_SCRIBE_DECK_PATH,
+    SCRIBE_DECK_ASSIGNMENT_CONTENT_KIND,
+    getScribeDeckAssignmentDetails,
+    normalizeScribeDeckLabel,
+    normalizeScribeDeckPath,
+    parseScribeDeckHtml
+} from '../features/scribe/deckConfig.js';
+import {
     TRIBE_STREET_JOURNAL_EMBED_URL,
     createTribeStreetJournalEmbedMarkup
 } from '../features/tribeStreetJournalEmbed.js';
@@ -80,6 +89,7 @@ import {
 const logger = createLogger('WhiteCell');
 const WHITE_CELL_ALL_TEAMS_RECIPIENT = 'all';
 const WHITE_CELL_RED_TEAM_RECIPIENT = 'red';
+const WHITE_CELL_SCRIBE_DECK_ASSIGNMENT_SOURCE = 'scribe_deck_assignment';
 const TEAM_LABELS = Object.freeze(
     Object.fromEntries(TEAM_OPTIONS.map((team) => [team.id, team.label]))
 );
@@ -161,6 +171,8 @@ export const WHITE_CELL_DOM_IDS = [
     'participantsTeamFilter',
     'participantsRoleFilter',
     'participantsList',
+    'scribeDeckSettingsSummary',
+    'scribeDeckSettingsList',
     'actionsList',
     'responsesList',
     'proposalsList',
@@ -794,6 +806,52 @@ export function filterWhiteCellTimelineEvents(events = [], {
     });
 }
 
+function buildDefaultScribeDeckAssignment(team = {}) {
+    return {
+        teamId: team.id,
+        teamLabel: team.label,
+        deckPath: DEFAULT_SCRIBE_DECK_PATH,
+        deckLabel: DEFAULT_SCRIBE_DECK_LABEL,
+        assignedAt: null,
+        communicationId: null
+    };
+}
+
+export function buildWhiteCellScribeDeckAssignments(communications = []) {
+    const assignmentsByTeam = Object.fromEntries(
+        TEAM_OPTIONS.map((team) => [team.id, buildDefaultScribeDeckAssignment(team)])
+    );
+
+    communications.forEach((communication) => {
+        const assignment = getScribeDeckAssignmentDetails(communication);
+        if (!assignment || !assignmentsByTeam[assignment.recipientTeam]) {
+            return;
+        }
+
+        if (assignmentsByTeam[assignment.recipientTeam].communicationId) {
+            return;
+        }
+
+        assignmentsByTeam[assignment.recipientTeam] = {
+            ...assignmentsByTeam[assignment.recipientTeam],
+            deckPath: assignment.deckPath,
+            deckLabel: assignment.deckLabel,
+            assignedAt: assignment.assignedAt,
+            communicationId: assignment.communicationId
+        };
+    });
+
+    return assignmentsByTeam;
+}
+
+function buildScribeDeckAssignmentCommunicationContent({
+    teamLabel = 'Team',
+    deckLabel = DEFAULT_SCRIBE_DECK_LABEL,
+    deckPath = DEFAULT_SCRIBE_DECK_PATH
+} = {}) {
+    return `White Cell loaded "${deckLabel}" into ${teamLabel} Scribe (${deckPath}).`;
+}
+
 export class WhiteCellController {
     constructor() {
         this.actions = [];
@@ -804,6 +862,7 @@ export class WhiteCellController {
         this.communications = [];
         this.tribeStreetJournalEntries = [];
         this.verbaAiUpdates = [];
+        this.scribeDeckAssignments = buildWhiteCellScribeDeckAssignments();
         this.participants = [];
         this.timelineEvents = [];
         this.adminSessions = [];
@@ -954,6 +1013,7 @@ export class WhiteCellController {
         const commForm = document.getElementById('commForm');
         const participantsTeamFilter = document.getElementById('participantsTeamFilter');
         const participantsRoleFilter = document.getElementById('participantsRoleFilter');
+        const scribeDeckSettingsList = document.getElementById('scribeDeckSettingsList');
         const timelineTeamFilter = document.getElementById('timelineTeamFilter');
         const timelineRoleFilter = document.getElementById('timelineRoleFilter');
         const timelineMoveFilter = document.getElementById('timelineMoveFilter');
@@ -1067,6 +1127,21 @@ export class WhiteCellController {
             const exportType = button.dataset.exportType;
             this.handleExportAdmin(exportType).catch((err) => {
                 logger.error('Failed to export:', err);
+            });
+        });
+
+        scribeDeckSettingsList?.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-scribe-deck-action][data-scribe-deck-team]');
+            if (!button) return;
+
+            const teamId = button.dataset.scribeDeckTeam;
+            const action = button.dataset.scribeDeckAction;
+            if (!teamId) return;
+
+            this.handleScribeDeckAssignmentSubmit(teamId, {
+                useDefault: action === 'reset'
+            }).catch((err) => {
+                logger.error('Failed to assign scribe deck:', err);
             });
         });
 
@@ -2940,6 +3015,7 @@ export class WhiteCellController {
 
     syncCommunicationsFromStore() {
         this.communications = communicationsStore.getAll();
+        this.scribeDeckAssignments = buildWhiteCellScribeDeckAssignments(this.communications);
         this.verbaAiUpdates = this.communications
             .filter((communication) => (
                 communication?.from_role === 'white_cell'
@@ -2947,6 +3023,7 @@ export class WhiteCellController {
             ))
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         this.renderCommunicationHistory();
+        this.renderScribeDeckSettings();
         this.renderVerbaAiList();
     }
 
@@ -3026,6 +3103,214 @@ export class WhiteCellController {
                 </div>
             `;
         }).join('');
+    }
+
+    renderScribeDeckSettings() {
+        const summary = document.getElementById('scribeDeckSettingsSummary');
+        const container = document.getElementById('scribeDeckSettingsList');
+        if (!summary || !container) {
+            return;
+        }
+
+        summary.textContent = 'Load a repo-hosted HTML deck into each scribe seat. Only same-app .html decks with the slide manifest contract are accepted.';
+
+        container.innerHTML = TEAM_OPTIONS.map((team) => {
+            const assignment = this.scribeDeckAssignments[team.id] || buildDefaultScribeDeckAssignment(team);
+            const pathInputId = `scribeDeckPath-${team.id}`;
+            const labelInputId = `scribeDeckLabel-${team.id}`;
+            const currentDeckBadge = createBadge({
+                text: 'Current Deck',
+                variant: 'info',
+                size: 'sm',
+                rounded: true
+            }).outerHTML;
+            const statusText = assignment.assignedAt
+                ? `Updated ${formatRelativeTime(assignment.assignedAt)}`
+                : 'Using the default deck';
+
+            return `
+                <section class="card card-bordered" style="padding: var(--space-4);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3);">
+                        <div>
+                            <h4 class="text-sm font-semibold" style="margin: 0 0 var(--space-1);">${this.escapeHtml(team.label)} Scribe</h4>
+                            <p class="text-xs text-gray-500" style="margin: 0;">${this.escapeHtml(statusText)}</p>
+                        </div>
+                        ${currentDeckBadge}
+                    </div>
+                    <p class="text-sm" style="margin: 0 0 var(--space-3);">${this.escapeHtml(assignment.deckLabel)}</p>
+                    <div class="form-group">
+                        <label class="form-label" for="${pathInputId}">Deck HTML Path</label>
+                        <input
+                            id="${pathInputId}"
+                            class="form-input"
+                            type="text"
+                            value="${this.escapeHtml(assignment.deckPath)}"
+                            placeholder="${this.escapeHtml(DEFAULT_SCRIBE_DECK_PATH)}"
+                            spellcheck="false"
+                            autocomplete="off"
+                        >
+                        <p class="form-hint">Example: <code>${this.escapeHtml(DEFAULT_SCRIBE_DECK_PATH)}</code></p>
+                    </div>
+                    <div class="form-group" style="margin-bottom: var(--space-3);">
+                        <label class="form-label" for="${labelInputId}">Deck Label</label>
+                        <input
+                            id="${labelInputId}"
+                            class="form-input"
+                            type="text"
+                            value="${this.escapeHtml(assignment.deckLabel)}"
+                            placeholder="${this.escapeHtml(DEFAULT_SCRIBE_DECK_LABEL)}"
+                            maxlength="120"
+                        >
+                    </div>
+                    <div class="card-actions" style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                        <button
+                            type="button"
+                            class="btn btn-primary btn-sm"
+                            data-scribe-deck-action="load"
+                            data-scribe-deck-team="${this.escapeHtml(team.id)}"
+                        >Load Deck</button>
+                        <button
+                            type="button"
+                            class="btn btn-secondary btn-sm"
+                            data-scribe-deck-action="reset"
+                            data-scribe-deck-team="${this.escapeHtml(team.id)}"
+                        >Use Default</button>
+                    </div>
+                </section>
+            `;
+        }).join('');
+    }
+
+    async validateScribeDeckPath(deckPath) {
+        const response = await fetch(buildAppPath(deckPath), {
+            credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+            throw new Error(`Deck fetch failed with status ${response.status}.`);
+        }
+
+        parseScribeDeckHtml(await response.text());
+    }
+
+    async handleScribeDeckAssignmentSubmit(teamId, {
+        useDefault = false
+    } = {}) {
+        const team = TEAM_OPTIONS.find((entry) => entry.id === teamId);
+        if (!team) {
+            showToast({ message: 'Unknown team selected for the scribe deck.', type: 'error' });
+            return;
+        }
+
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) {
+            showToast({ message: 'No session selected', type: 'error' });
+            return;
+        }
+
+        const pathInput = document.getElementById(`scribeDeckPath-${teamId}`);
+        const labelInput = document.getElementById(`scribeDeckLabel-${teamId}`);
+        const rawDeckPath = useDefault
+            ? DEFAULT_SCRIBE_DECK_PATH
+            : pathInput?.value || '';
+
+        if (!useDefault && !String(rawDeckPath).trim()) {
+            showToast({ message: 'Deck path is required.', type: 'error' });
+            return;
+        }
+
+        let deckPath;
+        try {
+            deckPath = normalizeScribeDeckPath(rawDeckPath || DEFAULT_SCRIBE_DECK_PATH);
+        } catch (error) {
+            showToast({ message: error.message || 'Deck path is invalid.', type: 'error' });
+            return;
+        }
+
+        const deckLabel = useDefault
+            ? DEFAULT_SCRIBE_DECK_LABEL
+            : normalizeScribeDeckLabel(labelInput?.value || '', deckPath);
+        const loader = showLoader({
+            message: useDefault
+                ? `Restoring ${team.label} scribe deck...`
+                : `Loading ${team.label} scribe deck...`
+        });
+
+        try {
+            await this.validateScribeDeckPath(deckPath);
+
+            const recipientRole = buildTeamRole(team.id, ROLE_SURFACES.SCRIBE);
+            const recipientMetadata = buildWhiteCellRecipientMetadata(recipientRole, {
+                content_kind: SCRIBE_DECK_ASSIGNMENT_CONTENT_KIND,
+                deck_path: deckPath,
+                deck_label: deckLabel,
+                source: WHITE_CELL_SCRIBE_DECK_ASSIGNMENT_SOURCE,
+                actor_role: this.getTimelineActorRole()
+            });
+            const content = buildScribeDeckAssignmentCommunicationContent({
+                teamLabel: team.label,
+                deckLabel,
+                deckPath
+            });
+            const communication = await database.createCommunication({
+                session_id: sessionId,
+                from_role: 'white_cell',
+                to_role: recipientRole,
+                type: 'GUIDANCE',
+                content,
+                metadata: recipientMetadata
+            });
+            communicationsStore.updateFromServer('INSERT', {
+                ...communication,
+                session_id: sessionId,
+                from_role: 'white_cell',
+                to_role: recipientRole,
+                type: 'GUIDANCE',
+                content,
+                metadata: recipientMetadata,
+                created_at: communication?.created_at || new Date().toISOString()
+            });
+
+            const gameState = this.getCurrentGameState();
+            const timelineEvent = await database.createTimelineEvent({
+                session_id: sessionId,
+                type: 'GUIDANCE',
+                content: `White Cell loaded ${deckLabel} into ${team.label} Scribe`,
+                metadata: {
+                    role: this.getTimelineActorRole(),
+                    ...recipientMetadata
+                },
+                team: 'white_cell',
+                move: gameState.move ?? 1,
+                phase: gameState.phase ?? 1
+            });
+            timelineStore.updateFromServer('INSERT', {
+                ...timelineEvent,
+                session_id: sessionId,
+                type: 'GUIDANCE',
+                content: `White Cell loaded ${deckLabel} into ${team.label} Scribe`,
+                metadata: {
+                    role: this.getTimelineActorRole(),
+                    ...recipientMetadata
+                },
+                team: 'white_cell',
+                move: gameState.move ?? 1,
+                phase: gameState.phase ?? 1,
+                created_at: timelineEvent?.created_at || new Date().toISOString()
+            });
+
+            showToast({
+                message: useDefault
+                    ? `${team.label} scribe deck reset to default.`
+                    : `${team.label} scribe deck updated.`,
+                type: 'success'
+            });
+        } catch (err) {
+            logger.error('Failed to assign scribe deck:', err);
+            showToast({ message: err.message || 'Failed to load the scribe deck.', type: 'error' });
+        } finally {
+            hideLoader();
+        }
     }
 
     async handleRemoveParticipantSeat(seatId) {
