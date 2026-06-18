@@ -26,15 +26,16 @@
             top: var(--space-4);
         }
     </style>
-  <script type="module" crossorigin src="/assets/whitecell-CKJp-uJS.js"></script>
+  <script type="module" crossorigin src="/assets/whitecell-D1bDBVNh.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/supabase-BQbgwcOn.js">
-  <link rel="modulepreload" crossorigin href="/assets/main-Dq3sAfgP.js">
+  <link rel="modulepreload" crossorigin href="/assets/main-m9FDcNMX.js">
   <link rel="modulepreload" crossorigin href="/assets/Modal-O3kyaPUL.js">
-  <link rel="modulepreload" crossorigin href="/assets/formatting-BGAZQC_o.js">
-  <link rel="modulepreload" crossorigin href="/assets/blueActionDetails-DOwPSCeZ.js">
+  <link rel="modulepreload" crossorigin href="/assets/formatting-CkznoR94.js">
+  <link rel="modulepreload" crossorigin href="/assets/blueActionDetails-DU7mqq6o.js">
   <link rel="modulepreload" crossorigin href="/assets/tribeStreetJournalEmbed-Bx87m8gF.js">
-  <link rel="modulepreload" crossorigin href="/assets/researchExport-BeF-ASj3.js">
-  <link rel="modulepreload" crossorigin href="/assets/targeting-CSKh-KLf.js">
+  <link rel="modulepreload" crossorigin href="/assets/researchExport-D8Vv7LAl.js">
+  <link rel="modulepreload" crossorigin href="/assets/targeting-BzxFLUQm.js">
+  <link rel="modulepreload" crossorigin href="/assets/deckConfig-C8MlzU7x.js">
   <link rel="modulepreload" crossorigin href="/assets/timelineDetails-aAsrYXdk.js">
   <link rel="stylesheet" crossorigin href="/assets/main-DIt3fMsB.css">
   <link rel="stylesheet" crossorigin href="/assets/grid-BrzUvBhI.css">
@@ -216,6 +217,7 @@
                                 <button type="button" class="tab-button tab-button-active" data-settings-tab="gameControls" role="tab" aria-selected="true" aria-controls="settingsPanelGameControls">Game Controls</button>
                                 <button type="button" class="tab-button" data-settings-tab="sessions" role="tab" aria-selected="false" aria-controls="settingsPanelSessions">Sessions</button>
                                 <button type="button" class="tab-button" data-settings-tab="participants" role="tab" aria-selected="false" aria-controls="settingsPanelParticipants">Participants</button>
+                                <button type="button" class="tab-button" data-settings-tab="scribeDecks" role="tab" aria-selected="false" aria-controls="settingsPanelScribeDecks">Scribe Decks</button>
                                 <button type="button" class="tab-button" data-settings-tab="exportData" role="tab" aria-selected="false" aria-controls="settingsPanelExportData">Export Data</button>
                             </div>
 
@@ -297,6 +299,20 @@
                                     </div>
                                     <div id="participantsList" class="card-list" aria-live="polite">
                                         <!-- Connected participants will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tab-panel" id="settingsPanelScribeDecks" data-settings-panel="scribeDecks" role="tabpanel" hidden>
+                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3);">
+                                        <div>
+                                            <h3 class="text-base font-semibold">Scribe Deck Assignments</h3>
+                                            <p class="text-sm text-gray-500" id="scribeDeckSettingsSummary">Loading current scribe deck assignments...</p>
+                                        </div>
+                                    </div>
+                                    <div id="scribeDeckSettingsList" class="section-grid section-grid-3" aria-live="polite">
+                                        <p class="text-sm text-gray-500">Scribe deck controls will appear here.</p>
                                     </div>
                                 </div>
                             </div>

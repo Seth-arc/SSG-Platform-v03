@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 
 import { dumpE2EMockBackend } from './support/mockBackend.js';
 import {
+    buildAppUrl,
+    LANDING_URL_PATTERN,
     authorizeGameMaster,
     authorizeWhiteCell,
     createDraftAction,
@@ -39,7 +41,7 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
     const intruder = await createIsolatedActorPage(context, 'whitecell-intruder');
 
     await test.step('block direct White Cell access without operator auth', async () => {
-        await intruder.goto('/whitecell.html');
+        await intruder.goto(buildAppUrl('whitecell.html'));
         await expect(intruder).toHaveURL(/operatorAccessSection/);
         await expect(intruder.locator('#operatorAccessSection')).toBeVisible();
     });
@@ -140,7 +142,9 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         await expect(scribe.locator('body')).toHaveAttribute('data-role-surface', 'scribe');
         await expect(scribe.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready');
         await expect(scribe.locator('#scribeSectionList')).toContainText('Communications');
-        await expect(scribe.locator('#deckSlideImage')).toBeVisible();
+        await expect(scribe.locator('#deckActionFrame')).toBeVisible();
+        await expect(scribe.locator('#deckSlideImage')).toBeHidden();
+        await expect(scribe.locator('#main-content')).toContainText(actionGoal);
         await expect(scribe.locator('#newActionBtn')).toHaveCount(0);
 
         const actionsSectionTrigger = scribe.locator('#scribeSectionList .scribe-section-trigger').first();
@@ -161,7 +165,7 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
             notes: 'Approved by White Cell lead during the topology rehearsal.'
         });
 
-        await expect(whiteCellLead.locator('#adjudicationQueue')).toContainText('No actions are waiting for adjudication.');
+        await expect(whiteCellLead.locator('#adjudicationQueue')).toContainText('No actions are waiting for White Cell deliberation.');
 
         await expect(scribe.locator('#nextSlideBtn')).toBeVisible();
         await expect(scribe.locator('#main-content')).toContainText(actionGoal);
@@ -223,7 +227,7 @@ test('@live-demo facilitator disconnect recovery and concurrent notetaker captur
         }, 'The requested role is full. Please choose another seat.');
 
         await facilitator.locator('#logoutBtn').click();
-        await facilitator.waitForURL(/\/$/);
+        await facilitator.waitForURL(LANDING_URL_PATTERN);
 
         await joinPublicParticipant(facilitatorRetry, {
             sessionCode,
@@ -288,8 +292,8 @@ test('@live-demo facilitator disconnect recovery and concurrent notetaker captur
 
         await noteOne.locator('#logoutBtn').click();
         await noteTwo.locator('#logoutBtn').click();
-        await noteOne.waitForURL(/\/$/);
-        await noteTwo.waitForURL(/\/$/);
+        await noteOne.waitForURL(LANDING_URL_PATTERN);
+        await noteTwo.waitForURL(LANDING_URL_PATTERN);
 
         await joinPublicParticipant(noteOne, {
             sessionCode,

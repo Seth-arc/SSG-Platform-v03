@@ -12,6 +12,7 @@ import { serializeBlueActionDetails } from '../features/actions/blueActionDetail
 
 const BLUE_SCRIBE_HTML_PATH = new URL('../../teams/blue/scribe.html', import.meta.url);
 const SCRIBE_CSS_PATH = new URL('../../styles/pages/scribe.css', import.meta.url);
+const VITE_CONFIG_PATH = new URL('../../vite.config.js', import.meta.url);
 
 vi.mock('../components/ui/Toast.js', () => ({
     showToast: vi.fn()
@@ -525,6 +526,14 @@ describe('scribe surface', () => {
         expect(html).not.toContain('scribe-stage-toolbar');
         expect(html).not.toContain('scribe-stage-footer');
         expect(html).not.toContain('scribe-section-trigger-description');
+    });
+
+    it('builds the team-scoped facilitator decks into the same decks/team paths that scribe seats fetch at runtime', () => {
+        const config = readFileSync(VITE_CONFIG_PATH, 'utf8');
+
+        expect(config).toContain("resolve(__dirname, 'decks/blue/fractured-order-facilitator-deck.html')");
+        expect(config).toContain("resolve(__dirname, 'decks/red/fractured-order-facilitator-deck.html')");
+        expect(config).toContain("resolve(__dirname, 'decks/green/fractured-order-facilitator-deck.html')");
     });
 
     it('switches the scribe surface into presentation mode without leaving the sidebar open', async () => {

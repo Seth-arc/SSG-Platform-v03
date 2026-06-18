@@ -52,11 +52,18 @@ The mock backend is enabled only by the local Playwright harness on `127.0.0.1` 
 You can point the suite at an already-hosted build by setting `PLAYWRIGHT_BASE_URL`, for example:
 
 ```powershell
-$env:PLAYWRIGHT_BASE_URL = 'https://<owner>.github.io/SSG_Simulation-Platform/'
+$env:PLAYWRIGHT_BASE_URL = 'https://<owner>.github.io/SSG-Platform-v03/'
+$env:PLAYWRIGHT_OPERATOR_ACCESS_CODE = '<live-operator-code>'
 npm run test:e2e:smoke
 ```
 
 When `PLAYWRIGHT_BASE_URL` targets a hosted build, the mock backend bootstrap is intentionally unavailable and the suite exercises that deployed runtime as-is.
+Provide the live operator access code through `PLAYWRIGHT_OPERATOR_ACCESS_CODE`; otherwise the hosted run falls back to the local mock code and operator authorization should fail with `Invalid operator access code.`
+Hosted runs now preflight Game Master authorization once before the suite starts. If that preflight fails, Playwright aborts immediately with a single hosted-operator error instead of repeating the same failure across all three live-demo specs.
+If the preflight reports `Invalid operator access code.`, verify the live code directly against the deployed Supabase project with `select public.live_demo_validate_operator_code('replace-this-code') as matches;` as documented in `docs/dev/SUPABASE_BLANK_PROJECT_RUNBOOK.md`.
+If the hosted build neither grants operator access nor renders an auth failure toast, the preflight and the per-test operator helper now fail closed on their own bounded auth timeout instead of drifting into the full test timeout.
+
+Hosted rehearsal coverage must navigate with repo-relative routes such as `./` or `whitecell.html`. Leading-slash paths like `/` or `/whitecell.html` escape the repo slug on GitHub Pages and land on the account root instead of the deployed app.
 
 The local automated E2E suite uses the mock backend contract through the harness-only bootstrap. Real Supabase verification is listed below.
 
@@ -93,7 +100,7 @@ Suggested rehearsal order:
 ### Pages URL
 
 - Project Pages format: `https://<owner>.github.io/<repo-slug>/`
-- For this repository, the current repo slug is usually `SSG_Simulation-Platform`, so the URL shape is `https://<owner>.github.io/SSG_Simulation-Platform/`
+- For this repository, the current repo slug is `SSG-Platform-v03`, so the URL shape is `https://<owner>.github.io/SSG-Platform-v03/`
 - That slug is a legacy operational identifier. The public product name remains `Statecraft Sim`.
 
 ### Session Creation
@@ -137,7 +144,7 @@ Suggested rehearsal order:
 - New White Cell arrivals now raise a long-lived toast and a `NEW` card marker on facilitator `White Cell Responses` or `Received Proposals`, instead of relying on the team noticing a quiet rerender.
 - Sidebar badges on facilitator surfaces still track visible items in `Responses`, `Received Proposals`, `Tribe Street Journal`, and `Verba AI`, so operators can confirm the recipient team has explicit update notifications without the counts drifting from the visible lists.
 - Notetaker `White Cell Inbox` now mirrors that arrival treatment with a live inbox badge plus `NEW` card markers for fresh White Cell traffic.
-- Scribe surfaces now open the dedicated support deck at `teams/<team>/scribe.html`; the `Actions` section is a live facilitator-action feed that turns saved drafts, submitted actions, and White Cell reviewed outcomes into individual slides, while the remaining sections stay tied to the support deck. Blue action slides now lead with a plain-language team brief, at-a-glance action cards, and grouped execution and lifecycle panels so the scribe can follow the move quickly without losing detail, including room-ready draft previews before White Cell submission. White Cell can switch each team scribe to another team-scoped `.html` deck from `Simulation Settings > Scribe Decks`; deck paths resolve inside `decks/<team>/`, and open scribe tabs reload the latest assigned deck automatically. The slide stage stays centered, vertically pinned, and visually flat with no raised frame chrome while sidebar scrolling stays isolated to the section rail, horizontal overflow is suppressed, and `Present` switches into a deck-only layout that hides the sidebar chrome while keeping the shared navbar visible.
+- Scribe surfaces now open the dedicated support deck at `teams/<team>/scribe.html`; the `Actions` section is a live facilitator-action feed that turns saved drafts, submitted actions, and White Cell reviewed outcomes into individual slides, while the remaining sections stay tied to the support deck. Blue action slides now lead with a plain-language team brief, at-a-glance action cards, and grouped execution and lifecycle panels so the scribe can follow the move quickly without losing detail, including room-ready draft previews before White Cell submission. White Cell can switch each team scribe to another team-scoped `.html` deck from `Simulation Settings > Scribe Decks`; deck paths resolve inside `decks/<team>/`, the production build now emits those same `dist/decks/<team>/` HTML entrypoints for rehearsal parity, and open scribe tabs reload the latest assigned deck automatically. The slide stage stays centered, vertically pinned, and visually flat with no raised frame chrome while sidebar scrolling stays isolated to the section rail, horizontal overflow is suppressed, and `Present` switches into a deck-only layout that hides the sidebar chrome while keeping the shared navbar visible.
 - `Tribe Street Journal` and `Verba AI` still keep their dedicated sections for reading the update content in context; the `White Cell Responses` section now acts as the inbox-style notification feed.
 
 ### White Cell Timeline Filters

@@ -5,6 +5,7 @@ const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
 
 export default defineConfig({
     timeout: 90000,
+    globalSetup: './tests/e2e/support/globalSetup.js',
     expect: {
         timeout: 10000
     },

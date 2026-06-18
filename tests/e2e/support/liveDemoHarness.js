@@ -1,6 +1,12 @@
 import { expect } from '@playwright/test';
 
 import { dumpE2EMockBackend, E2E_MOCK_OPERATOR_ACCESS_CODE } from './mockBackend.js';
+import {
+    buildAppUrl,
+    classifyOperatorAuthorizationProgress,
+    getHostedOperatorAccessCode,
+    resolveOperatorAccessCode
+} from './rehearsalRuntime.js';
 
 const SHARED_LOCAL_STORAGE_KEYS = Object.freeze([
     'esg_e2e_backend_state',
@@ -10,8 +16,13 @@ const SHARED_LOCAL_STORAGE_KEYS = Object.freeze([
 const BACKEND_RESET_KEY = '__esg_e2e_backend_reset__';
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
+const OPERATOR_AUTH_TIMEOUT_MS = 20000;
+const HOSTED_OPERATOR_ACCESS_CODE = getHostedOperatorAccessCode();
 
-export const OPERATOR_ACCESS_CODE = E2E_MOCK_OPERATOR_ACCESS_CODE;
+export { buildAppUrl } from './rehearsalRuntime.js';
+
+export const OPERATOR_ACCESS_CODE = resolveOperatorAccessCode(E2E_MOCK_OPERATOR_ACCESS_CODE);
+export const LANDING_URL_PATTERN = /(?:\/|\/index\.html)(?:#.*)?$/;
 
 export const DEFAULT_ACTION_PAYLOAD = Object.freeze({
     instrumentOfPower: 'Economic',
@@ -47,6 +58,52 @@ function normalizeSessionCode(session = {}) {
     return String(session.session_code || session.metadata?.session_code || '')
         .trim()
         .toUpperCase();
+}
+
+function requireHostedOperatorAccessCode() {
+    if (process.env.PLAYWRIGHT_BASE_URL && !HOSTED_OPERATOR_ACCESS_CODE) {
+        throw new Error(
+            'Hosted operator rehearsal requires PLAYWRIGHT_OPERATOR_ACCESS_CODE. ' +
+            'The local mock code is not valid on deployed builds.'
+        );
+    }
+}
+
+async function waitForOperatorAuthorizationRoute(page, urlPattern, operatorLabel) {
+    const deadline = Date.now() + OPERATOR_AUTH_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+        if (page.isClosed()) {
+            throw new Error(`${operatorLabel} authorization page closed before completion.`);
+        }
+
+        const currentUrl = page.url();
+        const toastText = await page.evaluate(() => (
+            document.querySelector('#toast-container')?.textContent?.trim() || ''
+        )).catch(() => '');
+        const progress = classifyOperatorAuthorizationProgress({
+            currentUrl,
+            urlPattern,
+            toastText
+        });
+
+        if (progress.status === 'success') {
+            return;
+        }
+
+        if (progress.status === 'failure') {
+            throw new Error(`${operatorLabel} authorization failed: ${progress.toastText}`);
+        }
+
+        await page.waitForTimeout(250).catch(() => {
+            throw new Error(`${operatorLabel} authorization page closed before completion.`);
+        });
+    }
+
+    throw new Error(
+        `${operatorLabel} authorization did not reach ${urlPattern} within ${OPERATOR_AUTH_TIMEOUT_MS}ms. ` +
+        `Current URL: ${page.url()}`
+    );
 }
 
 export async function createIsolatedActorPage(context, actorName, { resetBackend = false } = {}) {
@@ -182,12 +239,13 @@ export async function authorizeGameMaster(page, {
     displayName = 'Game Master Operator',
     operatorAccessCode = OPERATOR_ACCESS_CODE
 } = {}) {
-    await page.goto('/');
+    requireHostedOperatorAccessCode();
+    await page.goto(buildAppUrl());
     await page.locator('#displayName').fill(displayName);
     await openOperatorAccessSection(page);
     await page.locator('#operatorAccessCode').fill(operatorAccessCode);
     await page.locator('#operatorGameMasterBtn').click();
-    await page.waitForURL(/master\.html/);
+    await waitForOperatorAuthorizationRoute(page, /master\.html/, 'Game Master');
 }
 
 export async function createSessionFromMaster(page, {
@@ -217,7 +275,7 @@ export async function joinPublicParticipant(page, {
     team = 'blue',
     roleSurface = 'facilitator'
 } = {}) {
-    await page.goto('/');
+    await page.goto(buildAppUrl());
     await prepareLandingPage(page);
     await page.locator('#sessionCode').fill(sessionCode);
     await page.locator('#displayName').fill(displayName);
@@ -228,7 +286,7 @@ export async function joinPublicParticipant(page, {
 }
 
 export async function expectJoinFailure(page, joinOptions, expectedMessage) {
-    await page.goto('/');
+    await page.goto(buildAppUrl());
     await prepareLandingPage(page);
     await page.locator('#sessionCode').fill(joinOptions.sessionCode);
     await page.locator('#displayName').fill(joinOptions.displayName);
@@ -246,7 +304,8 @@ export async function authorizeWhiteCell(page, {
     operatorRole = 'lead',
     operatorAccessCode = OPERATOR_ACCESS_CODE
 } = {}) {
-    await page.goto('/');
+    requireHostedOperatorAccessCode();
+    await page.goto(buildAppUrl());
     await prepareLandingPage(page);
     await page.locator('#sessionCode').fill(sessionCode);
     await page.locator('#displayName').fill(displayName);
@@ -258,7 +317,7 @@ export async function authorizeWhiteCell(page, {
         : '#operatorWhiteCellLeadBtn';
 
     await page.locator(accessButtonId).click();
-    await page.waitForURL(/whitecell\.html/);
+    await waitForOperatorAuthorizationRoute(page, /whitecell\.html/, `White Cell ${operatorRole}`);
 }
 
 export async function openSidebarSection(page, section) {
@@ -354,7 +413,7 @@ export async function adjudicateAction(page, {
     const modal = page.locator('.modal-overlay');
     await modal.locator('#outcomeSelect').selectOption(outcome);
     await modal.locator('#adjudicationNotes').fill(notes);
-    await modal.getByRole('button', { name: 'Submit Adjudication' }).click();
+    await modal.getByRole('button', { name: /^(Record Deliberation|Submit Adjudication)$/ }).click();
 }
 
 export async function waitForToast(page, message) {

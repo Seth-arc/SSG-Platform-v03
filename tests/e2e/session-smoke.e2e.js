@@ -12,6 +12,7 @@ import {
     createDraftAction,
     createSessionFromMaster,
     joinPublicParticipant,
+    LANDING_URL_PATTERN,
     submitAction
 } from './support/liveDemoHarness.js';
 
@@ -55,7 +56,7 @@ test('@smoke session creation, role join, action submit, and White Cell adjudica
 
     await test.step('rejoin as White Cell and adjudicate the submitted action', async () => {
         await page.locator('#logoutBtn').click();
-        await page.waitForURL(/\/$/);
+        await page.waitForURL(LANDING_URL_PATTERN);
 
         await authorizeWhiteCell(page, {
             sessionCode,
@@ -68,7 +69,7 @@ test('@smoke session creation, role join, action submit, and White Cell adjudica
             notes: 'Approved in smoke test to verify the live submitted-to-adjudicated flow.'
         });
 
-        await expect(page.locator('#adjudicationQueue')).toContainText('No actions are waiting for adjudication.');
+        await expect(page.locator('#adjudicationQueue')).toContainText('No actions are waiting for White Cell deliberation.');
 
         await page.locator('.sidebar-link[data-section="timeline"]').click();
         await expect(page.locator('#timelineList')).toContainText('Action adjudicated: SUCCESS');
