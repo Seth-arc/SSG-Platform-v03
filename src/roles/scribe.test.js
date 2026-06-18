@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 import {
+    buildDefaultScribeDeckPath,
     SCRIBE_DECK_SECTIONS,
     expandScribeDeckSections,
     flattenScribeDeckSlides,
@@ -264,6 +265,50 @@ describe('scribe surface', () => {
             recipientTeam: 'red',
             deckPath: 'decks/red/support-brief.html',
             deckLabel: 'support brief'
+        });
+    });
+
+    it('falls back to the team default deck when an assigned override cannot be fetched', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { showToast } = await import('../components/ui/Toast.js');
+        global.document = createFakeDocument();
+        global.document.body.dataset.team = 'blue';
+        global.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 404
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: () => Promise.resolve(`
+                    <script>
+                        const SLIDES = [{"n":1,"title":"Fallback Deck","src":"data:image/png;base64,AAA="}];
+                        const SECTIONS = [];
+                    </script>
+                `)
+            });
+
+        const controller = new ScribeController();
+
+        await controller.loadDeck({
+            deckPath: 'decks/blue/missing-deck.html',
+            deckLabel: 'Missing Deck'
+        });
+
+        expect(global.fetch).toHaveBeenNthCalledWith(1, '/decks/blue/missing-deck.html', {
+            credentials: 'same-origin'
+        });
+        expect(global.fetch).toHaveBeenNthCalledWith(2, `/${buildDefaultScribeDeckPath('blue')}`, {
+            credentials: 'same-origin'
+        });
+        expect(controller.facilitatorDeckSlides).toEqual([{
+            n: 1,
+            title: 'Fallback Deck',
+            src: 'data:image/png;base64,AAA='
+        }]);
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Assigned scribe deck unavailable. Loaded the default team deck instead.',
+            type: 'warning'
         });
     });
 

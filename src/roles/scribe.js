@@ -626,7 +626,28 @@ export class ScribeController {
         });
 
         try {
-            this.facilitatorDeckSlides = await fetchScribeDeckSlides(deckPath);
+            const defaultDeckPath = buildDefaultScribeDeckPath(this.teamId);
+            const requestedDeckPath = deckPath || defaultDeckPath;
+
+            try {
+                this.facilitatorDeckSlides = await fetchScribeDeckSlides(requestedDeckPath);
+            } catch (error) {
+                if (requestedDeckPath === defaultDeckPath) {
+                    throw error;
+                }
+
+                logger.warn('Assigned scribe deck unavailable, falling back to the team default deck.', {
+                    requestedDeckPath,
+                    fallbackDeckPath: defaultDeckPath,
+                    error
+                });
+                showToast({
+                    message: 'Assigned scribe deck unavailable. Loaded the default team deck instead.',
+                    type: 'warning'
+                });
+                this.facilitatorDeckSlides = await fetchScribeDeckSlides(defaultDeckPath);
+            }
+
             this.rebuildDeck();
 
             this.renderSections();
